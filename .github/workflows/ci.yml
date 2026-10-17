@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.x"
+          cache: true
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.x"
+          cache: true
+      - run: go test ./...
+
+  e2e:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' }}
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_E2E_MODEL: ${{ vars.OPENAI_E2E_MODEL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.x"
+          cache: true
+      - name: Run e2e tests
+        if: ${{ env.OPENAI_API_KEY != '' }}
+        run: go test -tags=e2e ./...
+      - name: Skip e2e tests
+        if: ${{ env.OPENAI_API_KEY == '' }}
+        run: echo "OPENAI_API_KEY secret is not available; skipping e2e tests."
