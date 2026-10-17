@@ -57,7 +57,20 @@ func (s *Server) ControlHandler() http.Handler {
 		_, _ = w.Write([]byte("ok\n"))
 	})
 	mux.HandleFunc("/sessions/", s.serveSession)
-	return mux
+	return s.controlAuth(mux)
+}
+
+func (s *Server) controlAuth(next http.Handler) http.Handler {
+	if s.cfg.ControlToken == "" {
+		return next
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer "+s.cfg.ControlToken {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (s *Server) ListenAndServe(ctx context.Context) error {
@@ -146,8 +159,9 @@ func (s *Server) serveProxy(w http.ResponseWriter, r *http.Request) {
 
 	var rawResp bytes.Buffer
 	headerSSE := strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "text/event-stream")
+	gzipEncoded := strings.EqualFold(resp.Header.Get("Content-Encoding"), "gzip")
 	var recorder *sseRecorder
-	if headerSSE {
+	if headerSSE && !gzipEncoded {
 		recorder = newSSERecorder(startedAt)
 	}
 	_, copyErr := copyAndFlush(w, resp.Body, func(chunk []byte) {

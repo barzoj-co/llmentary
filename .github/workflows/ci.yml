@@ -33,7 +33,7 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'push' }}
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork != true }}
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       OPENAI_E2E_MODEL: ${{ vars.OPENAI_E2E_MODEL }}
@@ -43,9 +43,11 @@ jobs:
         with:
           go-version: "1.22.x"
           cache: true
+      - name: Require OPENAI_API_KEY
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "::error::OPENAI_API_KEY is required for non-fork e2e runs"
+            exit 1
+          fi
       - name: Run e2e tests
-        if: ${{ env.OPENAI_API_KEY != '' }}
-        run: go test -tags=e2e ./...
-      - name: Skip e2e tests
-        if: ${{ env.OPENAI_API_KEY == '' }}
-        run: echo "OPENAI_API_KEY secret is not available; skipping e2e tests."
+        run: go test -v -tags=e2e ./...

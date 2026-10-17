@@ -2,6 +2,7 @@ package lab
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"io"
 	"net/http"
@@ -98,5 +99,75 @@ func TestProxyPassesStreamUnchangedAndRecordsToolCall(t *testing.T) {
 	}
 	if calls[0].RequestIDs["x-request-id"] != "req_fake" {
 		t.Fatalf("request id not recorded: %+v", calls[0].RequestIDs)
+	}
+}
+
+func TestGzipSSEIsDecompressedForParsing(t *testing.T) {
+	stream := []byte("data: {\"id\":\"chatcmpl_1\",\"model\":\"gpt-test\",\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_1\",\"type\":\"function\",\"function\":{\"name\":\"lookup\",\"arguments\":\"{}\"}}]},\"finish_reason\":\"tool_calls\"}]}\n\n" +
+		"data: [DONE]\n\n")
+	var gz bytes.Buffer
+	zw := gzip.NewWriter(&gz)
+	if _, err := zw.Write(stream); err != nil {
+		t.Fatal(err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Content-Encoding", "gzip")
+		_, _ = w.Write(gz.Bytes())
+	}))
+	defer upstream.Close()
+
+	cfg := Config{ListenAddr: ":0", ControlAddr: "127.0.0.1:0"}
+	if err := cfg.AddUpstream("default=" + upstream.URL); err != nil {
+		t.Fatal(err)
+	}
+	server, err := NewServer(cfg, NewMemoryStore(), TolerantParser{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	proxy := httptest.NewServer(server.ProxyHandler())
+	defer proxy.Close()
+	control := httptest.NewServer(server.ControlHandler())
+	defer control.Close()
+	client, err := llmtestlab.NewClient(control.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessionID := client.NewSession()
+	req, err := http.NewRequest(http.MethodPost, proxy.URL+"/v1/chat/completions", bytes.NewReader([]byte(`{"model":"gpt-test","stream":true}`)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set(llmtestlab.SessionHeaderName, sessionID)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	calls, err := client.Wait(context.Background(), sessionID, time.Millisecond, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	llmtestlab.AssertToolCalled(t, calls, "lookup", map[string]any{})
+	if calls[0].Normalized.StreamTruncated {
+		t.Fatalf("gzip SSE marked truncated")
+	}
+}
+
+func TestControlNonLoopbackRequiresToken(t *testing.T) {
+	cfg := Config{ListenAddr: ":0", ControlAddr: "0.0.0.0:7778"}
+	if err := cfg.AddUpstream("default=http://example.test"); err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.Validate(); err == nil {
+		t.Fatalf("expected non-loopback control bind without token to fail")
+	}
+	cfg.ControlToken = "secret"
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("token should allow non-loopback control bind: %v", err)
 	}
 }

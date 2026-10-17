@@ -32,6 +32,7 @@ func main() {
 	var upstreams upstreamFlags
 	flag.StringVar(&cfg.ListenAddr, "listen", cfg.ListenAddr, "proxy listen address (env LLMTESTLAB_LISTEN)")
 	flag.StringVar(&cfg.ControlAddr, "control", cfg.ControlAddr, "control API listen address (env LLMTESTLAB_CONTROL_LISTEN)")
+	flag.StringVar(&cfg.ControlToken, "control-token", cfg.ControlToken, "bearer token required for control API; required for non-loopback control binds (env LLMTESTLAB_CONTROL_TOKEN)")
 	flag.Var(&upstreams, "upstream", "upstream mapping name=https://host/base; repeatable (env LLMTESTLAB_UPSTREAMS)")
 	flag.Bool("tls", false, "TODO: optional local TLS listener")
 	flag.Parse()

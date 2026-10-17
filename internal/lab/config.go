@@ -2,22 +2,25 @@ package lab
 
 import (
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"strings"
 )
 
 type Config struct {
-	ListenAddr  string
-	ControlAddr string
-	Upstreams   map[string]*url.URL
+	ListenAddr   string
+	ControlAddr  string
+	ControlToken string
+	Upstreams    map[string]*url.URL
 }
 
 func ConfigFromEnv() (Config, error) {
 	cfg := Config{
-		ListenAddr:  getenv("LLMTESTLAB_LISTEN", ":7777"),
-		ControlAddr: getenv("LLMTESTLAB_CONTROL_LISTEN", ":7778"),
-		Upstreams:   map[string]*url.URL{},
+		ListenAddr:   getenv("LLMTESTLAB_LISTEN", ":7777"),
+		ControlAddr:  getenv("LLMTESTLAB_CONTROL_LISTEN", "127.0.0.1:7778"),
+		ControlToken: os.Getenv("LLMTESTLAB_CONTROL_TOKEN"),
+		Upstreams:    map[string]*url.URL{},
 	}
 	raw := strings.TrimSpace(os.Getenv("LLMTESTLAB_UPSTREAMS"))
 	if raw == "" {
@@ -66,7 +69,22 @@ func (c Config) Validate() error {
 	if len(c.Upstreams) == 0 {
 		return fmt.Errorf("configure at least one upstream with --upstream name=https://host/base or LLMTESTLAB_UPSTREAMS")
 	}
+	if !isLoopbackListenAddr(c.ControlAddr) && c.ControlToken == "" {
+		return fmt.Errorf("control API on non-loopback address %q requires --control-token or LLMTESTLAB_CONTROL_TOKEN", c.ControlAddr)
+	}
 	return nil
+}
+
+func isLoopbackListenAddr(addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		host = strings.TrimSpace(addr)
+	}
+	if host == "localhost" || strings.HasPrefix(host, "localhost:") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 func getenv(key, fallback string) string {

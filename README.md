@@ -35,7 +35,7 @@ go install github.com/barzoj-co/llm-test-lab/cmd/llmtestlab@latest
 
 llmtestlab \
   --listen :7777 \
-  --control :7778 \
+  --control 127.0.0.1:7778 \
   --upstream openai=https://api.openai.com/v1 \
   --upstream azure=https://my-resource.openai.azure.com
 ```
@@ -44,10 +44,14 @@ Environment variables are equivalent:
 
 ```bash
 export LLMTESTLAB_LISTEN=:7777
-export LLMTESTLAB_CONTROL_LISTEN=:7778
+export LLMTESTLAB_CONTROL_LISTEN=127.0.0.1:7778
 export LLMTESTLAB_UPSTREAMS='openai=https://api.openai.com/v1,azure=https://my-resource.openai.azure.com'
 llmtestlab
 ```
+
+The control API binds to `127.0.0.1:7778` by default. If you bind it to a non-loopback
+address, set `--control-token` or `LLMTESTLAB_CONTROL_TOKEN`; clients must send
+`Authorization: Bearer <token>`.
 
 Named upstream routing uses a path prefix:
 
