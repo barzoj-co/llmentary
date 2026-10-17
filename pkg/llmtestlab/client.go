@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -15,8 +16,9 @@ import (
 )
 
 type Client struct {
-	baseURL    *url.URL
-	httpClient *http.Client
+	baseURL      *url.URL
+	httpClient   *http.Client
+	controlToken string
 }
 
 func NewClient(proxyControlURL string, opts ...ClientOption) (*Client, error) {
@@ -27,11 +29,17 @@ func NewClient(proxyControlURL string, opts ...ClientOption) (*Client, error) {
 	if u.Scheme == "" || u.Host == "" {
 		return nil, fmt.Errorf("proxy control URL must include scheme and host")
 	}
-	c := &Client{baseURL: u, httpClient: http.DefaultClient}
+	c := &Client{baseURL: u, httpClient: http.DefaultClient, controlToken: os.Getenv("LLMTESTLAB_CONTROL_TOKEN")}
 	for _, opt := range opts {
 		opt(c)
 	}
 	return c, nil
+}
+
+func WithControlToken(token string) ClientOption {
+	return func(c *Client) {
+		c.controlToken = token
+	}
 }
 
 type ClientOption func(*Client)
@@ -81,6 +89,7 @@ func (c *Client) Delete(ctx context.Context, sessionID string) error {
 	if err != nil {
 		return err
 	}
+	c.authorize(req)
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return err
@@ -100,6 +109,7 @@ func (c *Client) getJSON(ctx context.Context, path string, q url.Values, out any
 	if err != nil {
 		return err
 	}
+	c.authorize(req)
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return err
@@ -116,6 +126,12 @@ func (c *Client) resolve(path string) *url.URL {
 	u := *c.baseURL
 	u.Path = strings.TrimRight(c.baseURL.Path, "/") + path
 	return &u
+}
+
+func (c *Client) authorize(req *http.Request) {
+	if c.controlToken != "" {
+		req.Header.Set("Authorization", "Bearer "+c.controlToken)
+	}
 }
 
 func AssertToolCalled(t testing.TB, calls []Call, name string, wantArgs any) {

@@ -171,3 +171,30 @@ func TestControlNonLoopbackRequiresToken(t *testing.T) {
 		t.Fatalf("token should allow non-loopback control bind: %v", err)
 	}
 }
+
+func TestControlClientSendsBearerToken(t *testing.T) {
+	cfg := Config{ListenAddr: ":0", ControlAddr: "127.0.0.1:0", ControlToken: "secret"}
+	if err := cfg.AddUpstream("default=http://example.test"); err != nil {
+		t.Fatal(err)
+	}
+	server, err := NewServer(cfg, NewMemoryStore(), TolerantParser{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	control := httptest.NewServer(server.ControlHandler())
+	defer control.Close()
+	unauthorized, err := llmtestlab.NewClient(control.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := unauthorized.Calls(context.Background(), "s"); err == nil {
+		t.Fatalf("expected missing token to fail")
+	}
+	authorized, err := llmtestlab.NewClient(control.URL, llmtestlab.WithControlToken("secret"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := authorized.Calls(context.Background(), "s"); err != nil {
+		t.Fatalf("authorized client failed: %v", err)
+	}
+}

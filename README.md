@@ -51,7 +51,8 @@ llmtestlab
 
 The control API binds to `127.0.0.1:7778` by default. If you bind it to a non-loopback
 address, set `--control-token` or `LLMTESTLAB_CONTROL_TOKEN`; clients must send
-`Authorization: Bearer <token>`.
+`Authorization: Bearer <token>`. The Go client reads `LLMTESTLAB_CONTROL_TOKEN` by default
+or accepts `llmtestlab.WithControlToken(token)`.
 
 Named upstream routing uses a path prefix:
 
