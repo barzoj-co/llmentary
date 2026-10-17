@@ -37,7 +37,11 @@ func (p TolerantParser) Parse(call *llmtestlab.Call) {
 	case "openai.responses":
 		parseResponses(call)
 	default:
-		call.Normalized.FinishReason = "unknown"
+		if call.Normalized.Error != nil {
+			call.Normalized.FinishReason = "error"
+		} else {
+			call.Normalized.FinishReason = "unknown"
+		}
 	}
 }
 
@@ -239,6 +243,69 @@ func parseSSE(raw []byte, startedAt time.Time) ([]llmtestlab.SSEEvent, bool, []s
 		warnings = append(warnings, "sse scan error: "+err.Error())
 	}
 	return events, complete, warnings
+}
+
+type sseRecorder struct {
+	startedAt time.Time
+	pending   []byte
+	events    []llmtestlab.SSEEvent
+	complete  bool
+	warnings  []string
+}
+
+func newSSERecorder(startedAt time.Time) *sseRecorder {
+	return &sseRecorder{startedAt: startedAt}
+}
+
+func (r *sseRecorder) Write(chunk []byte) {
+	r.pending = append(r.pending, chunk...)
+	for {
+		idx, delimLen := sseDelimiter(r.pending)
+		if idx < 0 {
+			return
+		}
+		block := append([]byte(nil), r.pending[:idx+delimLen]...)
+		r.pending = append([]byte(nil), r.pending[idx+delimLen:]...)
+		r.recordBlock(block)
+	}
+}
+
+func (r *sseRecorder) Finish() ([]llmtestlab.SSEEvent, bool, []string) {
+	if len(bytes.TrimSpace(r.pending)) > 0 {
+		r.recordBlock(r.pending)
+		r.pending = nil
+	}
+	return r.events, r.complete, r.warnings
+}
+
+func (r *sseRecorder) recordBlock(block []byte) {
+	events, complete, warnings := parseSSE(block, r.startedAt)
+	atMS := time.Since(r.startedAt).Milliseconds()
+	for _, event := range events {
+		event.AtMS = atMS
+		r.events = append(r.events, event)
+	}
+	if complete {
+		r.complete = true
+	}
+	r.warnings = append(r.warnings, warnings...)
+}
+
+func sseDelimiter(b []byte) (int, int) {
+	lf := bytes.Index(b, []byte("\n\n"))
+	crlf := bytes.Index(b, []byte("\r\n\r\n"))
+	switch {
+	case lf < 0 && crlf < 0:
+		return -1, 0
+	case lf < 0:
+		return crlf, 4
+	case crlf < 0:
+		return lf, 2
+	case crlf < lf:
+		return crlf, 4
+	default:
+		return lf, 2
+	}
 }
 
 func systemHash(text string) string {

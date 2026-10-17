@@ -2,6 +2,7 @@ package lab
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"sync"
 	"time"
@@ -128,8 +129,82 @@ func (s *MemoryStore) state(sessionID string) *sessionState {
 }
 
 func copySession(state *sessionState) llmtestlab.Session {
-	calls := append([]llmtestlab.Call(nil), state.calls...)
+	calls := make([]llmtestlab.Call, len(state.calls))
+	for i := range state.calls {
+		calls[i] = cloneCall(state.calls[i])
+	}
 	return llmtestlab.Session{ID: state.id, Calls: calls}
+}
+
+func cloneCall(call llmtestlab.Call) llmtestlab.Call {
+	call.Request.Headers = cloneStringSlices(call.Request.Headers)
+	call.Response.Headers = cloneStringSlices(call.Response.Headers)
+	call.RequestIDs = cloneStringMap(call.RequestIDs)
+	call.RawRequest = append([]byte(nil), call.RawRequest...)
+	call.RawResponse = append([]byte(nil), call.RawResponse...)
+	call.SSEEvents = append([]llmtestlab.SSEEvent(nil), call.SSEEvents...)
+	for i := range call.SSEEvents {
+		call.SSEEvents[i].Data = append([]byte(nil), call.SSEEvents[i].Data...)
+	}
+	call.Normalized.ToolsDeclared = append([]llmtestlab.ToolDecl(nil), call.Normalized.ToolsDeclared...)
+	call.Normalized.ToolCalls = append([]llmtestlab.ToolCall(nil), call.Normalized.ToolCalls...)
+	for i := range call.Normalized.ToolCalls {
+		call.Normalized.ToolCalls[i].Arguments = append([]byte(nil), call.Normalized.ToolCalls[i].Arguments...)
+	}
+	call.Normalized.ToolResultsIn = append([]llmtestlab.ToolResult(nil), call.Normalized.ToolResultsIn...)
+	call.Normalized.ParserWarnings = append([]string(nil), call.Normalized.ParserWarnings...)
+	if call.Normalized.Usage != nil {
+		usage := *call.Normalized.Usage
+		usage.Raw = append([]byte(nil), usage.Raw...)
+		call.Normalized.Usage = &usage
+	}
+	if call.Normalized.ContentFilter != nil {
+		filter := *call.Normalized.ContentFilter
+		filter.Categories = cloneFilterResults(filter.Categories)
+		filter.Raw = append([]json.RawMessage(nil), filter.Raw...)
+		for i := range filter.Raw {
+			filter.Raw[i] = append([]byte(nil), filter.Raw[i]...)
+		}
+		call.Normalized.ContentFilter = &filter
+	}
+	if call.Normalized.Error != nil {
+		errCopy := *call.Normalized.Error
+		call.Normalized.Error = &errCopy
+	}
+	return call
+}
+
+func cloneStringSlices(in map[string][]string) map[string][]string {
+	if in == nil {
+		return nil
+	}
+	out := make(map[string][]string, len(in))
+	for key, values := range in {
+		out[key] = append([]string(nil), values...)
+	}
+	return out
+}
+
+func cloneStringMap(in map[string]string) map[string]string {
+	if in == nil {
+		return nil
+	}
+	out := make(map[string]string, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
+}
+
+func cloneFilterResults(in map[string]llmtestlab.FilterResult) map[string]llmtestlab.FilterResult {
+	if in == nil {
+		return nil
+	}
+	out := make(map[string]llmtestlab.FilterResult, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
 }
 
 func makeCallID(n uint64) string {

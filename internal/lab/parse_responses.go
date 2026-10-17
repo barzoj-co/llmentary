@@ -108,6 +108,8 @@ func parseResponsesStream(call *llmtestlab.Call) {
 	}
 	if !complete {
 		call.Normalized.StreamTruncated = true
+	} else {
+		call.Normalized.StreamTruncated = false
 	}
 	if len(call.Normalized.ToolCalls) == 0 && len(fallbackItems) > 0 {
 		for index, raw := range fallbackItems {

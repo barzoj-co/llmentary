@@ -80,6 +80,9 @@ func TestResponsesStreamParsesFunctionCallFromCompletedEvent(t *testing.T) {
 	if call.Normalized.FinishReason != "tool_calls" {
 		t.Fatalf("finish reason = %q", call.Normalized.FinishReason)
 	}
+	if call.Normalized.StreamTruncated {
+		t.Fatalf("responses stream with response.completed marked truncated")
+	}
 }
 
 func baseCall(family string, rawRequest, rawResponse []byte, stream bool) llmtestlab.Call {

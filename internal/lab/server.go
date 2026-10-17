@@ -145,16 +145,27 @@ func (s *Server) serveProxy(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(resp.StatusCode)
 
 	var rawResp bytes.Buffer
-	reader := io.TeeReader(resp.Body, &rawResp)
-	_, copyErr := copyAndFlush(w, reader)
+	headerSSE := strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "text/event-stream")
+	var recorder *sseRecorder
+	if headerSSE {
+		recorder = newSSERecorder(startedAt)
+	}
+	_, copyErr := copyAndFlush(w, resp.Body, func(chunk []byte) {
+		_, _ = rawResp.Write(chunk)
+		if recorder != nil {
+			recorder.Write(chunk)
+		}
+	})
 	endedAt := time.Now().UTC()
 	respHeaders := sanitizeHeaders(resp.Header)
 	parseBody := decompressIfNeeded(rawResp.Bytes(), respHeaders)
-	stream := isSSE(resp.Header, parseBody)
+	stream := headerSSE || isSSE(resp.Header, parseBody)
 	var events []llmtestlab.SSEEvent
 	var complete bool
 	var warnings []string
-	if stream {
+	if recorder != nil {
+		events, complete, warnings = recorder.Finish()
+	} else if stream {
 		events, complete, warnings = parseSSE(parseBody, startedAt)
 	}
 	s.store.Finish(sessionID, callID, func(call *llmtestlab.Call) {
@@ -265,14 +276,18 @@ func (s *Server) finishWithProxyError(sessionID, callID string, startedAt time.T
 	})
 }
 
-func copyAndFlush(w http.ResponseWriter, r io.Reader) (int64, error) {
+func copyAndFlush(w http.ResponseWriter, r io.Reader, onChunk func([]byte)) (int64, error) {
 	buf := make([]byte, 32*1024)
 	var written int64
 	flusher, _ := w.(http.Flusher)
 	for {
 		nr, er := r.Read(buf)
 		if nr > 0 {
-			nw, ew := w.Write(buf[:nr])
+			chunk := append([]byte(nil), buf[:nr]...)
+			if onChunk != nil {
+				onChunk(chunk)
+			}
+			nw, ew := w.Write(chunk)
 			written += int64(nw)
 			if flusher != nil {
 				flusher.Flush()
