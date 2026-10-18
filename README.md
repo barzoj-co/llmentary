@@ -86,16 +86,16 @@ This repository ships only the proxy. Use these MIT client libraries against it:
 
 ```mermaid
 flowchart LR
-    T[Test] -->|client session| L[Session id]
-    L -->|X-Test-Session or baggage| SDK[LLM SDK / app]
-    SDK -->|OpenAI-compatible HTTP| P[llmtestlab proxy]
-    P -->|unchanged request body and auth| U[Upstream provider]
-    U -->|unchanged response / SSE stream| P
-    P --> S[(in-memory session store)]
-    P --> O[(in-memory OTLP spans)]
-    T -->|GET /sessions/{id}/wait| S
-    T --> A[Client assertions]
-    T -->|GET /sessions/{id}/otlp| O
+    T[Test] -->|"client session"| L["Session id"]
+    L -->|"X-Test-Session or baggage"| SDK["LLM SDK / app"]
+    SDK -->|"OpenAI-compatible HTTP"| P["llmtestlab proxy"]
+    P -->|"unchanged request body and auth"| U["Upstream provider"]
+    U -->|"unchanged response / SSE stream"| P
+    P --> S[("in-memory session store")]
+    P --> O[("in-memory OTLP spans")]
+    T -->|"GET /sessions/{id}/wait"| S
+    T --> A["Client assertions"]
+    T -->|"GET /sessions/{id}/otlp"| O
 ```
 
 The proxy forwards the provider protocol unchanged. It records a tee copy, parses

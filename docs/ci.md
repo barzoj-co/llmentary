@@ -14,6 +14,17 @@ The repository's own workflow is in `.github/workflows/ci.yml`:
 - `test`: checkout, Go 1.26.x, `go test ./...` in the root AGPL proxy module and
   `go test ./...` in the proxy integration test module, plus a GoReleaser snapshot
   build (`goreleaser release --snapshot --clean`).
+- `docs-mermaid`: checkout (`actions/checkout` SHA-pinned at v4.4.0), Node 22
+  (`actions/setup-node` SHA-pinned at v4.4.0), and
+  `@mermaid-js/mermaid-cli@11.12.0` (`mmdc`). Runs
+  `bash scripts/check-mermaid.sh --self-test` with a 10-minute job timeout
+  (5-minute step timeout). The script extracts every `mermaid` fenced block from
+  tracked `*.md` files, excluding `testdata/mermaid/`, and renders each with
+  `mmdc`. A parse failure is reported as `FAIL <file>:<opening-fence-line>`.
+  `--self-test` then renders `testdata/mermaid/bad.md` (the original README
+  diagram from `main`, with unquoted `|llmtestlab.New(t)|`) and requires a
+  mermaid parse error. Run the same command locally after
+  `npm install -g @mermaid-js/mermaid-cli@11.12.0`.
 - `e2e`: runs once per change — on `pull_request` (non-fork) and on pushes to
   `main` only, not on both `push` and `pull_request` for PR branches. Requires
   `OPENAI_API_KEY` and runs `go test -v -tags=e2e ./...` in `tests/e2e`. The job
