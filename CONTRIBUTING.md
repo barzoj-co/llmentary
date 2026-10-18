@@ -84,7 +84,8 @@ and other integration tests do not, so they run without approval.
 
 `e2e-gate` is the always-run check that is green only when that live job
 succeeded. Fork PRs skip `e2e` and fail the gate; a maintainer reviews the
-diff and pushes it to a same-repo branch so e2e can run. Do not use
+diff, pushes it to a same-repo branch, and opens a pull request from that
+branch so e2e can run (a branch push alone does not start CI). Do not use
 `pull_request_target`.
 
 Maintainers approve the `openai-e2e` deployment on each PR (and on each push

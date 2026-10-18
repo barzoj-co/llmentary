@@ -25,7 +25,7 @@ gate() {
 
   if [[ "$fork" == "true" && "$result" == "skipped" ]]; then
     echo "::error::live e2e did not run; a maintainer must run it"
-    echo "Review the diff, push it to a same-repo branch; the e2e runs there. Never use pull_request_target."
+    echo "Review the diff, push it to a same-repo branch, and open a PR from that branch; e2e runs on that PR. Never use pull_request_target."
     return 1
   fi
 

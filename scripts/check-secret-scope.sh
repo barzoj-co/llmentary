@@ -102,6 +102,8 @@ BOOL_RE = re.compile(
     r"""secrets\.([A-Za-z0-9_]+)\s*(?:!=|==)\s*(?:''|"")"""
 )
 RAW_NAME_RE = re.compile(r"secrets\.([A-Za-z0-9_]+)")
+INDEX_NAME_RE = re.compile(r"""secrets\[\s*['"]([A-Za-z0-9_]+)['"]\s*\]""")
+WHOLE_SECRETS_RE = re.compile(r"\bsecrets\b(?!\s*\.)")
 GITHUB_TOKEN_NAMES = {"GITHUB_TOKEN"}
 
 
@@ -130,6 +132,21 @@ def trigger_events(on) -> set[str]:
     if isinstance(on, dict):
         return {str(k) for k in on}
     return set()
+
+
+def line_of_secret(path: pathlib.Path) -> int:
+    for needle in (
+        f"secrets.{OPENAI_SECRET}",
+        f"secrets['{OPENAI_SECRET}']",
+        f'secrets["{OPENAI_SECRET}"]',
+        "toJSON(secrets)",
+        "secrets[",
+        "secrets.",
+    ):
+        line = line_of(path, needle, default=0)
+        if line:
+            return line
+    return 1
 
 
 def line_of(path: pathlib.Path, needle: str, default: int = 1) -> int:
@@ -166,6 +183,14 @@ def secret_refs(text: str) -> list[tuple[str, bool]]:
             refs.append(("GITHUB_TOKEN", True))
         for sm in RAW_NAME_RE.finditer(expr):
             refs.append((sm.group(1), True))
+        for sm in INDEX_NAME_RE.finditer(expr):
+            refs.append((sm.group(1), True))
+        stripped = INDEX_NAME_RE.sub("", expr)
+        stripped = RAW_NAME_RE.sub("", stripped)
+        if WHOLE_SECRETS_RE.search(stripped):
+            # toJSON(secrets) or secrets[dynamic] exposes every secret.
+            refs.append((OPENAI_SECRET, True))
+            refs.append(("*", True))
     return refs
 
 
@@ -337,10 +362,17 @@ for raw in sys.argv[1:]:
                 )
                 offending += 1
 
-        if job_id != E2E_JOB and job_receives_openai(job):
+        receives = job_receives_openai(job)
+        if receives and job_id != E2E_JOB:
             print(
-                f"{path}:{line_of(path, 'secrets.' + OPENAI_SECRET)}: "
+                f"{path}:{line_of_secret(path)}: "
                 f"secret {OPENAI_SECRET} used outside job {E2E_JOB}"
+            )
+            offending += 1
+        elif receives and environment_name(job) != E2E_ENVIRONMENT:
+            print(
+                f"{path}:{line_of_secret(path)}: "
+                f"secret {OPENAI_SECRET} requires environment {E2E_ENVIRONMENT}"
             )
             offending += 1
         if job_id != E2E_JOB and environment_name(job) == E2E_ENVIRONMENT:

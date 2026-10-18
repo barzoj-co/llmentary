@@ -191,9 +191,10 @@ the `openai-e2e` deployment before the live tests start. Denis configures
 required reviewers on that environment. If approval is rejected or times out,
 `e2e` is `failure`/`cancelled` and `e2e-gate` goes red. That is intended.
 
-To run live e2e for a fork PR, a maintainer reviews the diff and pushes the
-same commits to a same-repo branch, then approves the `openai-e2e`
-deployment there. Do not use `pull_request_target` to give a fork the key.
+To run live e2e for a fork PR, a maintainer reviews the diff, pushes the same
+commits to a same-repo branch, and opens a pull request from that branch
+(a branch push alone does not start CI). Then they approve the `openai-e2e`
+deployment on that PR. Do not use `pull_request_target` to give a fork the key.
 
 Known limitation: on `pull_request`, GitHub runs the workflow and scripts from
 the PR merge commit, so a PR that edits `ci.yml` or `scripts/e2e-gate.sh` can

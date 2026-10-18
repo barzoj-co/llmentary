@@ -43,7 +43,8 @@ rand_alnum() {
 
 run_dir() {
   local target="$1"
-  gitleaks dir --config "$config" --redact --no-banner --exit-code 1 "$target"
+  shift
+  gitleaks dir --config "$config" --redact --no-banner --exit-code 1 "$@" "$target"
 }
 
 tmp="$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/gitleaks-allowlist.XXXXXX")"
@@ -84,7 +85,8 @@ PY
 unset oa_key pat_key oa_mid
 
 status=0
-out="$(run_dir "$bad_dir" 2>&1)" || status=$?
+report="$tmp/bad-report.json"
+out="$(run_dir "$bad_dir" --report-format json --report-path "$report" 2>&1)" || status=$?
 echo "self-test: constructed keys (including tests/e2e/) → exit ${status} (expected 1)"
 echo "$out"
 if [[ "$status" -eq 0 ]]; then
@@ -93,6 +95,22 @@ if [[ "$status" -eq 0 ]]; then
 fi
 if ! grep -E -q 'leaks found|Finding:' <<<"$out"; then
   echo "self-test: gitleaks did not report findings for constructed keys" >&2
+  exit 1
+fi
+if ! python3 - "$report" <<'PY'
+import json
+import pathlib
+import sys
+
+findings = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+for finding in findings:
+    path = str(finding.get("File", "")).replace("\\", "/")
+    if path == "tests/e2e/leak.txt" or path.endswith("/tests/e2e/leak.txt"):
+        raise SystemExit(0)
+raise SystemExit(1)
+PY
+then
+  echo "self-test: gitleaks did not report a finding under tests/e2e" >&2
   exit 1
 fi
 

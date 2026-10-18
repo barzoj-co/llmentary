@@ -2,6 +2,7 @@
 on: pull_request
 jobs:
   e2e:
+    environment: openai-e2e
     runs-on: ubuntu-latest
     steps:
       - name: Require and run
