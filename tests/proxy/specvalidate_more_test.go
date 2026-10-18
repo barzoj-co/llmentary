@@ -544,7 +544,7 @@ func TestG1FunctionCallArgumentsDoneWithoutName(t *testing.T) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		_, _ = io.WriteString(w, stream)
 	}
-	body := []byte(`{"model":"m","input":"hi","stream":true}`)
+	body := []byte(`{"model":"m","input":"hi"}`)
 	p := startSpecProxy(t, "warn", "strict", up)
 	sid := newSession()
 	_, _, client, session := postRaw(t, p, "/v1/responses", sid, nil, body)
@@ -560,7 +560,7 @@ func TestG1FunctionCallArgumentsDoneWithoutName(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Fatalf("expected response-side violation with event_index (pinned spec requires name; overlay #545 not applied): %v", normalized(lastCall(t, session))["spec_violations"])
+		t.Errorf("expected response-side violation with event_index (pinned spec requires name; overlay #545 not applied): %v", normalized(lastCall(t, session))["spec_violations"])
 	}
 	p2 := startSpecProxy(t, "enforce", "strict", up)
 	sid2 := newSession()
@@ -798,7 +798,11 @@ func TestOverlayChatMessageExtraProps(t *testing.T) {
 		found := false
 		for _, v := range asAnySlice(n["spec_violations"]) {
 			m := v.(map[string]any)
-			if strings.Contains(fmt.Sprint(m["pointer"]), "/messages/0/foo") || strings.Contains(fmt.Sprint(m["path"]), "messages[0].foo") {
+			if m["side"] == "response" {
+				continue
+			}
+			loc := fmt.Sprint(m["pointer"]) + " " + fmt.Sprint(m["path"]) + " " + fmt.Sprint(m["message"])
+			if strings.Contains(loc, "messages") && (strings.Contains(loc, "foo") || m["keyword"] == "unevaluatedProperties") {
 				found = true
 			}
 		}

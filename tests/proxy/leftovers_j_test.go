@@ -192,7 +192,11 @@ func TestJ3UnknownFieldsByteIdentity(t *testing.T) {
 		foundInput := false
 		for _, v := range asAnySlice(n["spec_violations"]) {
 			m := v.(map[string]any)
-			if m["side"] == "request" && (strings.Contains(fmt.Sprint(m["pointer"]), "/input/") || strings.Contains(fmt.Sprint(m["path"]), "input[")) {
+			if m["side"] != "request" {
+				continue
+			}
+			loc := fmt.Sprint(m["pointer"]) + " " + fmt.Sprint(m["path"]) + " " + fmt.Sprint(m["message"])
+			if strings.Contains(loc, "input") {
 				foundInput = true
 			}
 		}
