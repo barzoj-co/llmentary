@@ -106,9 +106,9 @@ func TestE2EResponsesToolFlow(t *testing.T) {
 	if !bytes.Contains(responsesStream, []byte("event:")) {
 		t.Fatalf("expected responses SSE stream, got %q", responsesStream)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	firstTrace := testLab.Wait(ctx)
+	firstCtx, firstCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	firstTrace := testLab.Wait(firstCtx)
+	firstCancel()
 	responseCalls := firstTrace.Query().APIType("responses").Calls()
 	if len(responseCalls) != 1 || len(responseCalls[0].Normalized.ToolCalls) != 1 {
 		t.Fatalf("expected one responses tool call:\n%s", firstTrace.Summary())
@@ -139,7 +139,9 @@ func TestE2EResponsesToolFlow(t *testing.T) {
 		t.Fatalf("expected final responses stream to mention Paris, got %q", finalStream)
 	}
 
-	assert := testLab.Expect(ctx)
+	finalCtx, finalCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer finalCancel()
+	assert := testLab.Expect(finalCtx)
 	responses := assert.Trace().Query().APIType("responses").Expect(t)
 	responses.CallCount(2)
 	responses.ToolCalled("echo_city", llmtestlab.ArgsSubset(map[string]any{"city": "Paris"}))
@@ -176,9 +178,9 @@ func TestE2EChatCompletionsNonStreaming(t *testing.T) {
 		}]
 	}`)
 	_ = postOpenAI(t, apiKey, testLab, "/chat/completions", body)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	firstTrace := testLab.Wait(ctx)
+	firstCtx, firstCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	firstTrace := testLab.Wait(firstCtx)
+	firstCancel()
 	chatCalls := firstTrace.Query().APIType("chat").Calls()
 	if len(chatCalls) != 1 || len(chatCalls[0].Normalized.ToolCalls) != 1 {
 		t.Fatalf("expected one chat tool call:\n%s", firstTrace.Summary())
@@ -195,7 +197,9 @@ func TestE2EChatCompletionsNonStreaming(t *testing.T) {
 		"temperature":0
 	}`)
 	_ = postOpenAI(t, apiKey, testLab, "/chat/completions", finalBody)
-	assert := testLab.Expect(ctx)
+	finalCtx, finalCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer finalCancel()
+	assert := testLab.Expect(finalCtx)
 	assert.CallCount(2)
 	chat := assert.Trace().Query().APIType("chat").Expect(t)
 	chat.ToolCalled("echo_city", llmtestlab.ArgsSubset(map[string]any{"city": "Paris"}))
