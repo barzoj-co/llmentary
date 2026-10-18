@@ -221,6 +221,17 @@ type Query struct {
 
 func (q Query) Calls() []Call { return append([]Call(nil), q.calls...) }
 func (q Query) Len() int      { return len(q.calls) }
+func (q Query) Trace() Trace  { return Trace{SessionID: q.trace.SessionID, Calls: q.Calls()} }
+
+func (q Query) Expect(t testing.TB) *Assertions {
+	t.Helper()
+	return &Assertions{t: t, trace: q.Trace(), fatal: true}
+}
+
+func (q Query) Check(t testing.TB) *Assertions {
+	t.Helper()
+	return &Assertions{t: t, trace: q.Trace()}
+}
 
 func (q Query) Upstream(name string) Query {
 	return q.keep(func(c Call) bool { return c.Provider == name })
@@ -273,6 +284,10 @@ type Assertions struct {
 	fatal bool
 }
 
+func (a *Assertions) Trace() Trace {
+	return a.trace
+}
+
 func (a *Assertions) fail(format string, args ...any) bool {
 	a.t.Helper()
 	msg := fmt.Sprintf(format, args...)
@@ -302,6 +317,25 @@ func (a *Assertions) CallCount(want int, opts ...CallCountOption) bool {
 		return a.fail("LLM call count mismatch: got %d, want %d", got, want)
 	}
 	return true
+}
+
+func (a *Assertions) Retries(want int) bool {
+	a.t.Helper()
+	got := 0
+	for _, call := range a.trace.Calls {
+		if call.RetryCount != nil && *call.RetryCount > 0 {
+			got++
+		}
+	}
+	if got != want {
+		return a.fail("retry call count mismatch: got %d, want %d", got, want)
+	}
+	return true
+}
+
+func (a *Assertions) NoRetries() bool {
+	a.t.Helper()
+	return a.Retries(0)
 }
 
 func (a *Assertions) ToolCalled(name string, opts ...ToolAssertionOption) bool {
