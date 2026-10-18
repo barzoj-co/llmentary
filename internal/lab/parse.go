@@ -105,7 +105,7 @@ func stripLLMTestLabBaggage(header http.Header) {
 	for _, item := range strings.Split(baggage, ",") {
 		item = strings.TrimSpace(item)
 		key, _, _ := strings.Cut(item, "=")
-		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(key)), "") {
+		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(key)), "llmtestlab.") {
 			continue
 		}
 		if item != "" {

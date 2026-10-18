@@ -78,7 +78,7 @@ func StripLLMTestLabBaggageFromContext(ctx context.Context) context.Context {
 	}
 	members := make([]baggage.Member, 0, bg.Len())
 	for _, member := range bg.Members() {
-		if strings.HasPrefix(strings.ToLower(member.Key()), "") {
+		if strings.HasPrefix(strings.ToLower(member.Key()), "llmtestlab.") {
 			continue
 		}
 		members = append(members, member)
