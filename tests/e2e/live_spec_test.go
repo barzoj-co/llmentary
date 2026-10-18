@@ -134,7 +134,7 @@ func TestLiveSpec_UnknownInContentPart_Chat(t *testing.T) {
 
 func TestLiveSpec_UnknownInToolCall_Chat(t *testing.T) {
 	runLiveProbe(t, "tool_call_chat", "/chat/completions", func(model string) []byte {
-		return []byte(`{"model":` + quoteJSON(model) + `,"messages":[{"role":"assistant","content":null,"tool_calls":[{"id":"call_1","type":"function","function":{"name":"echo","arguments":"{}"},"foo":1}]},{"role":"user","content":"Reply with ok."}],"max_tokens":16}`)
+		return []byte(`{"model":` + quoteJSON(model) + `,"messages":[{"role":"user","content":"Call echo."},{"role":"assistant","content":null,"tool_calls":[{"id":"call_1","type":"function","function":{"name":"echo","arguments":"{}"},"foo":1}]},{"role":"tool","tool_call_id":"call_1","content":"ok"}],"max_tokens":16}`)
 	})
 }
 
@@ -351,7 +351,7 @@ func TestLiveBehaviorPinsStreamError(t *testing.T) {
 func redact(_ *testing.T, body []byte) string { return string(bytes.TrimSpace(body)) }
 
 func TestLiveSpecJSONHasNoSecrets(t *testing.T) {
-	raw, _ := json.Marshal(loadLiveBehavior(t))
+	raw := liveBehaviorRaw(t)
 	if strings.Contains(strings.ToLower(string(raw)), "sk-") {
 		t.Fatal("live-behavior.json must not contain secrets")
 	}

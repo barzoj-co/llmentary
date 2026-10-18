@@ -37,7 +37,7 @@ func (e *Engine) ValidateRequest(profile, apiFamily string, raw []byte, maxBytes
 			res.Violations = append(res.Violations, e.schemaViolations(sch, raw, profile, SideRequest, nil)...)
 		}
 	}
-	res.Violations = capAndSort(res.Violations, &res.Truncated)
+	res.Violations = capAndSort(res.Violations, &res.Truncated, SideRequest)
 	res.DurationUS = time.Since(start).Microseconds()
 	return res
 }
@@ -53,7 +53,7 @@ func (e *Engine) ValidateResponse(profile, apiFamily string, raw []byte, stream 
 	if sch != nil {
 		res.Violations = append(res.Violations, e.schemaViolations(sch, raw, profile, SideResponse, eventIndex)...)
 	}
-	res.Violations = capAndSort(res.Violations, &res.Truncated)
+	res.Violations = capAndSort(res.Violations, &res.Truncated, SideResponse)
 	res.DurationUS = time.Since(start).Microseconds()
 	return res
 }
@@ -176,6 +176,30 @@ func flattenSchemaError(err error) []schemaErr {
 		out = append(out, item)
 	}
 	walk(ve)
+	return dropInputTypeIfNested(out)
+}
+
+func dropInputTypeIfNested(in []schemaErr) []schemaErr {
+	// InputParam is oneOf[string, array]. The losing branch emits a type
+	// error at /input. Drop that leaf only when another error is nested
+	// under /input/, so a real type mismatch at /input is still reported.
+	hasNested := false
+	for _, item := range in {
+		if strings.HasPrefix(item.pointer, "/input/") {
+			hasNested = true
+			break
+		}
+	}
+	if !hasNested {
+		return in
+	}
+	out := make([]schemaErr, 0, len(in))
+	for _, item := range in {
+		if item.keyword == "type" && item.pointer == "/input" {
+			continue
+		}
+		out = append(out, item)
+	}
 	return out
 }
 
@@ -187,11 +211,6 @@ func isCompositionArtifact(item schemaErr) bool {
 		case "/model", "/messages", "/input", "/tools", "/temperature", "/stream":
 			return true
 		}
-	}
-	// InputParam is oneOf[string, array]. The losing branch emits a type
-	// error at /input that is not a real request problem.
-	if item.keyword == "type" && item.pointer == "/input" {
-		return true
 	}
 	return false
 }
@@ -261,7 +280,7 @@ func trimBOM(raw []byte) []byte {
 	return raw
 }
 
-func capAndSort(in []Violation, truncated *bool) []Violation {
+func capAndSort(in []Violation, truncated *bool, side string) []Violation {
 	sort.SliceStable(in, func(i, j int) bool {
 		if in[i].Side != in[j].Side {
 			return in[i].Side < in[j].Side
@@ -276,7 +295,7 @@ func capAndSort(in []Violation, truncated *bool) []Violation {
 	}
 	kept := append([]Violation(nil), in[:MaxFindings]...)
 	kept = append(kept, Violation{
-		Side:    SideRequest,
+		Side:    side,
 		Source:  SourceSyntax,
 		Keyword: "truncated",
 		Message: "too many findings",

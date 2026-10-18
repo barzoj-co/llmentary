@@ -126,4 +126,4 @@ jobs:
         working-directory: tests/proxy
         env:
           GOMAXPROCS: "2"
-        run: go test -count=1 -timeout 15m -tags=perf -v -run 'TestI2|TestI3|TestI4|TestI5' .
+        run: go test -count=1 -timeout 15m -tags=perf -v -run 'TestI2|TestI3|TestI4|TestI5|TestG4' .

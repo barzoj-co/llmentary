@@ -233,7 +233,7 @@ curl http://127.0.0.1:7778/sessions/test-1
       "stream": false,
       "http_status": 200,
       "normalized": {
-        "derived_version": 2,
+        "derived_version": 3,
         "model": {
           "requested": "gpt-4.1-mini",
           "returned": "gpt-4.1-mini"

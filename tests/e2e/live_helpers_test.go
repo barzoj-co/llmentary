@@ -168,13 +168,19 @@ type liveBehaviorRow struct {
 	Overlay           string         `json:"overlay"`
 }
 
-func loadLiveBehavior(t *testing.T) liveBehaviorFile {
+func liveBehaviorRaw(t *testing.T) []byte {
 	t.Helper()
 	_, file, _, _ := runtime.Caller(0)
 	raw, err := os.ReadFile(filepath.Join(filepath.Dir(file), "testdata", "live-behavior.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
+	return raw
+}
+
+func loadLiveBehavior(t *testing.T) liveBehaviorFile {
+	t.Helper()
+	raw := liveBehaviorRaw(t)
 	var out liveBehaviorFile
 	if err := json.Unmarshal(raw, &out); err != nil {
 		t.Fatal(err)

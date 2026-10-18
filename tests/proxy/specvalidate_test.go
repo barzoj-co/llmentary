@@ -424,7 +424,7 @@ func TestF5DuplicateKeys(t *testing.T) {
 	p2 := startSpecProxy(t, "warn", "relaxed", chatOK())
 	sid2 := newSession()
 	_, _, _, session2 := postRaw(t, p2, "/v1/chat/completions", sid2, nil, body)
-	assertKeyword(t, normalized(lastCall(t, session2)), "")
+	assertKeyword(t, normalized(lastCall(t, session2)), "duplicateKey")
 }
 
 func TestF6Numbers(t *testing.T) {

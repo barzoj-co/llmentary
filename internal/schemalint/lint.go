@@ -3,6 +3,7 @@
 package schemalint
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -403,6 +404,9 @@ func firstObject(raw []byte) []byte {
 }
 
 func specvalidateFirstJSON(raw []byte) []byte {
+	if bytes.HasPrefix(raw, []byte{0xEF, 0xBB, 0xBF}) {
+		raw = raw[3:]
+	}
 	var v json.RawMessage
 	dec := json.NewDecoder(strings.NewReader(string(raw)))
 	if err := dec.Decode(&v); err != nil {
@@ -457,5 +461,6 @@ var responsesFunctionKeys = map[string]struct{}{
 }
 var responsesContentPartKeys = map[string]struct{}{
 	"type": {}, "text": {}, "image_url": {}, "detail": {}, "file_id": {},
-	"prompt_cache_breakpoint": {},
+	"file_data": {}, "file_url": {}, "filename": {}, "annotations": {},
+	"logprobs": {}, "refusal": {}, "prompt_cache_breakpoint": {},
 }

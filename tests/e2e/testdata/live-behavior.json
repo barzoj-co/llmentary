@@ -136,13 +136,13 @@
     },
     "utf8_bom_chat": {
       "test": "TestLiveSpec_UTF8BOM_Chat",
-      "status": 200,
-      "overlay": "utf8BOM"
+      "status": 400,
+      "error": {"type": "invalid_request_error", "message_contains": "JSON"}
     },
     "duplicate_keys_chat": {
       "test": "TestLiveSpec_DuplicateKeys_Chat",
-      "status": 200,
-      "overlay": "duplicateKey"
+      "status": 400,
+      "error": {"type": "invalid_request_error", "code": "invalid_json"}
     },
     "content_part_chat": {
       "test": "TestLiveSpec_UnknownInContentPart_Chat",
@@ -156,8 +156,8 @@
     },
     "content_part_responses": {
       "test": "TestLiveSpec_UnknownInContentPart_Responses",
-      "status": 200,
-      "overlay": "responses-content-part-extra-props"
+      "status": 400,
+      "error": {"type": "invalid_request_error", "code": "unknown_parameter", "param": "input[0].content[0].foo"}
     },
     "stream_error_responses": {
       "test": "TestE2EResponsesStreamErrorShape",

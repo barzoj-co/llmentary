@@ -231,8 +231,8 @@ func (ex *proxyExchange) finishCall(resp *http.Response, rawBody []byte, firstBy
 		if call.Normalized.Error != nil && call.RetryAfter != "" {
 			call.Normalized.Error.RetryAfter = call.RetryAfter
 		}
-		if ex.s.validation != nil {
-			vios, extra, dur, trunc := ex.s.validation.checkResponse(call.APIFamily, parseBody, stream, events)
+		if ex.s.validation != nil && resp.StatusCode < 400 {
+			vios, extra, dur, trunc := ex.s.validation.checkResponse(call.APIFamily, resp.StatusCode, parseBody, stream, events)
 			if call.APIFamily == "openai.responses" && ex.s.validation.linter != nil {
 				extra = append(extra, ex.s.validation.linter.ConfirmStrictFallback(parseBody, omittedStrictToolIndexes(call.RawRequest))...)
 			}

@@ -53,13 +53,13 @@ func parseChatBody(call *Call) {
 		return
 	}
 	if call.HTTPStatus < 400 {
-		noteMissingRequired(call, call.RawResponse, "id", "choices")
+		noteMissingRequired(call, body, "id", "choices")
 	}
 	if resp.Id != "" {
 		call.RequestIDs["body.id"] = resp.Id
 	}
 	call.Normalized.Model.Returned = resp.Model
-	if raw := jsonField(call.RawResponse, "usage"); len(raw) > 0 {
+	if raw := jsonField(body, "usage"); len(raw) > 0 {
 		call.Normalized.Usage = usageFromChat(raw, "body")
 	}
 	var calls []ToolCall
@@ -84,7 +84,7 @@ func parseChatBody(call *Call) {
 		_ = i
 	}
 	call.Normalized.ToolCalls = calls
-	applyChatExtensions(call, call.RawResponse, nil)
+	applyChatExtensions(call, body, nil)
 }
 
 func parseChatStream(call *Call) {

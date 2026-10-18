@@ -11,18 +11,10 @@ info:
   added: "2026-10-18"
 
 # Pre-checks that the live API accepts. strict still flags them; relaxed does not.
+# Live OpenAI now rejects UTF-8 BOM and duplicate JSON keys (probed 2026-10-18),
+# so neither pre-check is skipped under relaxed.
 prechecks:
-  skip:
-    - id: duplicateKey
-      why: Live Chat Completions accepts duplicate JSON object keys (last value wins).
-      evidence:
-        live_test: TestLiveSpec_DuplicateKeys_Chat
-      added: "2026-10-18"
-    - id: utf8BOM
-      why: Live Chat Completions and Responses accept a UTF-8 BOM prefix before the JSON object.
-      evidence:
-        live_test: TestLiveSpec_UTF8BOM_Chat
-      added: "2026-10-18"
+  skip: []
 
 entries:
   - id: chat-message-extra-props
@@ -83,13 +75,3 @@ entries:
     schemas:
       - ChatCompletionMessageToolCall
       - ChatCompletionMessageToolCallChunk
-
-  - id: responses-content-part-extra-props
-    why: Live Responses silently ignores unknown fields on input content parts (not on the input item itself).
-    evidence:
-      live_test: TestLiveSpec_UnknownInContentPart_Responses
-    added: "2026-10-18"
-    action: reopen_object
-    schemas:
-      - InputTextContent
-      - InputImageContent

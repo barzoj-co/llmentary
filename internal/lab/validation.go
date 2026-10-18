@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -106,8 +107,14 @@ func (rt *validationRuntime) checkRequest(apiFamily, contentType, contentEncodin
 	}
 	validateBytes := raw
 	if strings.EqualFold(contentEncoding, "gzip") {
-		plain, err := gunzipBytes(raw)
+		plain, err := gunzipBytes(raw, rt.maxBytes)
 		if err != nil {
+			if errors.Is(err, errDecompressedTooLarge) {
+				out.info.SkippedReason = strPtr("body_too_large")
+				out.info.RequestChecked = false
+				out.warnings = append(out.warnings, "spec validation skipped: body_too_large")
+				return out
+			}
 			out.info.SkippedReason = strPtr("unsupported_content_encoding")
 			out.info.RequestChecked = false
 			out.warnings = append(out.warnings, "spec validation skipped: gzip body could not be decompressed")
@@ -152,8 +159,11 @@ func (rt *validationRuntime) checkRequest(apiFamily, contentType, contentEncodin
 	return out
 }
 
-func (rt *validationRuntime) checkResponse(apiFamily string, raw []byte, stream bool, events []SSEEvent) (violations []specvalidate.Violation, ignored []schemalint.Finding, duration int64, truncated bool) {
+func (rt *validationRuntime) checkResponse(apiFamily string, status int, raw []byte, stream bool, events []SSEEvent) (violations []specvalidate.Violation, ignored []schemalint.Finding, duration int64, truncated bool) {
 	if rt == nil || rt.mode == specvalidate.ModeOff || rt.engine == nil {
+		return nil, nil, 0, false
+	}
+	if status >= 400 {
 		return nil, nil, 0, false
 	}
 	if stream && len(events) > 0 {
@@ -319,13 +329,25 @@ func looksLikeJSON(contentType string, raw []byte) bool {
 	return strings.Contains(strings.ToLower(contentType), "json")
 }
 
-func gunzipBytes(raw []byte) ([]byte, error) {
+var errDecompressedTooLarge = errors.New("decompressed body exceeds spec-validation-max-bytes")
+
+func gunzipBytes(raw []byte, maxBytes int) ([]byte, error) {
 	r, err := gzip.NewReader(bytes.NewReader(raw))
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = r.Close() }()
-	return io.ReadAll(r)
+	if maxBytes <= 0 {
+		maxBytes = specvalidate.DefaultMaxBytes
+	}
+	limited, err := io.ReadAll(io.LimitReader(r, int64(maxBytes)+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(limited) > maxBytes {
+		return nil, errDecompressedTooLarge
+	}
+	return limited, nil
 }
 
 func strPtr(s string) *string { return &s }
