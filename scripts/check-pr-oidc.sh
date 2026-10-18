@@ -10,7 +10,8 @@ Usage: scripts/check-pr-oidc.sh [--self-test]
 Scan .github/workflows/*.y*ml. A workflow triggered by pull_request or
 pull_request_target must not grant id-token: write (top-level, write-all,
 or any job). A workflow_call job that grants id-token: write must restrict
-the caller with if: github.repository == 'barzoj-co/llm-test-lab'.
+the caller with if: exactly github.repository == 'barzoj-co/llm-test-lab'
+(either quote style; optional ${{ }} wrap; surrounding whitespace only).
 OIDC minting belongs in this repository's release workflow only.
 
   --self-test  also accept scripts/testdata/pr-oidc/good and reject each bad fixture
@@ -44,12 +45,17 @@ scan_files() {
 from __future__ import annotations
 
 import pathlib
+import re
 import sys
 
 import yaml
 
 PR_EVENTS = {"pull_request", "pull_request_target"}
-REPO_NAME = "barzoj-co/llm-test-lab"
+REPO_EQ = (
+    r"github\.repository\s*==\s*"
+    r"""(?:'barzoj-co/llm-test-lab'|"barzoj-co/llm-test-lab")"""
+)
+REPO_IF_RE = re.compile(r"^(?:\$\{\{\s*" + REPO_EQ + r"\s*\}\}|" + REPO_EQ + r")$")
 
 
 def load(path: pathlib.Path):
@@ -84,8 +90,7 @@ def repo_restricted(job: dict) -> bool:
     expr = job.get("if")
     if expr is None:
         return False
-    text = str(expr)
-    return "github.repository" in text and REPO_NAME in text
+    return REPO_IF_RE.fullmatch(str(expr).strip()) is not None
 
 
 def job_has_id_token_write(job: dict, top_write: bool) -> bool:

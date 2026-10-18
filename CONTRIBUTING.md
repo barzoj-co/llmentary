@@ -177,8 +177,9 @@ commit title to choose the next version.
 
 ## Coverage
 
-CI uploads unit and proxy fixture coverage to Codecov. Statuses are
-informational and do not fail the PR.
+CI uploads unit and proxy fixture coverage to Codecov. Project and
+patch statuses are informational. Separately, the CI upload step fails
+CI only when `vars.CODECOV_REQUIRED == 'true'`.
 
 ## Renovate
 
