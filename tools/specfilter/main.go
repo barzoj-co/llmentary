@@ -46,6 +46,7 @@ func filterSpec(specPath, opsPath, outPath string) error {
 	if err != nil {
 		return err
 	}
+	renameResponseObjectEnums(filtered)
 	ensureDiscriminatorMappings(filtered)
 	out, err := json.MarshalIndent(filtered, "", "  ")
 	if err != nil {
@@ -287,6 +288,41 @@ func usedTagNames(paths map[string]any) map[string]struct{} {
 		}
 	}
 	return used
+}
+
+// renameResponseObjectEnums avoids oapi-codegen collisions between the
+// `object` enum on Create*Response schemas and the generated
+// Create*ResponseObject strict-server interface. Overlay cannot name
+// CreateEmbeddingResponse while that operation is filtered out (strict
+// apply fails); specfilter applies the rename only when the schema is
+// present so adding createEmbedding to operations.txt generates cleanly.
+func renameResponseObjectEnums(spec map[string]any) {
+	components, _ := spec["components"].(map[string]any)
+	schemas, _ := components["schemas"].(map[string]any)
+	if schemas == nil {
+		return
+	}
+	for _, name := range sortedKeys(schemas) {
+		switch name {
+		case "CreateChatCompletionResponse", "CreateEmbeddingResponse", "CreateResponseResponse":
+		default:
+			continue
+		}
+		schema, _ := schemas[name].(map[string]any)
+		props, _ := schema["properties"].(map[string]any)
+		obj, _ := props["object"].(map[string]any)
+		if obj == nil {
+			continue
+		}
+		if _, ok := obj["x-go-type-name"]; ok {
+			continue
+		}
+		mid := strings.TrimSuffix(strings.TrimPrefix(name, "Create"), "Response")
+		if mid == "" {
+			continue
+		}
+		obj["x-go-type-name"] = mid + "ObjectType"
+	}
 }
 
 func ensureDiscriminatorMappings(spec map[string]any) {

@@ -13,14 +13,10 @@ actions:
     update:
       x-go-type-name: ChatCompletionObjectType
 
-  # why: same object-enum vs strict-server response interface collision as
-  # CreateChatCompletionResponse. The embeddings operation is not generated
-  # today, but adding createEmbedding to operations.txt must produce a clean
-  # compile error for the missing StrictServerInterface method — not a type
-  # redeclaration. Rename the enum only.
-  - target: $.components.schemas.CreateEmbeddingResponse.properties.object
-    update:
-      x-go-type-name: EmbeddingObjectType
+  # CreateEmbeddingResponse.properties.object is renamed to EmbeddingObjectType
+  # by tools/specfilter.renameResponseObjectEnums when createEmbedding is
+  # listed. A matching overlay action would fail strict apply while that
+  # schema is absent from the filtered subgraph (that is the A5 point).
 
   # Discriminator mapping for ResponseStreamEvent (propertyName=type → wire
   # values such as response.output_text.delta) is injected by tools/specfilter

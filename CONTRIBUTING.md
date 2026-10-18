@@ -21,7 +21,10 @@ OpenAI OpenAPI spec.
   `object` enum, and the same for embeddings). Every action has a "why"
   comment. Discriminator mapping for `ResponseStreamEvent` is **not** an
   overlay action: `tools/specfilter` injects it via
-  `ensureDiscriminatorMappings`.
+  `ensureDiscriminatorMappings`. The `CreateEmbeddingResponse.object` enum
+  is renamed to `EmbeddingObjectType` by `renameResponseObjectEnums` when
+  that schema is in the filtered subgraph (an overlay action would fail
+  strict apply while embeddings are not generated).
 - `make gen` filters the spec (`tools/specfilter`) and runs pinned
   `oapi-codegen` v2.8.0 (`go tool oapi-codegen`, never `@latest`).
 - CI job `codegen-check` runs `make gen`, `go mod tidy`, and `git diff --exit-code`.

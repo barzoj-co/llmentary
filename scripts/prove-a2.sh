@@ -22,13 +22,10 @@ if make codegen-check >/tmp/a2-codegen-check.out 2>&1; then
   cat /tmp/a2-codegen-check.out >&2
   exit 1
 fi
-if ! grep -E 'internal/openaiapi/gen.go|codegen-check|exit-code' /tmp/a2-codegen-check.out >/dev/null; then
-  # git diff --exit-code prints the drifted file; accept either that or make's failure.
-  if ! grep -q 'hand-edit-should-fail-codegen-check' /tmp/a2-codegen-check.out && \
-     ! grep -q 'internal/openaiapi/gen.go' /tmp/a2-codegen-check.out; then
-    echo "A2 proof failed: codegen-check failed, but not because gen.go drifted:" >&2
-    cat /tmp/a2-codegen-check.out >&2
-    exit 1
-  fi
+if ! grep -q 'hand-edit-should-fail-codegen-check' /tmp/a2-codegen-check.out && \
+   ! grep -q 'internal/openaiapi/gen.go' /tmp/a2-codegen-check.out; then
+  echo "A2 proof failed: codegen-check failed, but not because gen.go drifted:" >&2
+  cat /tmp/a2-codegen-check.out >&2
+  exit 1
 fi
 echo "A2 proof: committed hand-edit of gen.go is rejected by make codegen-check"
