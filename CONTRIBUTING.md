@@ -78,15 +78,18 @@ The e2e tests use a real OpenAI key, start an in-process proxy/control server wi
 
 ## CI secrets and the e2e gate
 
-CI scopes `OPENAI_API_KEY` to the `Run e2e tests` step. `e2e-gate` is the
-always-run check that is green only when that live job succeeded. Fork PRs skip
-`e2e` and fail the gate; a maintainer reviews the diff and pushes it to a
-same-repo branch so e2e can run. Do not use `pull_request_target`.
+CI scopes `OPENAI_API_KEY` to the `Run e2e tests` step of the live `e2e` job.
+That job is the only one that uses `environment: openai-e2e`. Mock, fixture,
+and other integration tests do not, so they run without approval.
 
-To require approval later, add `environment: openai-e2e` above `runs-on:` in
-the `e2e` job after Denis creates that environment and moves the key into it.
-Do not add `environment:` first (GitHub would create it unprotected). See
-`docs/ci.md`.
+`e2e-gate` is the always-run check that is green only when that live job
+succeeded. Fork PRs skip `e2e` and fail the gate; a maintainer reviews the
+diff and pushes it to a same-repo branch so e2e can run. Do not use
+`pull_request_target`.
+
+Maintainers approve the `openai-e2e` deployment on each PR (and on each push
+to `main`) before live e2e starts. Denis configures the required reviewers on
+that environment. See `docs/ci.md`.
 
 On `pull_request`, GitHub evaluates `e2e-gate` from the PR's own workflow
 files; review `.github/**` and `scripts/**` diffs. The gate is not a substitute

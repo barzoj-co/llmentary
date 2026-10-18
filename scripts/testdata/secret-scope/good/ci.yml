@@ -1,0 +1,18 @@
+# Fixture: ci.yml with environment-gated e2e and a valid e2e-gate.
+on: pull_request
+jobs:
+  e2e:
+    environment: openai-e2e
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run e2e tests
+        env:
+          HAS_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY != '' }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: go test -v -tags=e2e ./...
+  e2e-gate:
+    if: ${{ always() }}
+    needs: [e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - run: bash scripts/e2e-gate.sh

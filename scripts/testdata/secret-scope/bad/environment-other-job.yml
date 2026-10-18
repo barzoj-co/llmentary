@@ -1,0 +1,8 @@
+# expect: environment openai-e2e used outside job e2e
+on: pull_request
+jobs:
+  test:
+    environment: openai-e2e
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo ok

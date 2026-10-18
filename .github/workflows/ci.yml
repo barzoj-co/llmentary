@@ -115,9 +115,8 @@ jobs:
         run: bash scripts/check-mermaid.sh --self-test
 
   e2e:
-    # To require maintainer approval for live e2e, add one line here:
-    #   environment: openai-e2e
-    # after Denis creates that environment with its protection rules and moves OPENAI_API_KEY into it.
+    # Maintainers approve this environment on each run that needs OPENAI_API_KEY.
+    environment: openai-e2e
     runs-on: ubuntu-latest
     timeout-minutes: 20
     # Live e2e once per change: pull_request (non-fork) or push to main.

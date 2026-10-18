@@ -5,19 +5,25 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: scripts/check-secret-scope.sh [--self-test] [--e2e-job <id>]
+Usage: scripts/check-secret-scope.sh [--self-test] [--e2e-job <id>] [--e2e-environment <name>] [--openai-secret <name>]
 
 Scan .github/workflows/*.y*ml for secret-placement violations.
 A file named ci.yml must contain job e2e-gate with if: containing always()
-and needs containing the e2e job id (default e2e).
+and needs containing the e2e job id (default e2e), and that e2e job must set
+environment: openai-e2e (or --e2e-environment). No other job may receive
+OPENAI_API_KEY (or --openai-secret) or that environment.
 
-  --e2e-job <id>  e2e job id that e2e-gate must need (default: e2e)
-  --self-test     accept scripts/testdata/secret-scope/good and reject each bad fixture
+  --e2e-job <id>           e2e job id that e2e-gate must need (default: e2e)
+  --e2e-environment <name> environment the e2e job must use (default: openai-e2e)
+  --openai-secret <name>   live-e2e secret that only the e2e job may use (default: OPENAI_API_KEY)
+  --self-test              accept scripts/testdata/secret-scope/good and reject each bad fixture
 EOF
 }
 
 SELF_TEST=0
 E2E_JOB=e2e
+E2E_ENVIRONMENT=openai-e2e
+OPENAI_SECRET=OPENAI_API_KEY
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --self-test) SELF_TEST=1; shift ;;
@@ -27,6 +33,22 @@ while [[ $# -gt 0 ]]; do
         exit 2
       fi
       E2E_JOB="$2"
+      shift 2
+      ;;
+    --e2e-environment)
+      if [[ $# -lt 2 ]]; then
+        echo "--e2e-environment requires an argument" >&2
+        exit 2
+      fi
+      E2E_ENVIRONMENT="$2"
+      shift 2
+      ;;
+    --openai-secret)
+      if [[ $# -lt 2 ]]; then
+        echo "--openai-secret requires an argument" >&2
+        exit 2
+      fi
+      OPENAI_SECRET="$2"
       shift 2
       ;;
     -h|--help) usage; exit 0 ;;
@@ -48,7 +70,7 @@ fi
 
 # Print "file:line: ..." for each violation. Exit 1 if any.
 scan_files() {
-  E2E_JOB="$E2E_JOB" python3 - "$@" <<'PY'
+  E2E_JOB="$E2E_JOB" E2E_ENVIRONMENT="$E2E_ENVIRONMENT" OPENAI_SECRET="$OPENAI_SECRET" python3 - "$@" <<'PY'
 from __future__ import annotations
 
 import os
@@ -59,6 +81,8 @@ import sys
 import yaml
 
 E2E_JOB = os.environ.get("E2E_JOB", "e2e")
+E2E_ENVIRONMENT = os.environ.get("E2E_ENVIRONMENT", "openai-e2e")
+OPENAI_SECRET = os.environ.get("OPENAI_SECRET", "OPENAI_API_KEY")
 INSTALL_CMDS = (
     "npm ci",
     "npm install",
@@ -170,6 +194,49 @@ def steps_of(job: dict) -> list[dict]:
     return [s for s in steps if isinstance(s, dict)]
 
 
+def environment_name(job: dict) -> str | None:
+    env = job.get("environment")
+    if isinstance(env, str):
+        return env
+    if isinstance(env, dict) and env.get("name") is not None:
+        return str(env.get("name"))
+    return None
+
+
+def text_mentions_openai(text: str) -> bool:
+    return any(name == OPENAI_SECRET for name, _ in secret_refs(text))
+
+
+def job_receives_openai(job: dict) -> bool:
+    env = job.get("env")
+    if isinstance(env, dict):
+        for value in env.values():
+            if isinstance(value, str) and text_mentions_openai(value):
+                return True
+    secrets = job.get("secrets")
+    if isinstance(secrets, dict):
+        for key, value in secrets.items():
+            if str(key) == OPENAI_SECRET:
+                return True
+            if isinstance(value, str) and text_mentions_openai(value):
+                return True
+    for step in steps_of(job):
+        run = step.get("run")
+        if isinstance(run, str) and text_mentions_openai(run):
+            return True
+        step_env = step.get("env")
+        if isinstance(step_env, dict):
+            for value in step_env.values():
+                if isinstance(value, str) and text_mentions_openai(value):
+                    return True
+        with_ = step.get("with")
+        if isinstance(with_, dict):
+            for value in with_.values():
+                if isinstance(value, str) and text_mentions_openai(value):
+                    return True
+    return False
+
+
 offending = 0
 for raw in sys.argv[1:]:
     path = pathlib.Path(raw)
@@ -270,6 +337,19 @@ for raw in sys.argv[1:]:
                 )
                 offending += 1
 
+        if job_id != E2E_JOB and job_receives_openai(job):
+            print(
+                f"{path}:{line_of(path, 'secrets.' + OPENAI_SECRET)}: "
+                f"secret {OPENAI_SECRET} used outside job {E2E_JOB}"
+            )
+            offending += 1
+        if job_id != E2E_JOB and environment_name(job) == E2E_ENVIRONMENT:
+            print(
+                f"{path}:{line_of(path, E2E_ENVIRONMENT)}: "
+                f"environment {E2E_ENVIRONMENT} used outside job {E2E_JOB}"
+            )
+            offending += 1
+
     if path.name == "ci.yml":
         gate = jobs.get("e2e-gate")
         ok = isinstance(gate, dict)
@@ -285,6 +365,14 @@ for raw in sys.argv[1:]:
             ok = "always()" in if_val and E2E_JOB in need_ids
         if not ok:
             print(f"{path}:{line_of(path, 'e2e-gate')}: missing or malformed e2e-gate job")
+            offending += 1
+        e2e_job = jobs.get(E2E_JOB)
+        env_ok = isinstance(e2e_job, dict) and environment_name(e2e_job) == E2E_ENVIRONMENT
+        if not env_ok:
+            print(
+                f"{path}:{line_of(path, 'environment:')}: "
+                f"missing or malformed environment on {E2E_JOB} job"
+            )
             offending += 1
 
 sys.exit(1 if offending else 0)
