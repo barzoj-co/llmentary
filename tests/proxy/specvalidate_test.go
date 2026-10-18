@@ -197,6 +197,13 @@ func TestBMatrix(t *testing.T) {
 						if rawJSONHasKey(raw, "validation") {
 							t.Fatal("off leaked validation")
 						}
+						n := normalized(call)
+						if strings.HasPrefix(r.name, "B5") {
+							assertParserWarningsEmpty(t, n)
+						}
+						if strings.HasPrefix(r.name, "B8") {
+							assertTypedDecodeWarning(t, n)
+						}
 					case "warn":
 						if p.upstream.Count() != 1 {
 							t.Fatalf("upstream=%d", p.upstream.Count())
@@ -204,10 +211,22 @@ func TestBMatrix(t *testing.T) {
 						if !bytes.Equal(p.upstream.LastBody(), r.body) {
 							t.Fatalf("bytes mutated")
 						}
+						if !bytes.Equal(body, p.upstream.LastResponse()) {
+							t.Fatalf("client response mutated\nclient=%s\nupstream=%s", body, p.upstream.LastResponse())
+						}
 						n := normalized(call)
 						assertKeyword(t, n, wantKeyword)
 						assertIgnoredKind(t, n, r.ignoredKind)
 						assertBMatrixLocation(t, n, locPath, locPtr, wantKeyword, r.ignoredKind, r.body)
+						if ctx := bMatrixIgnoredContext(r.name); ctx != "" {
+							assertIgnoredMeta(t, n, r.ignoredKind, locPath, ctx)
+						}
+						if strings.HasPrefix(r.name, "B5") {
+							assertParserWarningsEmpty(t, n)
+						}
+						if strings.HasPrefix(r.name, "B8") {
+							assertTypedDecodeWarning(t, n)
+						}
 					case "enforce":
 						if shouldReject {
 							if status != 400 {
@@ -229,6 +248,9 @@ func TestBMatrix(t *testing.T) {
 							}
 							assertBMatrixLocation(t, n, locPath, locPtr, wantKeyword, r.ignoredKind, r.body)
 							assertEnforceError(t, body, profile, hasViolation, n)
+							if ctx := bMatrixIgnoredContext(r.name); ctx != "" {
+								assertIgnoredMeta(t, n, r.ignoredKind, locPath, ctx)
+							}
 						} else if p.upstream.Count() != 1 {
 							t.Fatalf("expected forward, count=%d", p.upstream.Count())
 						}
@@ -726,6 +748,9 @@ func assertIgnoredKind(t *testing.T, n map[string]any, kind string) {
 	t.Helper()
 	ig := asAnySlice(n["ignored_fields"])
 	if kind == "" {
+		if len(ig) != 0 {
+			t.Fatalf("ignored_fields=%v want exactly empty", ig)
+		}
 		return
 	}
 	for _, v := range ig {
@@ -735,6 +760,57 @@ func assertIgnoredKind(t *testing.T, n map[string]any, kind string) {
 		}
 	}
 	t.Fatalf("missing ignored kind %s in %v", kind, ig)
+}
+
+func bMatrixIgnoredContext(name string) string {
+	switch name {
+	case "B2_chat_msg":
+		return "chat.message"
+	case "B4_chat_tool":
+		return "chat.tools.function"
+	case "B4_resp_tool":
+		return "responses.tools"
+	default:
+		return ""
+	}
+}
+
+func assertIgnoredMeta(t *testing.T, n map[string]any, kind, path, context string) {
+	t.Helper()
+	for _, v := range asAnySlice(n["ignored_fields"]) {
+		m, _ := v.(map[string]any)
+		if m["kind"] != kind || m["path"] != path {
+			continue
+		}
+		if m["context"] != context {
+			t.Fatalf("ignored context=%v want %s (%v)", m["context"], context, m)
+		}
+		if m["upstream_behavior"] != "silently_ignored" {
+			t.Fatalf("ignored upstream_behavior=%v want silently_ignored (%v)", m["upstream_behavior"], m)
+		}
+		if m["action"] != "reject_in_enforce" {
+			t.Fatalf("ignored action=%v want reject_in_enforce (%v)", m["action"], m)
+		}
+		return
+	}
+	t.Fatalf("missing ignored %s at %s: %v", kind, path, n["ignored_fields"])
+}
+
+func assertParserWarningsEmpty(t *testing.T, n map[string]any) {
+	t.Helper()
+	if warns := asAnySlice(n["parser_warnings"]); len(warns) != 0 {
+		t.Fatalf("parser_warnings=%v want empty", warns)
+	}
+}
+
+func assertTypedDecodeWarning(t *testing.T, n map[string]any) {
+	t.Helper()
+	for _, w := range asAnySlice(n["parser_warnings"]) {
+		if strings.Contains(fmt.Sprint(w), "request does not match spec") {
+			return
+		}
+	}
+	t.Fatalf("missing typed-decode reason in parser_warnings: %v", n["parser_warnings"])
 }
 
 func asAnySlice(v any) []any {

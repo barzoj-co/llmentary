@@ -23,26 +23,41 @@ import (
 )
 
 type fakeUpstream struct {
-	mu      sync.Mutex
-	count   int
-	bodies  [][]byte
-	handler http.HandlerFunc
+	mu       sync.Mutex
+	count    int
+	bodies   [][]byte
+	lastResp []byte
+	handler  http.HandlerFunc
+}
+
+type capturingWriter struct {
+	http.ResponseWriter
+	buf bytes.Buffer
+}
+
+func (c *capturingWriter) Write(p []byte) (int, error) {
+	_, _ = c.buf.Write(p)
+	return c.ResponseWriter.Write(p)
 }
 
 func (f *fakeUpstream) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	body, _ := io.ReadAll(r.Body)
+	cw := &capturingWriter{ResponseWriter: w}
 	f.mu.Lock()
 	f.count++
 	f.bodies = append(f.bodies, append([]byte(nil), body...))
 	h := f.handler
 	f.mu.Unlock()
 	if h != nil {
-		h(w, r)
-		return
+		h(cw, r)
+	} else {
+		cw.Header().Set("Content-Type", "application/json")
+		cw.WriteHeader(http.StatusOK)
+		_, _ = cw.Write([]byte(`{"id":"up","model":"gpt-fixture","choices":[{"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}]}`))
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(`{"id":"up","model":"gpt-fixture","choices":[{"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}]}`))
+	f.mu.Lock()
+	f.lastResp = append([]byte(nil), cw.buf.Bytes()...)
+	f.mu.Unlock()
 }
 
 func (f *fakeUpstream) Count() int {
@@ -58,6 +73,12 @@ func (f *fakeUpstream) LastBody() []byte {
 		return nil
 	}
 	return f.bodies[len(f.bodies)-1]
+}
+
+func (f *fakeUpstream) LastResponse() []byte {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]byte(nil), f.lastResp...)
 }
 
 type proxyProc struct {
