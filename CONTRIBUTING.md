@@ -217,6 +217,11 @@ Merging the release-please PR tags the next version and publishes GitHub
 Release notes. GoReleaser then attaches signed archives, checksums, and SBOMs
 to that existing release.
 
+`release-please-config.json` currently sets `"release-as": "0.1.0"` so the first
+release is v0.1.0 (hygiene commits are `ci:` / `chore:` and would not bump).
+Delete that key in the first release-please PR so later versions come from
+conventional commits.
+
 In an emergency, push an annotated tag `vX.Y.Z` to `main`'s commit. The
 `Release` workflow calls the same reusable GoReleaser job. Do not create a
 second changelog on the GitHub Release.

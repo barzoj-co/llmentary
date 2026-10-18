@@ -130,7 +130,12 @@ for path in files:
         if not isinstance(job, dict):
             errors.append(f"{path}: job {job_id} must be a mapping")
             continue
-        if "timeout-minutes" not in job:
+        uses = job.get("uses")
+        reusable = isinstance(uses, str) and uses.startswith("./") and uses.endswith(
+            (".yml", ".yaml")
+        )
+        # GitHub forbids timeout-minutes on reusable-workflow caller jobs.
+        if "timeout-minutes" not in job and not reusable:
             errors.append(f"{path}: job {job_id} missing timeout-minutes")
         errors.extend(
             f"{path}: {e}" for e in check_permissions(job.get("permissions"), job=job_id)

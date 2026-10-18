@@ -56,9 +56,9 @@
     {
       "customType": "regex",
       "description": "Pinned tool versions annotated with # renovate:",
-      "fileMatch": [
-        "(^|/)\\.github/workflows/[^/]+\\.ya?ml$",
-        "(^|/)scripts/[^/]+\\.sh$"
+      "managerFilePatterns": [
+        "/(^|/)\\.github/workflows/[^/]+\\.ya?ml$/",
+        "/(^|/)scripts/[^/]+\\.sh$/"
       ],
       "matchStrings": [
         "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: extractVersion=(?<extractVersion>\\S+))?(?: versioning=(?<versioning>\\S+))?\\s+\\S+?:\\s*[\"']?(?<currentValue>[^\"'\\s]+)[\"']?"

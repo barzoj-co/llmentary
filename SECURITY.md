@@ -49,11 +49,10 @@ and carry SLSA provenance. After downloading `checksums.txt` and the archives:
 
 ```bash
 cosign verify-blob \
-  --certificate checksums.txt.pem \
-  --signature checksums.txt.sig \
+  --bundle checksums.txt.sigstore.json \
   --certificate-identity-regexp '^https://github.com/barzoj-co/llm-test-lab/.github/workflows/' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   checksums.txt
-sha256sum -c checksums.txt
+sha256sum -c --ignore-missing checksums.txt
 gh attestation verify llm-test-lab_<version>_linux_amd64.tar.gz --repo barzoj-co/llm-test-lab
 ```

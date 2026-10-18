@@ -69,7 +69,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: "22"
+          node-version: "24"
       - name: Validate renovate.json
         run: npx --yes --package "renovate@${RENOVATE_VERSION}" renovate-config-validator --strict renovate.json
 
@@ -104,6 +104,8 @@ jobs:
     name: release-please (dry run)
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
     env:
       # renovate: datasource=npm depName=release-please
       RELEASE_PLEASE_VERSION: "17.11.2"
@@ -118,11 +120,14 @@ jobs:
       - name: Dry-run release-please
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          TARGET_BRANCH: ${{ github.head_ref || github.ref_name }}
         run: |
           npx --yes --package "release-please@${RELEASE_PLEASE_VERSION}" release-please release-pr \
             --dry-run \
+            --local \
+            --local-path=. \
             --repo-url=barzoj-co/llm-test-lab \
-            --target-branch="${{ github.head_ref || github.ref_name }}" \
+            --target-branch="${TARGET_BRANCH}" \
             --config-file=release-please-config.json \
             --manifest-file=.release-please-manifest.json \
             --token="${GITHUB_TOKEN}"

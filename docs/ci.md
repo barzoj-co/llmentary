@@ -2,7 +2,7 @@
 
 The repository's own workflow is in `.github/workflows/ci.yml`.
 Triggers are `push` to `main`, `pull_request`, and `workflow_dispatch`.
-`workflow_dispatch` does not run live e2e unless the ref is `main`.
+`workflow_dispatch` does not run live e2e on any ref.
 
 - `codegen-check`: checkout, Go 1.26.x, `make codegen-check` (`spec-verify`,
   `make gen && git diff --exit-code`, `go mod tidy && git diff --exit-code`,
