@@ -141,14 +141,14 @@
     "utf8_bom_chat": {
       "test": "TestLiveSpec_UTF8BOM_Chat",
       "status": 400,
-      "error": {"type": "invalid_request_error", "message_contains": "JSON"},
+      "error": {"type": "invalid_request_error", "message_contains": "could not parse the JSON body"},
       "relaxed_violations": true,
       "strict_violations": true
     },
     "duplicate_keys_chat": {
       "test": "TestLiveSpec_DuplicateKeys_Chat",
       "status": 400,
-      "error": {"type": "invalid_request_error", "code": "invalid_json"},
+      "error": {"type": "invalid_request_error", "code": "invalid_json", "message_contains": "duplicate key 'model'"},
       "relaxed_violations": true,
       "strict_violations": true
     },
@@ -173,8 +173,7 @@
       "status": 400,
       "error": {"type": "invalid_request_error", "code": "unknown_parameter", "param": "input[0].content[0].foo"},
       "relaxed_violations": true,
-      "strict_violations": true,
-      "ignored_fields": false
+      "strict_violations": true
     },
     "stream_error_responses": {
       "test": "TestE2EResponsesStreamErrorShape",
