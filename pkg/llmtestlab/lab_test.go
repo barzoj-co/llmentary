@@ -25,6 +25,7 @@ func TestAssertionsToolAndMetadata(t *testing.T) {
 	a.LatencyBelow(2 * time.Second)
 	a.TTFTBelow(time.Second)
 	a.NoErrors()
+	a.NoRetries()
 	a.SystemPromptContains("weather bot")
 	a.ResponseContains("sunny")
 	a.ResponseMatches(`sun+`)

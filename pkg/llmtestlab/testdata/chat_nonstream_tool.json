@@ -1,0 +1,25 @@
+{
+  "id": "chatcmpl_nonstream",
+  "object": "chat.completion",
+  "model": "gpt-fixture",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "tool_calls": [
+          {
+            "id": "call_weather_nonstream",
+            "type": "function",
+            "function": {
+              "name": "get_weather",
+              "arguments": "{\"city\":\"Paris\",\"unit\":\"celsius\"}"
+            }
+          }
+        ]
+      },
+      "finish_reason": "tool_calls"
+    }
+  ],
+  "usage": {"prompt_tokens": 11, "completion_tokens": 4, "total_tokens": 15}
+}

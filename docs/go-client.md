@@ -39,12 +39,14 @@ assertions (`t.Fatal`).
 
 ```go
 trace := lab.Wait(ctx)
-chatCalls := trace.Query().
+chat := trace.Query().
     Upstream("openai").
     APIType("chat").
     Model("gpt-4.1-mini").
-    Status(200).
-    Calls()
+    Status(200)
+
+chatCalls := chat.Calls()
+chat.Expect(t).NoErrors()
 ```
 
 Other filters:
@@ -52,6 +54,15 @@ Other filters:
 - `Errors()`
 - `Retries()`
 - `Index(i)`
+
+Scoped assertions operate only on the filtered calls:
+
+```go
+responses := trace.Query().APIType("responses").Expect(t)
+responses.CallCount(2)
+responses.ToolCalled("lookup")
+responses.NoErrors()
+```
 
 ## Tool assertions
 
@@ -87,6 +98,8 @@ assert.TokensAtMost(1000)
 assert.LatencyBelow(2 * time.Second)
 assert.TTFTBelow(500 * time.Millisecond)
 assert.CallCount(1, llmtestlab.ExcludeRetries())
+assert.Retries(0)
+assert.NoRetries()
 assert.NoErrors()
 assert.HasError()
 assert.MidStreamError()
@@ -126,3 +139,36 @@ session 9f...: 2 call(s)
 
 The package also keeps the lower-level client methods (`Calls`, `Wait`, `OTLP`, `Delete`)
 for custom assertions.
+
+## Two-step tool flows
+
+For Chat Completions, send the assistant message with `tool_calls` back in the next
+request, followed by a `role=tool` message with the `tool_call_id`:
+
+```go
+messages = append(messages, first.Choices[0].Message.ToParam())
+messages = append(messages, openai.ToolMessage(`{"city":"Paris"}`, toolCall.ID))
+```
+
+For Responses, keep the first response stored and send a `function_call_output` with
+`previous_response_id`:
+
+```json
+{
+  "previous_response_id": "resp_...",
+  "input": [
+    {"type": "function_call_output", "call_id": "call_...", "output": "{\"city\":\"Paris\"}"}
+  ]
+}
+```
+
+## Fixture testing
+
+`pkg/llmtestlab/testdata` contains raw upstream fixture bodies for Chat Completions and
+Responses, streaming and non-streaming, mid-stream errors, Azure empty-choice content
+filter chunks, and structured output. The fixture tests serve those bodies from an
+`httptest` upstream through the real proxy, then assert via `llmtestlab.New(t, ...)`.
+
+See [`examples/go/weather_test.go`](../examples/go/weather_test.go) for a complete
+proxy-backed example using `openai-go` with `lab.OpenAIBaseURL("openai")` and
+`lab.HTTPClient()`.

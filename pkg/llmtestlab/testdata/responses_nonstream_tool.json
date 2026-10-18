@@ -1,0 +1,15 @@
+{
+  "id": "resp_nonstream",
+  "model": "gpt-fixture",
+  "status": "completed",
+  "usage": {"input_tokens": 13, "output_tokens": 7, "total_tokens": 20},
+  "output": [
+    {
+      "id": "fc_2",
+      "type": "function_call",
+      "call_id": "call_resp_nonstream",
+      "name": "get_weather",
+      "arguments": "{\"city\":\"Paris\",\"unit\":\"celsius\"}"
+    }
+  ]
+}

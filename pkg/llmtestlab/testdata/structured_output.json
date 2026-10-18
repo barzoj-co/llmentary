@@ -1,0 +1,16 @@
+{
+  "id": "chatcmpl_structured",
+  "object": "chat.completion",
+  "model": "gpt-fixture",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"answer\":\"Paris\",\"count\":3}"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {"prompt_tokens": 8, "completion_tokens": 6, "total_tokens": 14}
+}

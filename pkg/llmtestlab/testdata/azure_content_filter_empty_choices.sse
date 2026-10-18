@@ -1,0 +1,6 @@
+data: {"id":"","object":"","model":"","created":0,"choices":[],"prompt_filter_results":[{"prompt_index":0,"content_filter_results":{"hate":{"filtered":false,"severity":"safe"}}}]}
+
+data: {"id":"chatcmpl_azure","model":"azure-deployment","choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_azure","type":"function","function":{"name":"get_weather","arguments":"{\"city\":\"Paris\"}"}}]},"finish_reason":"tool_calls","content_filter_results":{"hate":{"filtered":false,"severity":"safe"}}}],"usage":{"prompt_tokens":9,"completion_tokens":4,"total_tokens":13}}
+
+data: [DONE]
+
