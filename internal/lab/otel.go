@@ -112,7 +112,7 @@ func NewInMemorySpanProcessor() *InMemorySpanProcessor {
 }
 
 func (p *InMemorySpanProcessor) OnStart(_ context.Context, s sdktrace.ReadWriteSpan) {
-	sessionID := attrString(s.Attributes(), "session.id")
+	sessionID := attrString(s.Attributes(), "llmtestlab.session.id")
 	if sessionID == "" {
 		sessionID = DefaultSessionID
 	}
@@ -122,7 +122,7 @@ func (p *InMemorySpanProcessor) OnStart(_ context.Context, s sdktrace.ReadWriteS
 }
 
 func (p *InMemorySpanProcessor) OnEnd(s sdktrace.ReadOnlySpan) {
-	sessionID := attrString(s.Attributes(), "session.id")
+	sessionID := attrString(s.Attributes(), "llmtestlab.session.id")
 	p.mu.Lock()
 	spanID := s.SpanContext().SpanID()
 	_, discard := p.discard[spanID]
@@ -395,10 +395,10 @@ func startSpanAttributes(call Call) []attribute.KeyValue {
 		attribute.String(genai.OperationName, "chat"),
 		attribute.String(genai.ProviderName, providerName(call.Provider, call.Upstream.URL)),
 		attribute.String(genai.RequestModel, model),
-		attribute.String("session.id", call.SessionID),
-		attribute.String("session.source", call.SessionSource),
-		attribute.String("call.id", call.ID),
-		attribute.Int("call.seq", call.Seq),
+		attribute.String("llmtestlab.session.id", call.SessionID),
+		attribute.String("llmtestlab.session.source", call.SessionSource),
+		attribute.String("llmtestlab.call.id", call.ID),
+		attribute.Int("llmtestlab.call.seq", call.Seq),
 	}
 	if host, port := serverAddressPort(call.Upstream.URL); host != "" {
 		attrs = append(attrs, attribute.String("server.address", host))
@@ -414,7 +414,7 @@ func finalSpanAttributes(call Call) []attribute.KeyValue {
 		attribute.Int("http.response.status_code", call.HTTPStatus),
 		attribute.Int("http.request.body.size", len(call.RawRequest)),
 		attribute.Int("http.response.body.size", len(call.RawResponse)),
-		attribute.Int("derived.version", call.Normalized.DerivedVersion),
+		attribute.Int("llmtestlab.derived.version", call.Normalized.DerivedVersion),
 	}
 	if call.Stream {
 		attrs = append(attrs, attribute.Bool(genai.RequestStream, true))
@@ -671,19 +671,19 @@ func responseAttributes(call Call) []attribute.KeyValue {
 
 func llmtestlabAttributes(call Call) []attribute.KeyValue {
 	attrs := []attribute.KeyValue{
-		attribute.Int("prompt.chars", promptTextChars(call)),
-		attribute.Int("prompt.message_count", call.Normalized.MessagesCount),
-		attribute.StringSlice("finish_reasons.normalized", []string{call.Normalized.FinishReason}),
-		attribute.Int("stream.chunk_count", len(call.SSEEvents)),
-		attribute.Bool("stream.truncated", call.Normalized.StreamTruncated),
-		attribute.Bool("client.aborted", call.Normalized.ClientAborted),
+		attribute.Int("llmtestlab.prompt.chars", promptTextChars(call)),
+		attribute.Int("llmtestlab.prompt.message_count", call.Normalized.MessagesCount),
+		attribute.StringSlice("llmtestlab.finish_reasons.normalized", []string{call.Normalized.FinishReason}),
+		attribute.Int("llmtestlab.stream.chunk_count", len(call.SSEEvents)),
+		attribute.Bool("llmtestlab.stream.truncated", call.Normalized.StreamTruncated),
+		attribute.Bool("llmtestlab.client.aborted", call.Normalized.ClientAborted),
 	}
 	if call.Normalized.SystemPromptHash != "" {
-		attrs = append(attrs, attribute.String("system_prompt.hash", ensureSHA(call.Normalized.SystemPromptHash)))
+		attrs = append(attrs, attribute.String("llmtestlab.system_prompt.hash", ensureSHA(call.Normalized.SystemPromptHash)))
 	}
 	if len(call.Normalized.ToolsDeclared) > 0 {
 		if b, err := json.Marshal(call.Normalized.ToolsDeclared); err == nil {
-			attrs = append(attrs, attribute.String("tool_definitions.hash", "sha256:"+hashBytes(b)))
+			attrs = append(attrs, attribute.String("llmtestlab.tool_definitions.hash", "sha256:"+hashBytes(b)))
 		}
 	}
 	if len(call.Normalized.ToolCalls) > 0 {
@@ -691,19 +691,19 @@ func llmtestlabAttributes(call Call) []attribute.KeyValue {
 		for _, tool := range call.Normalized.ToolCalls {
 			names = append(names, tool.Name)
 		}
-		attrs = append(attrs, attribute.StringSlice("tool_calls.names", names))
+		attrs = append(attrs, attribute.StringSlice("llmtestlab.tool_calls.names", names))
 	}
 	if call.Upstream.APIVersion != "" {
-		attrs = append(attrs, attribute.String("azure.api_version", call.Upstream.APIVersion))
+		attrs = append(attrs, attribute.String("llmtestlab.azure.api_version", call.Upstream.APIVersion))
 	}
 	if call.Upstream.Deployment != "" {
-		attrs = append(attrs, attribute.String("azure.deployment", call.Upstream.Deployment))
+		attrs = append(attrs, attribute.String("llmtestlab.azure.deployment", call.Upstream.Deployment))
 	}
 	if len(call.Normalized.ParserWarnings) > 0 {
-		attrs = append(attrs, attribute.StringSlice("parser.warnings", call.Normalized.ParserWarnings))
+		attrs = append(attrs, attribute.StringSlice("llmtestlab.parser.warnings", call.Normalized.ParserWarnings))
 	}
 	if call.Normalized.Error != nil && call.Normalized.Error.MidStream {
-		attrs = append(attrs, attribute.Bool("error.mid_stream", true))
+		attrs = append(attrs, attribute.Bool("llmtestlab.error.mid_stream", true))
 	}
 	return attrs
 }
