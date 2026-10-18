@@ -825,6 +825,85 @@ func TestOverlayChatMessageExtraProps(t *testing.T) {
 	})
 }
 
+func TestC4OverlayFixtureMatrix(t *testing.T) {
+	cases := []struct {
+		id      string
+		path    string
+		body    []byte
+		handler http.HandlerFunc
+	}{
+		{
+			id:      "chat-message-extra-props",
+			path:    "/v1/chat/completions",
+			handler: chatOK(),
+			body:    []byte(`{"model":"m","messages":[{"role":"user","content":"hi","foo":1}]}`),
+		},
+		{
+			id:      "function-tool-extra-props",
+			path:    "/v1/chat/completions",
+			handler: chatOK(),
+			body:    []byte(`{"model":"m","messages":[{"role":"user","content":"hi"}],"tools":[{"type":"function","function":{"name":"x","foo":1,"parameters":{"type":"object"}}}]}`),
+		},
+		{
+			id:      "function-tool-extra-props",
+			path:    "/v1/responses",
+			handler: responsesOK(),
+			body:    []byte(`{"model":"m","input":"hi","tools":[{"type":"function","name":"x","foo":1,"strict":true,"parameters":{"type":"object"}}]}`),
+		},
+		{
+			id:      "responses-function-tool-strict-optional",
+			path:    "/v1/responses",
+			handler: responsesOK(),
+			body:    []byte(`{"model":"m","input":"hi","tools":[{"type":"function","name":"x","parameters":{"type":"object","properties":{"q":{"type":"string"}},"required":["q"],"additionalProperties":false}}]}`),
+		},
+		{
+			id:      "chat-content-part-extra-props",
+			path:    "/v1/chat/completions",
+			handler: chatOK(),
+			body:    []byte(`{"model":"m","messages":[{"role":"user","content":[{"type":"text","text":"hi","foo":1}]}]}`),
+		},
+		{
+			id:      "chat-tool-call-extra-props",
+			path:    "/v1/chat/completions",
+			handler: chatOK(),
+			body:    []byte(`{"model":"m","messages":[{"role":"assistant","content":null,"tool_calls":[{"id":"c1","type":"function","foo":1,"function":{"name":"x","arguments":"{}"}}]}]}`),
+		},
+		{
+			id:      "responses-content-part-extra-props",
+			path:    "/v1/responses",
+			handler: responsesOK(),
+			body:    []byte(`{"model":"m","input":[{"role":"user","content":[{"type":"input_text","text":"hi","foo":1}]}]}`),
+		},
+	}
+	seen := map[string]bool{}
+	for _, tc := range cases {
+		seen[tc.id] = true
+		t.Run(tc.id+"/"+strings.TrimPrefix(tc.path, "/v1/"), func(t *testing.T) {
+			strictP := startSpecProxy(t, "warn", "strict", tc.handler)
+			sid := newSession()
+			_, _, _, session := postRaw(t, strictP, tc.path, sid, nil, tc.body)
+			if requestViolations(normalized(lastCall(t, session))) == 0 {
+				t.Fatalf("strict must flag overlay %s: %v", tc.id, normalized(lastCall(t, session))["spec_violations"])
+			}
+			relaxP := startSpecProxy(t, "warn", "relaxed", tc.handler)
+			sid2 := newSession()
+			_, _, _, session2 := postRaw(t, relaxP, tc.path, sid2, nil, tc.body)
+			if requestViolations(normalized(lastCall(t, session2))) != 0 {
+				t.Fatalf("relaxed must not flag overlay %s: %v", tc.id, normalized(lastCall(t, session2))["spec_violations"])
+			}
+		})
+	}
+	ov, err := specvalidate.ParseOverlay(specvalidate.EmbeddedOverlay())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range ov.Entries {
+		if !seen[e.ID] {
+			t.Errorf("overlay entry %s has no fixture proving strict flags and relaxed does not", e.ID)
+		}
+	}
+}
+
 func hasIgnoredKey(n map[string]any, key string) bool {
 	for _, v := range asAnySlice(n["ignored_fields"]) {
 		m, _ := v.(map[string]any)

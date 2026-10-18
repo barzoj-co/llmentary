@@ -11,8 +11,6 @@ import (
 	"github.com/barzoj-co/llm-test-lab/internal/specvalidate"
 )
 
-var walkKeys = []string{"properties", "items", "anyOf", "additionalProperties", "$defs", "definitions"}
-
 var structuralSkip = map[string]struct{}{
 	"type": {}, "properties": {}, "required": {}, "additionalProperties": {},
 	"unevaluatedProperties": {}, "items": {}, "anyOf": {}, "enum": {}, "const": {},
@@ -224,14 +222,6 @@ func mergeDefs(base map[string]any, obj map[string]any) map[string]any {
 				out[k] = v
 			}
 		}
-	}
-	return out
-}
-
-func cloneSeen(in map[string]struct{}) map[string]struct{} {
-	out := make(map[string]struct{}, len(in)+1)
-	for k, v := range in {
-		out[k] = v
 	}
 	return out
 }

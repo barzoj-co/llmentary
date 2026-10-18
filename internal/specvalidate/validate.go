@@ -182,11 +182,15 @@ func flattenSchemaError(err error) []schemaErr {
 func isCompositionArtifact(item schemaErr) bool {
 	// unevaluatedProperties on the allOf composer can flag known properties
 	// when a nested oneOf fails and annotations are not collected.
-	if item.keyword != "unevaluatedProperties" {
-		return false
+	if item.keyword == "unevaluatedProperties" {
+		switch item.pointer {
+		case "/model", "/messages", "/input", "/tools", "/temperature", "/stream":
+			return true
+		}
 	}
-	switch item.pointer {
-	case "/model", "/messages", "/input", "/tools", "/temperature", "/stream":
+	// InputParam is oneOf[string, array]. The losing branch emits a type
+	// error at /input that is not a real request problem.
+	if item.keyword == "type" && item.pointer == "/input" {
 		return true
 	}
 	return false

@@ -370,19 +370,6 @@ func (s *rawScanner) skipContainer() {
 	}
 }
 
-func pointerDepth(pointer string) int {
-	if pointer == "" {
-		return 1
-	}
-	n := 1
-	for _, c := range pointer {
-		if c == '/' {
-			n++
-		}
-	}
-	return n
-}
-
 func indexNonWS(b []byte) int {
 	for i, c := range b {
 		if c != ' ' && c != '\t' && c != '\n' && c != '\r' {

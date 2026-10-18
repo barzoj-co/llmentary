@@ -5,8 +5,11 @@
 package proxy_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"runtime"
 	"testing"
 	"time"
@@ -216,7 +219,7 @@ func TestI4Overhead(t *testing.T) {
 }
 
 func TestI5Memory(t *testing.T) {
-	p := startSpecProxy(t, "warn", "relaxed", chatOK())
+	eng, lint := compileEngine(t)
 	body := typicalChatBody()
 	heap := func() uint64 {
 		runtime.GC()
@@ -225,21 +228,54 @@ func TestI5Memory(t *testing.T) {
 		runtime.ReadMemStats(&ms)
 		return ms.HeapAlloc
 	}
-	const n = 2000
-	var mid uint64
-	for i := 0; i < n; i++ {
-		sid := newSession()
-		_, _, _, _ = postRaw(t, p, "/v1/chat/completions", sid, nil, body)
-		if i+1 == 1000 {
-			mid = heap()
+	run := func(n int) {
+		t.Helper()
+		for i := 0; i < n; i++ {
+			_ = eng.ValidateRequest(specvalidate.ProfileRelaxed, "openai.chat", body, 0)
+			_ = lint.LintRequest("openai.chat", body)
 		}
 	}
+	run(1000)
+	mid := heap()
+	run(9000)
 	end := heap()
 	if mid == 0 {
 		t.Fatal("mid heap unset")
 	}
 	limit := mid + mid/10
 	if end > limit+64*1024 {
-		t.Fatalf("heap after 2000=%d mark@1000=%d (10%% band=%d)", end, mid, limit)
+		t.Fatalf("validator heap after 10000=%d mark@1000=%d (10%% band=%d)", end, mid, limit)
+	}
+
+	// Also drive 10,000 warn-mode proxy requests, deleting each session so
+	// the in-memory trace store is not part of the validator leak budget.
+	p := startSpecProxy(t, "warn", "relaxed", chatOK())
+	for i := 0; i < 10000; i++ {
+		sid := newSession()
+		req, err := http.NewRequest(http.MethodPost, p.proxyURL+"/v1/chat/completions", bytes.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Test-Session", sid)
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, _ = io.Copy(io.Discard, res.Body)
+		_ = res.Body.Close()
+		if res.StatusCode != http.StatusOK {
+			t.Fatalf("status=%d", res.StatusCode)
+		}
+		del, err := http.NewRequest(http.MethodDelete, p.controlURL+"/sessions/"+sid, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		dres, err := http.DefaultClient.Do(del)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, _ = io.Copy(io.Discard, dres.Body)
+		_ = dres.Body.Close()
 	}
 }
