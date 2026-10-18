@@ -76,10 +76,10 @@ python3 - "$bad_dir" "$oa_key" "$pat_key" <<'PY'
 import pathlib
 import sys
 root = pathlib.Path(sys.argv[1])
-(root / "leak.txt").write_text(sys.argv[2] + "\n" + sys.argv[3] + "\n", encoding="utf-8")
 nested = root / "tests" / "e2e"
 nested.mkdir(parents=True)
-(nested / "leak.txt").write_text(sys.argv[2] + "\n" + sys.argv[3] + "\n", encoding="utf-8")
+(nested / "openai.txt").write_text(sys.argv[2] + "\n", encoding="utf-8")
+(nested / "github.txt").write_text(sys.argv[3] + "\n", encoding="utf-8")
 PY
 # Drop locals so later `set -x` or error dumps cannot print them.
 unset oa_key pat_key oa_mid
@@ -103,14 +103,18 @@ import pathlib
 import sys
 
 findings = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+wanted = {"tests/e2e/openai.txt", "tests/e2e/github.txt"}
+seen: set[str] = set()
 for finding in findings:
     path = str(finding.get("File", "")).replace("\\", "/")
-    if path == "tests/e2e/leak.txt" or path.endswith("/tests/e2e/leak.txt"):
-        raise SystemExit(0)
-raise SystemExit(1)
+    for name in wanted:
+        if path == name or path.endswith("/" + name):
+            seen.add(name)
+if seen != wanted:
+    raise SystemExit(1)
 PY
 then
-  echo "self-test: gitleaks did not report a finding under tests/e2e" >&2
+  echo "self-test: gitleaks did not report both constructed keys under tests/e2e" >&2
   exit 1
 fi
 

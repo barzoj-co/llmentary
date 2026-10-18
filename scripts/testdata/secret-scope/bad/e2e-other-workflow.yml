@@ -1,5 +1,7 @@
 # expect: secret OPENAI_API_KEY requires environment openai-e2e
-on: schedule
+on:
+  schedule:
+    - cron: "0 0 * * *"
 jobs:
   e2e:
     runs-on: ubuntu-latest
