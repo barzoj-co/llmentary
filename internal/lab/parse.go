@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 package lab
 
 import (
@@ -16,19 +18,17 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/barzoj-co/llm-test-lab/pkg/llmtestlab"
 )
 
 const derivedVersion = 1
 
 type Parser interface {
-	Parse(call *llmtestlab.Call)
+	Parse(call *Call)
 }
 
 type TolerantParser struct{}
 
-func (p TolerantParser) Parse(call *llmtestlab.Call) {
+func (p TolerantParser) Parse(call *Call) {
 	call.Normalized.DerivedVersion = derivedVersion
 	call.Normalized.PromptChars = len(call.RawRequest)
 	switch call.APIFamily {
@@ -78,7 +78,7 @@ type sessionInfo struct {
 }
 
 func sessionFromRequest(r *http.Request) sessionInfo {
-	if id := strings.TrimSpace(r.Header.Get(llmtestlab.SessionHeaderName)); id != "" {
+	if id := strings.TrimSpace(r.Header.Get(SessionHeaderName)); id != "" {
 		return sessionInfo{ID: id, Source: "header"}
 	}
 	for _, item := range strings.Split(r.Header.Get("baggage"), ",") {
@@ -93,7 +93,7 @@ func sessionFromRequest(r *http.Request) sessionInfo {
 			}
 		}
 	}
-	return sessionInfo{ID: llmtestlab.DefaultSessionID, Source: "default"}
+	return sessionInfo{ID: DefaultSessionID, Source: "default"}
 }
 
 func stripLLMTestLabBaggage(header http.Header) {
@@ -212,13 +212,13 @@ func headerHas(headers map[string][]string, name, value string) bool {
 	return false
 }
 
-func parseSSE(raw []byte, startedAt time.Time) ([]llmtestlab.SSEEvent, bool, []string) {
+func parseSSE(raw []byte, startedAt time.Time) ([]SSEEvent, bool, []string) {
 	scanner := bufio.NewScanner(bytes.NewReader(raw))
 	scanner.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
 	var (
 		eventName string
 		dataLines [][]byte
-		events    []llmtestlab.SSEEvent
+		events    []SSEEvent
 		complete  bool
 		warnings  []string
 	)
@@ -227,7 +227,7 @@ func parseSSE(raw []byte, startedAt time.Time) ([]llmtestlab.SSEEvent, bool, []s
 			return
 		}
 		data := bytes.Join(dataLines, []byte("\n"))
-		evt := llmtestlab.SSEEvent{
+		evt := SSEEvent{
 			Event: eventName,
 			Data:  append([]byte(nil), data...),
 			AtMS:  time.Since(startedAt).Milliseconds(),
@@ -247,7 +247,7 @@ func parseSSE(raw []byte, startedAt time.Time) ([]llmtestlab.SSEEvent, bool, []s
 			continue
 		}
 		if bytes.HasPrefix(line, []byte(":")) {
-			events = append(events, llmtestlab.SSEEvent{Comment: strings.TrimSpace(string(line[1:])), AtMS: time.Since(startedAt).Milliseconds()})
+			events = append(events, SSEEvent{Comment: strings.TrimSpace(string(line[1:])), AtMS: time.Since(startedAt).Milliseconds()})
 			continue
 		}
 		field, value, ok := bytes.Cut(line, []byte(":"))
@@ -276,7 +276,7 @@ func parseSSE(raw []byte, startedAt time.Time) ([]llmtestlab.SSEEvent, bool, []s
 type sseRecorder struct {
 	startedAt time.Time
 	pending   []byte
-	events    []llmtestlab.SSEEvent
+	events    []SSEEvent
 	complete  bool
 	warnings  []string
 }
@@ -298,7 +298,7 @@ func (r *sseRecorder) Write(chunk []byte) {
 	}
 }
 
-func (r *sseRecorder) Finish() ([]llmtestlab.SSEEvent, bool, []string) {
+func (r *sseRecorder) Finish() ([]SSEEvent, bool, []string) {
 	if len(bytes.TrimSpace(r.pending)) > 0 {
 		r.recordBlock(r.pending)
 		r.pending = nil
@@ -370,7 +370,7 @@ func parseJSONArguments(raw string) (json.RawMessage, string) {
 	return b, ""
 }
 
-func sortToolCalls(calls []llmtestlab.ToolCall) {
+func sortToolCalls(calls []ToolCall) {
 	sort.SliceStable(calls, func(i, j int) bool {
 		return calls[i].Index < calls[j].Index
 	})
@@ -404,7 +404,7 @@ func contentString(raw json.RawMessage) string {
 	return string(raw)
 }
 
-func usageFromChat(raw json.RawMessage, source string) *llmtestlab.Usage {
+func usageFromChat(raw json.RawMessage, source string) *Usage {
 	if len(raw) == 0 || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
 		return nil
 	}
@@ -424,7 +424,7 @@ func usageFromChat(raw json.RawMessage, source string) *llmtestlab.Usage {
 	if err := json.Unmarshal(raw, &u); err != nil {
 		return nil
 	}
-	usage := &llmtestlab.Usage{Source: source, Raw: append(json.RawMessage(nil), raw...), CostUSD: u.Cost}
+	usage := &Usage{Source: source, Raw: append(json.RawMessage(nil), raw...), CostUSD: u.Cost}
 	if hasJSONKey(raw, "prompt_tokens") {
 		usage.InputTokens = intPtr(u.PromptTokens)
 	}
@@ -446,7 +446,7 @@ func usageFromChat(raw json.RawMessage, source string) *llmtestlab.Usage {
 	return usage
 }
 
-func usageFromResponses(raw json.RawMessage, source string) *llmtestlab.Usage {
+func usageFromResponses(raw json.RawMessage, source string) *Usage {
 	if len(raw) == 0 || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
 		return nil
 	}
@@ -464,7 +464,7 @@ func usageFromResponses(raw json.RawMessage, source string) *llmtestlab.Usage {
 	if err := json.Unmarshal(raw, &u); err != nil {
 		return nil
 	}
-	usage := &llmtestlab.Usage{Source: source, Raw: append(json.RawMessage(nil), raw...)}
+	usage := &Usage{Source: source, Raw: append(json.RawMessage(nil), raw...)}
 	if hasJSONKey(raw, "input_tokens") {
 		usage.InputTokens = intPtr(u.InputTokens)
 	}
@@ -507,7 +507,7 @@ func intPtr(v int) *int {
 	return &v
 }
 
-func midStreamError(status int, raw json.RawMessage) *llmtestlab.CallError {
+func midStreamError(status int, raw json.RawMessage) *CallError {
 	var holder struct {
 		Type  string `json:"type"`
 		Error any    `json:"error"`
@@ -515,7 +515,7 @@ func midStreamError(status int, raw json.RawMessage) *llmtestlab.CallError {
 	if json.Unmarshal(raw, &holder) != nil || holder.Error == nil {
 		return nil
 	}
-	err := &llmtestlab.CallError{HTTPStatus: status, MidStream: true}
+	err := &CallError{HTTPStatus: status, MidStream: true}
 	switch v := holder.Error.(type) {
 	case string:
 		err.Message = v
@@ -546,11 +546,11 @@ func normalizeError(status int, code, typ string) string {
 	}
 }
 
-func errorFromHTTP(status int, raw []byte) *llmtestlab.CallError {
+func errorFromHTTP(status int, raw []byte) *CallError {
 	if status < 400 {
 		return nil
 	}
-	err := &llmtestlab.CallError{HTTPStatus: status, Normalized: normalizeError(status, "", "")}
+	err := &CallError{HTTPStatus: status, Normalized: normalizeError(status, "", "")}
 	var wrapper struct {
 		Error struct {
 			Type    string `json:"type"`

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 package lab
 
 import (
@@ -6,16 +8,14 @@ import (
 	"errors"
 	"sync"
 	"time"
-
-	"github.com/barzoj-co/llm-test-lab/pkg/llmtestlab"
 )
 
 type Store interface {
-	Begin(sessionID string, call llmtestlab.Call) (int, string)
-	Finish(sessionID, callID string, update func(*llmtestlab.Call))
-	Session(sessionID string) llmtestlab.Session
+	Begin(sessionID string, call Call) (int, string)
+	Finish(sessionID, callID string, update func(*Call))
+	Session(sessionID string) Session
 	Delete(sessionID string)
-	WaitQuiet(ctx context.Context, sessionID string, quiet, timeout time.Duration) (llmtestlab.Session, error)
+	WaitQuiet(ctx context.Context, sessionID string, quiet, timeout time.Duration) (Session, error)
 }
 
 type MemoryStore struct {
@@ -26,7 +26,7 @@ type MemoryStore struct {
 
 type sessionState struct {
 	id      string
-	calls   []llmtestlab.Call
+	calls   []Call
 	active  int
 	version uint64
 }
@@ -35,7 +35,7 @@ func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{sessions: map[string]*sessionState{}}
 }
 
-func (s *MemoryStore) Begin(sessionID string, call llmtestlab.Call) (int, string) {
+func (s *MemoryStore) Begin(sessionID string, call Call) (int, string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	state := s.state(sessionID)
@@ -49,7 +49,7 @@ func (s *MemoryStore) Begin(sessionID string, call llmtestlab.Call) (int, string
 	return call.Seq, call.ID
 }
 
-func (s *MemoryStore) Finish(sessionID, callID string, update func(*llmtestlab.Call)) {
+func (s *MemoryStore) Finish(sessionID, callID string, update func(*Call)) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	state := s.state(sessionID)
@@ -65,7 +65,7 @@ func (s *MemoryStore) Finish(sessionID, callID string, update func(*llmtestlab.C
 	state.version++
 }
 
-func (s *MemoryStore) Session(sessionID string) llmtestlab.Session {
+func (s *MemoryStore) Session(sessionID string) Session {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	state := s.state(sessionID)
@@ -78,7 +78,7 @@ func (s *MemoryStore) Delete(sessionID string) {
 	delete(s.sessions, sessionID)
 }
 
-func (s *MemoryStore) WaitQuiet(ctx context.Context, sessionID string, quiet, timeout time.Duration) (llmtestlab.Session, error) {
+func (s *MemoryStore) WaitQuiet(ctx context.Context, sessionID string, quiet, timeout time.Duration) (Session, error) {
 	if quiet <= 0 {
 		quiet = 500 * time.Millisecond
 	}
@@ -108,7 +108,7 @@ func (s *MemoryStore) WaitQuiet(ctx context.Context, sessionID string, quiet, ti
 
 		select {
 		case <-ctx.Done():
-			return llmtestlab.Session{}, ctx.Err()
+			return Session{}, ctx.Err()
 		case <-deadline.C:
 			return s.Session(sessionID), errors.New("wait quiet timeout")
 		case <-ticker.C:
@@ -118,7 +118,7 @@ func (s *MemoryStore) WaitQuiet(ctx context.Context, sessionID string, quiet, ti
 
 func (s *MemoryStore) state(sessionID string) *sessionState {
 	if sessionID == "" {
-		sessionID = llmtestlab.DefaultSessionID
+		sessionID = DefaultSessionID
 	}
 	if state, ok := s.sessions[sessionID]; ok {
 		return state
@@ -128,30 +128,30 @@ func (s *MemoryStore) state(sessionID string) *sessionState {
 	return state
 }
 
-func copySession(state *sessionState) llmtestlab.Session {
-	calls := make([]llmtestlab.Call, len(state.calls))
+func copySession(state *sessionState) Session {
+	calls := make([]Call, len(state.calls))
 	for i := range state.calls {
 		calls[i] = cloneCall(state.calls[i])
 	}
-	return llmtestlab.Session{ID: state.id, Calls: calls}
+	return Session{ID: state.id, Calls: calls}
 }
 
-func cloneCall(call llmtestlab.Call) llmtestlab.Call {
+func cloneCall(call Call) Call {
 	call.Request.Headers = cloneStringSlices(call.Request.Headers)
 	call.Response.Headers = cloneStringSlices(call.Response.Headers)
 	call.RequestIDs = cloneStringMap(call.RequestIDs)
 	call.RawRequest = append([]byte(nil), call.RawRequest...)
 	call.RawResponse = append([]byte(nil), call.RawResponse...)
-	call.SSEEvents = append([]llmtestlab.SSEEvent(nil), call.SSEEvents...)
+	call.SSEEvents = append([]SSEEvent(nil), call.SSEEvents...)
 	for i := range call.SSEEvents {
 		call.SSEEvents[i].Data = append([]byte(nil), call.SSEEvents[i].Data...)
 	}
-	call.Normalized.ToolsDeclared = append([]llmtestlab.ToolDecl(nil), call.Normalized.ToolsDeclared...)
-	call.Normalized.ToolCalls = append([]llmtestlab.ToolCall(nil), call.Normalized.ToolCalls...)
+	call.Normalized.ToolsDeclared = append([]ToolDecl(nil), call.Normalized.ToolsDeclared...)
+	call.Normalized.ToolCalls = append([]ToolCall(nil), call.Normalized.ToolCalls...)
 	for i := range call.Normalized.ToolCalls {
 		call.Normalized.ToolCalls[i].Arguments = append([]byte(nil), call.Normalized.ToolCalls[i].Arguments...)
 	}
-	call.Normalized.ToolResultsIn = append([]llmtestlab.ToolResult(nil), call.Normalized.ToolResultsIn...)
+	call.Normalized.ToolResultsIn = append([]ToolResult(nil), call.Normalized.ToolResultsIn...)
 	call.Normalized.ParserWarnings = append([]string(nil), call.Normalized.ParserWarnings...)
 	if call.Normalized.Usage != nil {
 		usage := *call.Normalized.Usage
@@ -196,11 +196,11 @@ func cloneStringMap(in map[string]string) map[string]string {
 	return out
 }
 
-func cloneFilterResults(in map[string]llmtestlab.FilterResult) map[string]llmtestlab.FilterResult {
+func cloneFilterResults(in map[string]FilterResult) map[string]FilterResult {
 	if in == nil {
 		return nil
 	}
-	out := make(map[string]llmtestlab.FilterResult, len(in))
+	out := make(map[string]FilterResult, len(in))
 	for key, value := range in {
 		out[key] = value
 	}

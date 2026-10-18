@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 package lab
 
 import (
@@ -6,8 +8,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-
-	"github.com/barzoj-co/llm-test-lab/pkg/llmtestlab"
 )
 
 type chatRequest struct {
@@ -21,7 +21,7 @@ type chatRequest struct {
 	Tools []json.RawMessage `json:"tools"`
 }
 
-func parseChat(call *llmtestlab.Call) {
+func parseChat(call *Call) {
 	var req chatRequest
 	if err := json.Unmarshal(call.RawRequest, &req); err == nil {
 		call.Normalized.Model.Requested = req.Model
@@ -44,7 +44,7 @@ func parseChat(call *llmtestlab.Call) {
 	}
 }
 
-func parseChatBody(call *llmtestlab.Call) {
+func parseChatBody(call *Call) {
 	body := call.RawResponse
 	var resp struct {
 		ID       string          `json:"id"`
@@ -82,7 +82,7 @@ func parseChatBody(call *llmtestlab.Call) {
 	call.Normalized.Model.Returned = resp.Model
 	call.Normalized.ServedBy = resp.Provider
 	call.Normalized.Usage = usageFromChat(resp.Usage, "body")
-	var calls []llmtestlab.ToolCall
+	var calls []ToolCall
 	for _, choice := range resp.Choices {
 		if choice.FinishReason != "" {
 			call.Normalized.FinishReason = choice.FinishReason
@@ -95,11 +95,11 @@ func parseChatBody(call *llmtestlab.Call) {
 		}
 		if choice.Message.Reasoning != "" || choice.Message.ReasoningContent != "" {
 			text := choice.Message.Reasoning + choice.Message.ReasoningContent
-			call.Normalized.Reasoning = &llmtestlab.Reasoning{Present: true, Chars: len(text)}
+			call.Normalized.Reasoning = &Reasoning{Present: true, Chars: len(text)}
 		}
 		for _, tc := range choice.Message.ToolCalls {
 			args, argErr := parseJSONArguments(tc.Function.Arguments)
-			calls = append(calls, llmtestlab.ToolCall{
+			calls = append(calls, ToolCall{
 				Index: len(calls), ID: tc.ID, Name: tc.Function.Name, Kind: coalesce(tc.Type, "function"),
 				ArgumentsRaw: tc.Function.Arguments, Arguments: args, ArgsParseError: argErr,
 			})
@@ -117,7 +117,7 @@ func parseChatBody(call *llmtestlab.Call) {
 	}
 }
 
-func parseChatStream(call *llmtestlab.Call) {
+func parseChatStream(call *Call) {
 	type acc struct {
 		index int
 		id    string
@@ -206,7 +206,7 @@ func parseChatStream(call *llmtestlab.Call) {
 			reasoning := choice.Delta.Reasoning + choice.Delta.ReasoningContent
 			if reasoning != "" {
 				if call.Normalized.Reasoning == nil {
-					call.Normalized.Reasoning = &llmtestlab.Reasoning{Present: true}
+					call.Normalized.Reasoning = &Reasoning{Present: true}
 				}
 				call.Normalized.Reasoning.Chars += len(reasoning)
 			}
@@ -242,7 +242,7 @@ func parseChatStream(call *llmtestlab.Call) {
 		item := accs[index]
 		argsRaw := item.args.String()
 		args, argErr := parseJSONArguments(argsRaw)
-		call.Normalized.ToolCalls = append(call.Normalized.ToolCalls, llmtestlab.ToolCall{
+		call.Normalized.ToolCalls = append(call.Normalized.ToolCalls, ToolCall{
 			Index: item.index, ID: item.id, Name: item.name, Kind: item.kind,
 			ArgumentsRaw: argsRaw, Arguments: args, ArgsParseError: argErr,
 		})
@@ -268,8 +268,8 @@ func chatSystemPrompt(messages []struct {
 	return strings.Join(parts, "\n")
 }
 
-func chatTools(rawTools []json.RawMessage) []llmtestlab.ToolDecl {
-	out := make([]llmtestlab.ToolDecl, 0, len(rawTools))
+func chatTools(rawTools []json.RawMessage) []ToolDecl {
+	out := make([]ToolDecl, 0, len(rawTools))
 	for _, raw := range rawTools {
 		var t struct {
 			Type     string `json:"type"`
@@ -281,7 +281,7 @@ func chatTools(rawTools []json.RawMessage) []llmtestlab.ToolDecl {
 		if json.Unmarshal(raw, &t) != nil {
 			continue
 		}
-		out = append(out, llmtestlab.ToolDecl{Name: t.Function.Name, Type: coalesce(t.Type, "function"), SchemaHash: schemaHash(t.Function.Parameters)})
+		out = append(out, ToolDecl{Name: t.Function.Name, Type: coalesce(t.Type, "function"), SchemaHash: schemaHash(t.Function.Parameters)})
 	}
 	return out
 }
@@ -291,24 +291,24 @@ func chatToolResults(messages []struct {
 	Content    json.RawMessage `json:"content"`
 	ToolCallID string          `json:"tool_call_id"`
 	Name       string          `json:"name"`
-}) []llmtestlab.ToolResult {
-	var out []llmtestlab.ToolResult
+}) []ToolResult {
+	var out []ToolResult
 	for _, message := range messages {
 		if message.Role != "tool" {
 			continue
 		}
 		content := contentString(message.Content)
-		out = append(out, llmtestlab.ToolResult{CallID: message.ToolCallID, Name: message.Name, OutputHash: systemHash(content)})
+		out = append(out, ToolResult{CallID: message.ToolCallID, Name: message.Name, OutputHash: systemHash(content)})
 	}
 	return out
 }
 
-func collectFilter(call *llmtestlab.Call, raw json.RawMessage) {
+func collectFilter(call *Call, raw json.RawMessage) {
 	if len(raw) == 0 || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
 		return
 	}
 	if call.Normalized.ContentFilter == nil {
-		call.Normalized.ContentFilter = &llmtestlab.ContentFilter{Categories: map[string]llmtestlab.FilterResult{}}
+		call.Normalized.ContentFilter = &ContentFilter{Categories: map[string]FilterResult{}}
 	}
 	call.Normalized.ContentFilter.Raw = append(call.Normalized.ContentFilter.Raw, append(json.RawMessage(nil), raw...))
 	var m map[string]json.RawMessage
@@ -320,7 +320,7 @@ func collectFilter(call *llmtestlab.Call, raw json.RawMessage) {
 			call.Normalized.ContentFilter.FilterSystemError = true
 			continue
 		}
-		var result llmtestlab.FilterResult
+		var result FilterResult
 		if json.Unmarshal(value, &result) == nil {
 			call.Normalized.ContentFilter.Categories[key] = result
 			if result.Filtered {

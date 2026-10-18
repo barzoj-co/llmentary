@@ -1,4 +1,6 @@
-package lab
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package proxy_test
 
 import (
 	"bytes"
@@ -13,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/barzoj-co/llm-test-lab/internal/lab"
 	"github.com/barzoj-co/llm-test-lab/pkg/llmtestlab"
 )
 
@@ -41,7 +44,7 @@ func TestProxyPassesStreamUnchangedAndRecordsToolCall(t *testing.T) {
 	}))
 	defer upstream.Close()
 
-	cfg, err := ConfigFromEnv()
+	cfg, err := lab.ConfigFromEnv()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,8 +52,8 @@ func TestProxyPassesStreamUnchangedAndRecordsToolCall(t *testing.T) {
 	if err := cfg.AddUpstream("openai=" + upstream.URL); err != nil {
 		t.Fatal(err)
 	}
-	store := NewMemoryStore()
-	server, err := NewServer(cfg, store, TolerantParser{})
+	store := lab.NewMemoryStore()
+	server, err := lab.NewServer(cfg, store, lab.TolerantParser{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -270,11 +273,11 @@ func TestGzipSSEIsDecompressedForParsing(t *testing.T) {
 	}))
 	defer upstream.Close()
 
-	cfg := Config{ListenAddr: ":0", ControlAddr: "127.0.0.1:0"}
+	cfg := lab.Config{ListenAddr: ":0", ControlAddr: "127.0.0.1:0"}
 	if err := cfg.AddUpstream("default=" + upstream.URL); err != nil {
 		t.Fatal(err)
 	}
-	server, err := NewServer(cfg, NewMemoryStore(), TolerantParser{})
+	server, err := lab.NewServer(cfg, lab.NewMemoryStore(), lab.TolerantParser{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -309,7 +312,7 @@ func TestGzipSSEIsDecompressedForParsing(t *testing.T) {
 }
 
 func TestControlNonLoopbackRequiresToken(t *testing.T) {
-	cfg := Config{ListenAddr: ":0", ControlAddr: "0.0.0.0:7778"}
+	cfg := lab.Config{ListenAddr: ":0", ControlAddr: "0.0.0.0:7778"}
 	if err := cfg.AddUpstream("default=http://example.test"); err != nil {
 		t.Fatal(err)
 	}
@@ -323,11 +326,11 @@ func TestControlNonLoopbackRequiresToken(t *testing.T) {
 }
 
 func TestControlClientSendsBearerToken(t *testing.T) {
-	cfg := Config{ListenAddr: ":0", ControlAddr: "127.0.0.1:0", ControlToken: "secret"}
+	cfg := lab.Config{ListenAddr: ":0", ControlAddr: "127.0.0.1:0", ControlToken: "secret"}
 	if err := cfg.AddUpstream("default=http://example.test"); err != nil {
 		t.Fatal(err)
 	}
-	server, err := NewServer(cfg, NewMemoryStore(), TolerantParser{})
+	server, err := lab.NewServer(cfg, lab.NewMemoryStore(), lab.TolerantParser{})
 	if err != nil {
 		t.Fatal(err)
 	}

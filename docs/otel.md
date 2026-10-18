@@ -4,11 +4,13 @@
 The span is modeled first as a normal REST/HTTP client call using the stable OTel HTTP
 client semantic conventions. GenAI attributes from
 `open-telemetry/semantic-conventions-genai` commit `f49da22` are layered on that same span
-as additional attributes.
+as additional attributes. The pinned GenAI attribute names are defined in
+`internal/semconv/genai/attributes.go`.
 
 The local in-memory span store captures content by default because this project is a local
-test tool. The existing normalized session JSON remains available at `GET /sessions/{id}`.
-Spans are exposed separately as OTLP/JSON at:
+test tool. There is no external OTLP exporter in the current code. The existing
+normalized session JSON remains available at `GET /sessions/{id}`. Spans are exposed
+separately as OTLP/JSON at:
 
 ```text
 GET /sessions/{id}/otlp
@@ -23,11 +25,13 @@ trace/span ID fields normalized to OTLP/JSON hex strings.
 
 ## Span shape
 
-- Span name: `chat {gen_ai.request.model}` for parsed LLM calls.
+- Span name: `chat {request model}`. If no request model is parsed, Azure deployment is
+  used as a fallback; otherwise the model is `unknown`.
 - Span kind: `SPAN_KIND_CLIENT`.
 - Stable HTTP client attributes: `http.request.method`, redacted `url.full`,
-  `server.address`, `server.port`, `http.response.status_code`, `error.type`,
-  and `http.request.resend_count` when present.
+  `server.address`, `server.port`, `http.response.status_code`,
+  `http.request.body.size`, `http.response.body.size`, `error.type`, and
+  `http.request.resend_count` when present.
 - Span status: standard HTTP client span status rules, plus provider/mid-stream errors
   detected in otherwise-HTTP-200 LLM streams.
 - Parent: incoming W3C `traceparent`, if present.
@@ -43,14 +47,15 @@ trace/span ID fields normalized to OTLP/JSON hex strings.
 
 ## Common attributes
 
-Every parsed Chat Completions or Responses call sets the stable HTTP client attributes
-plus the following GenAI/custom attributes:
+Every proxied call sets the stable HTTP client attributes plus common GenAI/custom
+attributes where values are available. OpenAI-specific attributes are set only for parsed
+Chat Completions or Responses calls.
 
 | Attribute | Source |
 |---|---|
 | `gen_ai.operation.name` | constant `chat` |
-| `gen_ai.provider.name` | upstream host or route label |
-| `gen_ai.request.model` | request `model`, or Azure deployment path fallback |
+| `gen_ai.provider.name` | known upstream host mapping or route label |
+| `gen_ai.request.model` | request `model`, Azure deployment path fallback, or `unknown` |
 | `server.address`, `server.port` | real upstream host/port |
 | `http.request.method` | upstream request method |
 | `url.full` | redacted upstream URL |
@@ -60,13 +65,23 @@ plus the following GenAI/custom attributes:
 | `openai.api.type` | `chat_completions` or `responses` for OpenAI-wire parsers |
 | `gen_ai.response.id` | response/body id when present |
 | `gen_ai.response.model` | returned model when present |
-| `gen_ai.response.finish_reasons` | raw/native finish reason |
+| `gen_ai.response.finish_reasons` | Responses normalized finish reason, otherwise native finish reason when present, otherwise normalized finish reason |
 | `gen_ai.usage.*` | normalized upstream usage when present |
 | `gen_ai.response.time_to_first_chunk` | streaming TTFT in seconds |
 | `gen_ai.input.messages` | structured captured input messages |
 | `gen_ai.output.messages` | structured captured assistant output/tool calls |
 | `gen_ai.tool.definitions` | type/name only |
 | `llmtestlab.*` | test/session/parser metadata |
+
+Selected request/response headers are also copied to span attributes with
+`http.request.header.` or `http.response.header.` prefixes:
+
+- `x-request-id`
+- `apim-request-id`
+- `retry-after`
+- `retry-after-ms`
+- `openai-processing-ms`
+- any `x-stainless-*` header
 
 ## Chat Completions specifics
 

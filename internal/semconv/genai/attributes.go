@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Package genai contains hand-written attribute constants for the
 // OpenTelemetry GenAI semantic conventions repository at commit f49da22.
 //

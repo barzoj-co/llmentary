@@ -4,6 +4,17 @@ The Go package `github.com/barzoj-co/llm-test-lab/pkg/llmtestlab` provides the t
 API for deterministic LLM integration tests. It never uses an LLM judge. Assertions run
 against calls recorded by the local proxy.
 
+The package is its own nested Go module and is MIT-licensed under
+[`pkg/llmtestlab/LICENSE`](../pkg/llmtestlab/LICENSE). Production client code talks to
+the proxy over HTTP and does not import `internal/lab` or any proxy/server packages.
+
+Related references:
+
+- [Proxy configuration and control API](proxy.md)
+- [Provider compatibility and SDK wiring](providers.md)
+- [Recorded trace data model](data-model.md)
+- [OTel GenAI mapping](otel.md)
+
 ## Session per test
 
 ```go
@@ -164,11 +175,14 @@ For Responses, keep the first response stored and send a `function_call_output` 
 
 ## Fixture testing
 
-`pkg/llmtestlab/testdata` contains raw upstream fixture bodies for Chat Completions and
+`tests/proxy/testdata` contains raw upstream fixture bodies for Chat Completions and
 Responses, streaming and non-streaming, mid-stream errors, Azure empty-choice content
-filter chunks, and structured output. The fixture tests serve those bodies from an
-`httptest` upstream through the real proxy, then assert via `llmtestlab.New(t, ...)`.
+filter chunks, and structured output. The proxy fixture tests live under `tests/proxy`
+so the MIT client module does not import proxy/server packages.
 
 See [`examples/go/weather_test.go`](../examples/go/weather_test.go) for a complete
 proxy-backed example using `openai-go` with `lab.OpenAIBaseURL("openai")` and
 `lab.HTTPClient()`.
+
+For CI wiring, see [GitHub Actions and CI](ci.md). For common setup failures, see
+[Troubleshooting](troubleshooting.md).

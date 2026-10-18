@@ -1,163 +1,155 @@
 # llm-test-lab
 
-Deterministic, trace-based integration testing for LLM apps.
+Deterministic, trace-based integration testing for LLM apps, without an LLM judge.
 
-`llm-test-lab` is a small Go reverse proxy that records LLM inference calls while leaving
-the wire protocol alone. Point your app's LLM SDK `base_url` at the proxy, run a real
-integration test, then assert on the recorded trace: tool calls, arguments, order, token
-usage, prompt size, finish reason, retries, and errors.
+`llm-test-lab` is a small Go reverse proxy plus Go test client. Put the proxy between
+your app and an OpenAI-compatible provider, run the real SDK call, then assert on the
+recorded trace: tool names, tool arguments, tool order, request parameters, finish
+reasons, token usage, retries, latency, TTFT, and provider errors.
 
-The project is AGPL-3.0.
+## 60-second quickstart
 
-## MVP scope
-
-- `cmd/llmtestlab`: HTTP reverse proxy binary.
-- OpenAI Chat Completions parser:
-  - OpenAI, Azure dated `api-version` URLs, Azure `/openai/v1`, OpenRouter, and other
-    OpenAI-compatible providers.
-  - Streaming tool-call deltas, SSE keep-alive comments, Azure content-filter chunks,
-    final usage chunks, gzip responses, and HTTP-200 stream errors.
-- OpenAI Responses parser:
-  - Typed SSE events, terminal `response.completed`, function-call items, usage, and
-    HTTP-200 stream errors.
-- Everything else is raw passthrough: recorded but not parsed. There is no request or
-  response format translation.
-- In-memory per-session store and control API.
-- Importable Go testing client in `pkg/llmtestlab`.
-
-Python and TypeScript clients, packaging, record/replay cassettes, fault injection, OTel
-export, and local TLS are intentionally not in this MVP.
-
-## Install and run
+Install the proxy binary from a GitHub release, or install from source:
 
 ```bash
 go install github.com/barzoj-co/llm-test-lab/cmd/llmtestlab@latest
+```
 
+Run the proxy against OpenAI:
+
+```bash
 llmtestlab \
-  --listen :7777 \
+  --listen 127.0.0.1:7777 \
   --control 127.0.0.1:7778 \
-  --upstream openai=https://api.openai.com/v1 \
-  --upstream azure=https://my-resource.openai.azure.com
+  --upstream openai=https://api.openai.com/v1
 ```
 
-Environment variables are equivalent:
-
-```bash
-export LLMTESTLAB_LISTEN=:7777
-export LLMTESTLAB_CONTROL_LISTEN=127.0.0.1:7778
-export LLMTESTLAB_UPSTREAMS='openai=https://api.openai.com/v1,azure=https://my-resource.openai.azure.com'
-llmtestlab
-```
-
-The control API binds to `127.0.0.1:7778` by default. If you bind it to a non-loopback
-address, set `--control-token` or `LLMTESTLAB_CONTROL_TOKEN`; clients must send
-`Authorization: Bearer <token>`. The Go client reads `LLMTESTLAB_CONTROL_TOKEN` by default
-or accepts `llmtestlab.WithControlToken(token)`.
-
-Named upstream routing uses a path prefix:
-
-```text
-http://localhost:7777/u/openai/chat/completions
-  -> https://api.openai.com/v1/chat/completions
-
-http://localhost:7777/u/azure/openai/deployments/my-deployment/chat/completions?api-version=2024-10-21
-  -> https://my-resource.openai.azure.com/openai/deployments/my-deployment/chat/completions?api-version=2024-10-21
-```
-
-If exactly one upstream is configured, bare paths also work:
-
-```text
-http://localhost:7777/v1/chat/completions
-```
-
-The proxy forwards auth headers untouched, strips `X-Test-Session` before forwarding, and
-records redacted headers and URLs. Secret values in `Authorization`, `api-key`,
-`x-api-key`, `x-goog-api-key`, cookies, and query params such as `?key=` or `?sig=` are
-stored as short SHA-256 hashes.
-
-## Session control API
-
-Calls are grouped by `X-Test-Session`. If that header is absent, the proxy falls back to
-W3C `baggage` keys `llmtestlab.session`, `test-session`, or `x-test-session`. Calls with
-no session land in the `default` bucket.
-
-Control endpoints live on the control listener:
-
-```bash
-curl http://localhost:7778/healthz
-curl http://localhost:7778/sessions/my-test
-curl 'http://localhost:7778/sessions/my-test/wait?quiet=500ms&timeout=30s'
-curl http://localhost:7778/sessions/my-test/otlp
-curl -X DELETE http://localhost:7778/sessions/my-test
-```
-
-Each recorded call includes raw request/response bytes (base64 in JSON), raw SSE events,
-status, latency, retry count (`x-stainless-retry-count`), upstream request ids, and a
-normalized view with model, system prompt hash, declared tools, tool calls, finish reason,
-usage, errors, and parser warnings.
-
-`/sessions/{id}/otlp` returns one OTel GenAI CLIENT span per recorded call in OTLP/JSON.
-See [`docs/otel.md`](docs/otel.md) for the semantic-conventions mapping.
-
-## Go test client
+Point `openai-go` at the named upstream prefix and let `llmtestlab.New(t)` tag requests:
 
 ```go
-client, err := llmtestlab.NewClient("http://localhost:7778")
-if err != nil {
-    t.Fatal(err)
+package myapp_test
+
+import (
+    "context"
+    "os"
+    "testing"
+
+    "github.com/barzoj-co/llm-test-lab/pkg/llmtestlab"
+    "github.com/openai/openai-go"
+    "github.com/openai/openai-go/option"
+)
+
+func TestWeatherTool(t *testing.T) {
+    lab := llmtestlab.New(t)
+
+    client := openai.NewClient(
+        option.WithAPIKey(os.Getenv("OPENAI_API_KEY")),
+        option.WithBaseURL(lab.OpenAIBaseURL("openai")), // http://127.0.0.1:7777/u/openai
+        option.WithHTTPClient(lab.HTTPClient()),         // injects X-Test-Session
+        option.WithMaxRetries(0),
+    )
+
+    // Drive your real app/agent. It should use the OpenAI client above and its
+    // normal tool schema/configuration.
+    if err := RunWeatherAgent(context.Background(), client, "Weather in Paris?"); err != nil {
+        t.Fatal(err)
+    }
+
+    assert := lab.Expect(context.Background())
+    assert.CallCount(1)
+    assert.ToolCalled("get_weather", llmtestlab.ArgsSubset(map[string]any{"city": "Paris"}))
+    assert.NoRetries()
+    assert.NoErrors()
+    assert.TokensBelow(1000)
 }
-
-sessionID := client.NewSession()
-headerName, headerValue := client.SessionHeader(sessionID)
-
-req, _ := http.NewRequest("POST", "http://localhost:7777/u/openai/chat/completions", body)
-req.Header.Set(headerName, headerValue)
-req.Header.Set("Authorization", "Bearer "+os.Getenv("OPENAI_API_KEY"))
-
-// Drive your real app or SDK here.
-
-calls, err := client.Wait(context.Background(), sessionID, 500*time.Millisecond, 30*time.Second)
-if err != nil {
-    t.Fatal(err)
-}
-
-llmtestlab.CallCount(t, calls, 1)
-llmtestlab.ToolCalled(t, calls, "get_weather", map[string]any{"city": "Paris"})
-llmtestlab.ToolOrder(t, calls, "get_weather")
-llmtestlab.ToolNotCalled(t, calls, "delete_user")
-llmtestlab.TokensBelow(t, calls, 1000)
 ```
 
-## SDK base URL gotchas
-
-- `openai-python`, `openai-node`, and `openai-go` can use a custom base URL. For named
-  upstreams, include the prefix: `http://localhost:7777/u/openai`.
-- Azure classic clients append `/openai/deployments/{deployment}/...`; set their endpoint
-  to `http://localhost:7777/u/azure` and keep `api-version` in the SDK config.
-- `openai-go` Azure middleware refuses Azure credentials over plaintext HTTP except
-  loopback when `azure.WithUnsafeAllowHTTP()` is enabled. Docker/CI setups where the
-  proxy is not loopback will need TLS in a follow-up version or a plain OpenAI-compatible
-  client pointed at Azure `/openai/v1`.
-- LangChain `ChatOpenAI` turns off streaming usage when `base_url` / `OPENAI_BASE_URL` is
-  custom. Set `stream_usage=True` if you want token usage in Chat Completions streams.
-- The proxy sets `Accept-Encoding: identity` upstream so it can record parseable bytes.
-  If an upstream still returns gzip, the client stream is passed through unchanged and the
-  recorder decompresses its tee copy for parsing.
-
-## Development
-
-Requires Go 1.26.x.
+Run your Go test:
 
 ```bash
-go test ./...
-go test -tags=e2e ./...   # skips unless OPENAI_API_KEY is set
+OPENAI_API_KEY=sk-... go test ./...
 ```
 
-In CI, the e2e job only runs when `OPENAI_E2E_ENABLED=true`; when enabled, it fails loudly
-if `OPENAI_API_KEY` is empty.
+## How it works
 
-The e2e test starts a local proxy, calls the real OpenAI Chat Completions API with a tiny
-streaming tool-call request, then dogfoods the Go client assertions against the session API.
+```mermaid
+flowchart LR
+    T[Go test] -->|llmtestlab.New(t)| L[Session id]
+    L -->|X-Test-Session or baggage| SDK[LLM SDK / app]
+    SDK -->|OpenAI-compatible HTTP| P[llmtestlab proxy]
+    P -->|unchanged request body and auth| U[Upstream provider]
+    U -->|unchanged response / SSE stream| P
+    P --> S[(in-memory session store)]
+    P --> O[(in-memory OTLP spans)]
+    T -->|GET /sessions/{id}/wait| S
+    T --> A[Go assertions]
+    T -->|GET /sessions/{id}/otlp| O
+```
 
-Release archives are built with GoReleaser for Linux, macOS, and Windows on amd64/arm64
-when a `v*` tag is pushed.
+The proxy forwards the provider protocol unchanged. It records a tee copy, parses
+OpenAI-wire calls when it can, and leaves everything else as raw passthrough.
+
+## Features
+
+- Reverse proxy binary: `cmd/llmtestlab`.
+- Named upstreams, including `/u/{name}/...` routing and bare-path routing for a single
+  upstream or a `default` upstream.
+- OpenAI Chat Completions parser for streaming and non-streaming responses.
+- OpenAI Responses parser for streaming and non-streaming responses.
+- Azure OpenAI paths with dated `api-version` query strings, deployment extraction, and
+  `/openai/v1`-style OpenAI-compatible URLs.
+- OpenRouter/OpenAI-compatible stream tolerance, including keep-alive comments and final
+  usage chunks.
+- Raw passthrough recording for unrecognized APIs.
+- Per-test sessions via `X-Test-Session` or W3C baggage.
+- Control API for health, session fetch, wait-until-quiet, OTLP/JSON export, and delete.
+- Secret redaction in recorded headers and selected URL query parameters.
+- Go test client with trace queries and assertions for tools, JSON args, retries, errors,
+  usage, response content, latency, and TTFT.
+- One in-memory OTel CLIENT span per proxied attempt, using stable HTTP attributes plus
+  pinned GenAI attributes.
+
+## Documentation
+
+- [Proxy configuration and control API](docs/proxy.md)
+- [Provider compatibility and SDK wiring](docs/providers.md)
+- [Recorded trace data model](docs/data-model.md)
+- [Go testing client](docs/go-client.md)
+- [OTel GenAI mapping](docs/otel.md)
+- [GitHub Actions / CI](docs/ci.md)
+- [Troubleshooting](docs/troubleshooting.md)
+- [Contributing](CONTRIBUTING.md)
+
+## Licensing
+
+Only the Go proxy binary is AGPL-3.0. `pkg/llmtestlab` and the separate Python/JS
+client repos are MIT.
+
+- Go proxy binary (`cmd/llmtestlab` and the proxy/server implementation it ships):
+  AGPL-3.0, covered by the root [LICENSE](LICENSE).
+- Go client library (`pkg/llmtestlab`): MIT, covered by
+  [`pkg/llmtestlab/LICENSE`](pkg/llmtestlab/LICENSE).
+- Separate Python and JS client repositories (`llm-test-lab-python`,
+  `llm-test-lab-js`): MIT.
+
+Using the proxy in your test pipeline does not affect your application's license.
+See [LICENSING.md](LICENSING.md).
+
+## Status and roadmap
+
+Current code is a Go proxy and Go client for deterministic integration tests. The session
+store and OTLP span store are in memory.
+
+Planned outside this repo or in later versions:
+
+- Python client: `llm-test-lab-python`.
+- TypeScript/JavaScript client: `llm-test-lab-js`.
+- Anthropic Messages parsing in v2.
+- External OTLP export and stricter content-capture controls.
+- Record/replay cassettes, fault injection, packaging polish, and local TLS.
+
+The current `--tls` flag is parsed by the CLI but is not wired to any TLS listener.
+
+## Repository licenses
+
+See [Licensing](#licensing) and [LICENSING.md](LICENSING.md).
