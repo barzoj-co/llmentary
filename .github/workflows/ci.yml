@@ -9,6 +9,21 @@ permissions:
   contents: read
 
 jobs:
+  codegen-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.x"
+          cache: true
+      - name: Verify spec pin, regenerate, and fail on drift
+        run: make codegen-check
+      - name: A2 proof — hand-edit of gen.go is detected
+        run: bash scripts/prove-a2.sh
+      - name: A5 proof — missing StrictServerInterface method fails the build
+        run: bash scripts/prove-a5.sh
+
   lint:
     runs-on: ubuntu-latest
     steps:

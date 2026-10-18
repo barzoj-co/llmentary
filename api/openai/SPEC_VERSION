@@ -1,0 +1,4 @@
+# Vendored openai/openai-openapi pin. CI checks sha256 of openapi.json against this file.
+commit: f88d2f78b75f46b53b0baef3f5f47dc991add4a2
+info.version: 2.3.0
+sha256: d5ada169e4adfa3a8e13126b6c6e124dbe399c2de857bd9618ca682645818edc

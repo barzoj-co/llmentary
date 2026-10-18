@@ -24,10 +24,7 @@ import (
 )
 
 func TestE2EChatCompletionsToolFlow(t *testing.T) {
-	apiKey := os.Getenv("OPENAI_API_KEY")
-	if apiKey == "" {
-		t.Skip("OPENAI_API_KEY is unset")
-	}
+	apiKey := requireAPIKey(t)
 	model := e2eModel()
 	testLab := newE2ELab(t)
 	client := openai.NewClient(
@@ -84,10 +81,7 @@ func TestE2EChatCompletionsToolFlow(t *testing.T) {
 }
 
 func TestE2EResponsesToolFlow(t *testing.T) {
-	apiKey := os.Getenv("OPENAI_API_KEY")
-	if apiKey == "" {
-		t.Skip("OPENAI_API_KEY is unset")
-	}
+	apiKey := requireAPIKey(t)
 	model := e2eModel()
 	testLab := newE2ELab(t)
 
@@ -158,10 +152,7 @@ func TestE2EResponsesToolFlow(t *testing.T) {
 }
 
 func TestE2EChatCompletionsNonStreaming(t *testing.T) {
-	apiKey := os.Getenv("OPENAI_API_KEY")
-	if apiKey == "" {
-		t.Skip("OPENAI_API_KEY is unset")
-	}
+	apiKey := requireAPIKey(t)
 	model := e2eModel()
 	testLab := newE2ELab(t)
 	body := []byte(`{
@@ -262,6 +253,191 @@ func e2eModel() string {
 		return model
 	}
 	return "gpt-4.1-mini"
+}
+
+func TestE2EChatNonStreamAndStreamText(t *testing.T) {
+	apiKey := requireAPIKey(t)
+	model := e2eModel()
+	testLab := newE2ELab(t)
+	nonStream := []byte(`{"model":` + strconv.Quote(model) + `,"messages":[{"role":"user","content":"Reply with the single word pong."}],"temperature":0,"max_tokens":16}`)
+	body := postOpenAI(t, apiKey, testLab, "/chat/completions", nonStream)
+	if !bytes.Contains(bytes.ToLower(body), []byte("pong")) {
+		t.Fatalf("expected pong in chat body, got %s", body)
+	}
+	stream := []byte(`{"model":` + strconv.Quote(model) + `,"stream":true,"messages":[{"role":"user","content":"Reply with the single word pong."}],"temperature":0,"max_tokens":16}`)
+	streamBody := postOpenAI(t, apiKey, testLab, "/chat/completions", stream)
+	if !bytes.Contains(streamBody, []byte("data:")) {
+		t.Fatalf("expected chat SSE, got %s", streamBody)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	assert := testLab.Expect(ctx)
+	chat := assert.Trace().Query().APIType("chat").Expect(t)
+	chat.CallCount(2)
+	chat.ResponseContains("pong")
+	chat.NoErrors()
+	for _, call := range chat.Trace().Calls {
+		if call.Normalized.Usage == nil || call.Normalized.Usage.TotalTokens == nil {
+			t.Fatalf("expected usage on chat call #%d: %+v", call.Seq, call.Normalized.Usage)
+		}
+	}
+}
+
+func TestE2EChatParallelToolCalls(t *testing.T) {
+	apiKey := requireAPIKey(t)
+	model := e2eModel()
+	testLab := newE2ELab(t)
+	body := []byte(`{
+		"model":` + strconv.Quote(model) + `,
+		"messages":[{"role":"user","content":"Call echo_city twice in parallel: once with city Paris and once with city Lyon. Do not answer in text."}],
+		"temperature":0,
+		"parallel_tool_calls":true,
+		"tools":[` + echoCityChatToolJSON() + `]
+	}`)
+	_ = postOpenAI(t, apiKey, testLab, "/chat/completions", body)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	assert := testLab.Expect(ctx)
+	chat := assert.Trace().Query().APIType("chat").Expect(t)
+	chat.CallCount(1)
+	chat.ToolCalled("echo_city")
+	if len(chat.Trace().Calls[0].Normalized.ToolCalls) < 2 {
+		t.Fatalf("expected parallel tool calls, got:\n%s", chat.Trace().Summary())
+	}
+}
+
+func TestE2EChatStructuredOutput(t *testing.T) {
+	apiKey := requireAPIKey(t)
+	model := e2eModel()
+	testLab := newE2ELab(t)
+	body := []byte(`{
+		"model":` + strconv.Quote(model) + `,
+		"messages":[{"role":"user","content":"Return JSON with answer=ok and count=1."}],
+		"temperature":0,
+		"response_format":{"type":"json_schema","json_schema":{"name":"ans","strict":true,"schema":{"type":"object","properties":{"answer":{"type":"string"},"count":{"type":"integer"}},"required":["answer","count"],"additionalProperties":false}}}
+	}`)
+	_ = postOpenAI(t, apiKey, testLab, "/chat/completions", body)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	assert := testLab.Expect(ctx)
+	chat := assert.Trace().Query().APIType("chat").Expect(t)
+	chat.CallCount(1)
+	chat.ResponseJSONSchemaValid(map[string]any{
+		"type":     "object",
+		"required": []string{"answer", "count"},
+		"properties": map[string]any{
+			"answer": map[string]any{"type": "string"},
+			"count":  map[string]any{"type": "integer"},
+		},
+	})
+	chat.NoErrors()
+}
+
+func TestE2EResponsesNonStreamAndStructured(t *testing.T) {
+	apiKey := requireAPIKey(t)
+	model := e2eModel()
+	testLab := newE2ELab(t)
+	text := []byte(`{"model":` + strconv.Quote(model) + `,"input":"Reply with the single word pong.","temperature":0,"max_output_tokens":16}`)
+	body := postOpenAI(t, apiKey, testLab, "/responses", text)
+	if !bytes.Contains(bytes.ToLower(body), []byte("pong")) {
+		t.Fatalf("expected pong in responses body, got %s", body)
+	}
+	structured := []byte(`{
+		"model":` + strconv.Quote(model) + `,
+		"input":"Return JSON with answer=ok.",
+		"temperature":0,
+		"text":{"format":{"type":"json_schema","name":"ans","strict":true,"schema":{"type":"object","properties":{"answer":{"type":"string"}},"required":["answer"],"additionalProperties":false}}}
+	}`)
+	_ = postOpenAI(t, apiKey, testLab, "/responses", structured)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	assert := testLab.Expect(ctx)
+	responses := assert.Trace().Query().APIType("responses").Expect(t)
+	responses.CallCount(2)
+	responses.ResponseContains("pong")
+	responses.NoErrors()
+}
+
+func TestE2EInvalidParameter400(t *testing.T) {
+	apiKey := requireAPIKey(t)
+	model := e2eModel()
+	testLab := newE2ELab(t)
+	body := []byte(`{"model":` + strconv.Quote(model) + `,"messages":[{"role":"user","content":"hi"}],"temperature":99}`)
+	status, resp := postOpenAIStatus(t, apiKey, testLab, "/chat/completions", body)
+	if status != http.StatusBadRequest {
+		t.Fatalf("status=%d body=%s", status, resp)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	assert := testLab.Expect(ctx)
+	assert.HasError()
+	call := assert.Trace().Calls[0]
+	if call.Normalized.Error == nil || call.Normalized.Error.Normalized != "bad_request" || call.HTTPStatus != 400 {
+		t.Fatalf("error=%+v status=%d", call.Normalized.Error, call.HTTPStatus)
+	}
+	t.Logf("live OpenAI 400 body shape: %s", resp)
+}
+
+func TestE2EUnauthorized401(t *testing.T) {
+	_ = requireAPIKey(t)
+	model := e2eModel()
+	testLab := newE2ELab(t)
+	body := []byte(`{"model":` + strconv.Quote(model) + `,"messages":[{"role":"user","content":"hi"}]}`)
+	status, resp := postOpenAIStatus(t, "sk-invalid-e2e-key", testLab, "/chat/completions", body)
+	if status != http.StatusUnauthorized {
+		t.Fatalf("status=%d body=%s", status, resp)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	assert := testLab.Expect(ctx)
+	assert.HasError()
+	call := assert.Trace().Calls[0]
+	if call.Normalized.Error == nil || call.Normalized.Error.Normalized != "auth" || call.HTTPStatus != 401 {
+		t.Fatalf("error=%+v status=%d", call.Normalized.Error, call.HTTPStatus)
+	}
+	t.Logf("live OpenAI 401 body shape: %s", resp)
+}
+
+func requireAPIKey(t *testing.T) string {
+	t.Helper()
+	apiKey := os.Getenv("OPENAI_API_KEY")
+	if apiKey == "" {
+		t.Fatal("OPENAI_API_KEY is required; e2e tests must not be skipped")
+	}
+	return apiKey
+}
+
+func postOpenAIStatus(t *testing.T, apiKey string, lab *llmtestlab.Lab, path string, body []byte) (int, []byte) {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodPost, lab.OpenAIBaseURL("openai")+path, bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	req.Header.Set("Content-Type", "application/json")
+	key, value := lab.Header()
+	req.Header.Set(key, value)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return resp.StatusCode, raw
+}
+
+func echoCityChatToolJSON() string {
+	return `{
+		"type":"function",
+		"function":{
+			"name":"echo_city",
+			"description":"Echo a city name.",
+			"parameters":{"type":"object","properties":{"city":{"type":"string"}},"required":["city"],"additionalProperties":false}
+		}
+	}`
 }
 
 func echoCityChatTool() openai.ChatCompletionToolParam {

@@ -59,9 +59,20 @@ The parser records:
 - usage from response bodies or terminal stream events;
 - response errors and HTTP-200 stream errors.
 
-Responses stream parsing recognizes typed SSE events such as `response.completed`,
-`response.failed`, `response.incomplete`, `response.output_item.done`,
-`response.function_call_arguments.delta`, and `error`.
+Responses stream parsing uses generated `ResponseStreamEvent.ValueByDiscriminator()`
+with wire `type` values (`response.output_text.delta`, not schema names). It
+recognizes `response.completed`, `response.failed`, `response.incomplete`,
+`response.output_item.done`, `response.function_call_arguments.delta/done`,
+`response.refusal.delta/done`, and `error`.
+
+The official spec's Responses stream `error` event has top-level `code` and
+`message` (`{"type":"error","code":"...","message":"..."}`). Some payloads nest
+`{"type":"error","error":{...}}`. The proxy accepts both and sets
+`normalized.error.mid_stream=true`. HTTP 400/401 from live OpenAI use the nested
+`ErrorResponse` object (`{"error":{"type","code","message"}}`), not a stream
+frame. Chat Completions mid-stream errors are description-only in the spec
+(`data: {"error":{...}}` inside HTTP 200) and are handled by hand, as is the
+literal `data: [DONE]` terminator.
 
 ## Azure OpenAI
 
@@ -83,6 +94,12 @@ The proxy records:
 - `upstream.api_version` from the `api-version` query parameter;
 - `upstream.deployment` from `/deployments/{deployment}/...`;
 - `llmtestlab.azure.api_version` and `llmtestlab.azure.deployment` OTel attributes.
+
+Routing rewrites `/openai/deployments/{id}/chat/completions`, `/openai/v1/...`,
+`/api/v1/...`, and bare `/chat/completions` or `/responses` onto the generated
+router for matching only. The original path, query (`api-version`), and headers
+(`api-key`, `Authorization`) go upstream unchanged. `api-key` is hashed
+(`sha256:...`) in the recorded trace.
 
 Azure `/openai/v1` OpenAI-compatible URLs also work because the final path still ends in
 `/chat/completions` or `/responses`:
@@ -111,12 +128,17 @@ at the proxy or a future TLS listener.
 
 ## OpenRouter
 
-OpenRouter uses an OpenAI-compatible Chat Completions stream shape. The parser tolerates:
+OpenRouter uses an OpenAI-compatible Chat Completions stream shape. Extra fields
+absent from the OpenAI spec (`provider`, `native_finish_reason`, `usage.cost`,
+`delta.reasoning`) are read by a thin extension layer from raw JSON. The parser
+also tolerates:
 
 - SSE keep-alive comments such as `: OPENROUTER PROCESSING`;
 - chunks with `choices: []`;
-- provider fields;
 - final usage chunks.
+
+Those extras appear as `served_by`, `native_finish_reason`, `usage.cost_usd`,
+and `reasoning.chars`.
 
 Configure it as an OpenAI-compatible upstream:
 

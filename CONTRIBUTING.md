@@ -7,6 +7,45 @@ Thanks for working on `llm-test-lab`.
 - Go 1.26.x, matching `go.mod` and the GitHub Actions workflows.
 - Standard Go tooling (`go test`, `gofmt`).
 
+## OpenAPI spec and codegen
+
+Chat Completions and Responses are generated from a pinned copy of the official
+OpenAI OpenAPI spec.
+
+- `api/openai/openapi.json` is the full vendored spec.
+- `api/openai/SPEC_VERSION` records the `openai/openai-openapi` commit SHA,
+  `info.version`, and sha256 of that file.
+- `api/openai/operations.txt` lists the `operationId`s we generate.
+- `api/openai/overlay.yaml` is an OpenAPI Overlay 1.0 used only for codegen
+  fixes (name collisions, discriminator mapping). Every action has a "why"
+  comment.
+- `make gen` filters the spec (`tools/specfilter`) and runs pinned
+  `oapi-codegen` v2.8.0 (`go tool oapi-codegen`, never `@latest`).
+- CI job `codegen-check` runs `make gen && git diff --exit-code`.
+
+Update the vendored spec only through an explicit PR:
+
+```bash
+make spec-update SPEC_SHA=<full openai/openai-openapi commit sha>
+```
+
+That downloads `openapi.json` from the commit, refreshes `SPEC_VERSION`, and
+regenerates `internal/openaiapi/gen.go`.
+
+To add an endpoint, append its `operationId` to `api/openai/operations.txt`,
+run `make gen`, and implement the new method on `openAIHandlers`. There is a
+compile-time assertion:
+
+```go
+var _ openaiapi.StrictServerInterface = (*openAIHandlers)(nil)
+```
+
+Do not embed Unimplemented stubs. If the method is missing, `go build` fails.
+
+If generated code does not compile, prefer an overlay action in
+`api/openai/overlay.yaml` (with a why-comment) over editing `gen.go`. Hand-edits
+to `gen.go` fail `codegen-check`.
+
 ## Local checks
 
 Run unit and fixture tests for both Go modules:

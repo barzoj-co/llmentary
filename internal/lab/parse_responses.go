@@ -6,28 +6,35 @@ import (
 	"bytes"
 	"encoding/json"
 	"strings"
+
+	"github.com/barzoj-co/llm-test-lab/internal/openaiapi"
 )
 
-type responsesRequest struct {
-	Model              string            `json:"model"`
-	Instructions       string            `json:"instructions"`
-	Input              json.RawMessage   `json:"input"`
-	Tools              []json.RawMessage `json:"tools"`
-	PreviousResponseID string            `json:"previous_response_id"`
-	Conversation       any               `json:"conversation"`
-}
-
 func parseResponses(call *Call) {
-	var req responsesRequest
+	var req openaiapi.CreateResponse
 	if err := json.Unmarshal(call.RawRequest, &req); err == nil {
-		call.Normalized.Model.Requested = req.Model
-		call.Normalized.PreviousResponseID = req.PreviousResponseID
-		call.Normalized.ContextServerSide = req.PreviousResponseID != "" || req.Conversation != nil
-		call.Normalized.SystemPrompt = responsesSystemPrompt(req.Instructions, req.Input)
+		if req.Model != nil {
+			call.Normalized.Model.Requested = unionString(*req.Model)
+		}
+		if req.PreviousResponseId != nil {
+			call.Normalized.PreviousResponseID = *req.PreviousResponseId
+		}
+		call.Normalized.ContextServerSide = call.Normalized.PreviousResponseID != "" || req.Conversation != nil
+		instructions := ""
+		if req.Instructions != nil {
+			instructions = *req.Instructions
+		}
+		var inputRaw json.RawMessage
+		if req.Input != nil {
+			inputRaw, _ = json.Marshal(*req.Input)
+		}
+		call.Normalized.SystemPrompt = responsesSystemPrompt(instructions, inputRaw)
 		call.Normalized.SystemPromptHash = systemHash(call.Normalized.SystemPrompt)
-		call.Normalized.MessagesCount = responsesInputCount(req.Input)
-		call.Normalized.ToolsDeclared = responsesTools(req.Tools)
-		call.Normalized.ToolResultsIn = responsesToolResults(req.Input)
+		call.Normalized.MessagesCount = responsesInputCount(inputRaw)
+		if req.Tools != nil {
+			call.Normalized.ToolsDeclared = responsesTools(*req.Tools)
+		}
+		call.Normalized.ToolResultsIn = responsesToolResults(inputRaw)
 	}
 	if call.Stream {
 		parseResponsesStream(call)
@@ -44,66 +51,75 @@ func parseResponses(call *Call) {
 
 func parseResponsesStream(call *Call) {
 	complete := false
-	fallbackItems := map[int]json.RawMessage{}
+	fallbackItems := map[int]openaiapi.OutputItem{}
 	argDeltas := map[string]*strings.Builder{}
 	for _, event := range call.SSEEvents {
 		if event.Comment != "" || len(bytes.TrimSpace(event.Data)) == 0 {
 			continue
 		}
-		name := event.Event
-		if name == "" {
-			var typed struct {
-				Type string `json:"type"`
-			}
-			_ = json.Unmarshal(event.Data, &typed)
-			name = typed.Type
-		}
-		switch name {
-		case "response.completed":
-			complete = true
-			var wrapper struct {
-				Response json.RawMessage `json:"response"`
-			}
-			if json.Unmarshal(event.Data, &wrapper) == nil && len(wrapper.Response) > 0 {
-				parseResponsesObject(call, wrapper.Response, "terminal_event")
-			}
-		case "response.failed", "response.incomplete":
-			var wrapper struct {
-				Response json.RawMessage `json:"response"`
-			}
-			if json.Unmarshal(event.Data, &wrapper) == nil && len(wrapper.Response) > 0 {
-				parseResponsesObject(call, wrapper.Response, "terminal_event")
-			}
-		case "response.output_item.done":
-			var wrapper struct {
-				OutputIndex int             `json:"output_index"`
-				Item        json.RawMessage `json:"item"`
-			}
-			if json.Unmarshal(event.Data, &wrapper) == nil && len(wrapper.Item) > 0 {
-				fallbackItems[wrapper.OutputIndex] = wrapper.Item
-			}
-		case "response.function_call_arguments.delta":
-			var wrapper struct {
-				ItemID string `json:"item_id"`
-				Delta  string `json:"delta"`
-			}
-			if json.Unmarshal(event.Data, &wrapper) == nil && wrapper.ItemID != "" {
-				if argDeltas[wrapper.ItemID] == nil {
-					argDeltas[wrapper.ItemID] = &strings.Builder{}
-				}
-				argDeltas[wrapper.ItemID].WriteString(wrapper.Delta)
-			}
-		case "error":
-			call.Normalized.Error = midStreamError(call.HTTPStatus, event.Data)
+		var streamEvent openaiapi.ResponseStreamEvent
+		// Mid-stream errors arrive as type=error. The official spec uses
+		// top-level code/message (ResponseErrorEvent); some live payloads nest
+		// {"error":{...}}. Handle both from the raw frame, not only the typed
+		// discriminator path.
+		if err := midStreamError(call.HTTPStatus, event.Data); err != nil {
+			call.Normalized.Error = err
 			call.Normalized.FinishReason = "error"
-		default:
-			if strings.HasPrefix(name, "response.") ||
-				strings.HasPrefix(name, "response.output_text.") ||
-				strings.HasPrefix(name, "response.content_part.") ||
-				strings.HasPrefix(name, "response.reasoning") {
-				continue
+		}
+		if err := json.Unmarshal(event.Data, &streamEvent); err != nil {
+			call.Normalized.ParserWarnings = append(call.Normalized.ParserWarnings, "responses stream event parse error: "+err.Error())
+			continue
+		}
+		typed, err := streamEvent.ValueByDiscriminator()
+		if err != nil {
+			name := event.Event
+			if name == "" {
+				var probe struct {
+					Type string `json:"type"`
+				}
+				_ = json.Unmarshal(event.Data, &probe)
+				name = probe.Type
+			}
+			if name == "" {
+				name = "unknown"
 			}
 			call.Normalized.ParserWarnings = append(call.Normalized.ParserWarnings, "unknown responses stream event: "+name)
+			continue
+		}
+		switch ev := typed.(type) {
+		case openaiapi.ResponseCompletedEvent:
+			complete = true
+			raw, _ := json.Marshal(ev.Response)
+			parseResponsesObject(call, raw, "terminal_event")
+		case openaiapi.ResponseFailedEvent:
+			raw, _ := json.Marshal(ev.Response)
+			parseResponsesObject(call, raw, "terminal_event")
+		case openaiapi.ResponseIncompleteEvent:
+			raw, _ := json.Marshal(ev.Response)
+			parseResponsesObject(call, raw, "terminal_event")
+		case openaiapi.ResponseOutputItemDoneEvent:
+			fallbackItems[ev.OutputIndex] = ev.Item
+		case openaiapi.ResponseFunctionCallArgumentsDeltaEvent:
+			if ev.ItemId != "" {
+				if argDeltas[ev.ItemId] == nil {
+					argDeltas[ev.ItemId] = &strings.Builder{}
+				}
+				argDeltas[ev.ItemId].WriteString(ev.Delta)
+			}
+		case openaiapi.ResponseTextDeltaEvent:
+			call.Normalized.OutputText += ev.Delta
+		case openaiapi.ResponseRefusalDeltaEvent:
+			call.Normalized.Refusal += ev.Delta
+		case openaiapi.ResponseRefusalDoneEvent:
+			if ev.Refusal != "" {
+				call.Normalized.Refusal = ev.Refusal
+			}
+		case openaiapi.ResponseErrorEvent:
+			raw, _ := json.Marshal(ev)
+			if err := midStreamError(call.HTTPStatus, raw); err != nil {
+				call.Normalized.Error = err
+			}
+			call.Normalized.FinishReason = "error"
 		}
 	}
 	if !complete {
@@ -112,8 +128,8 @@ func parseResponsesStream(call *Call) {
 		call.Normalized.StreamTruncated = false
 	}
 	if len(call.Normalized.ToolCalls) == 0 && len(fallbackItems) > 0 {
-		for index, raw := range fallbackItems {
-			if tool, ok := toolCallFromResponsesItem(index, raw); ok {
+		for index, item := range fallbackItems {
+			if tool, ok := toolCallFromOutputItem(index, item); ok {
 				if b := argDeltas[tool.ItemID]; b != nil && tool.ArgumentsRaw == "" {
 					tool.ArgumentsRaw = b.String()
 					tool.Arguments, tool.ArgsParseError = parseJSONArguments(tool.ArgumentsRaw)
@@ -129,109 +145,141 @@ func parseResponsesStream(call *Call) {
 }
 
 func parseResponsesObject(call *Call, raw []byte, usageSource string) {
-	var resp struct {
-		ID                string `json:"id"`
-		Model             string `json:"model"`
-		Status            string `json:"status"`
-		IncompleteDetails struct {
-			Reason string `json:"reason"`
-		} `json:"incomplete_details"`
-		Usage      json.RawMessage   `json:"usage"`
-		Output     []json.RawMessage `json:"output"`
-		OutputText string            `json:"output_text"`
-		Error      *struct {
-			Type    string `json:"type"`
-			Code    string `json:"code"`
-			Message string `json:"message"`
-		} `json:"error"`
-		ContentFilters []json.RawMessage `json:"content_filters"`
-	}
+	var resp openaiapi.Response
 	if err := json.Unmarshal(raw, &resp); err != nil {
 		call.Normalized.ParserWarnings = append(call.Normalized.ParserWarnings, "responses parse error: "+err.Error())
 		return
 	}
-	if resp.ID != "" {
-		call.RequestIDs["body.id"] = resp.ID
+	if resp.Id != "" {
+		call.RequestIDs["body.id"] = resp.Id
 	}
-	if resp.Model != "" {
-		call.Normalized.Model.Returned = resp.Model
+	if model := unionString(resp.Model); model != "" {
+		call.Normalized.Model.Returned = model
 	}
-	if resp.OutputText != "" {
-		call.Normalized.OutputText = resp.OutputText
+	objectText := ""
+	if resp.OutputText != nil {
+		objectText = *resp.OutputText
 	}
-	call.Normalized.Usage = usageFromResponses(resp.Usage, usageSource)
-	call.Normalized.NativeFinishReason = resp.Status
-	if resp.IncompleteDetails.Reason != "" {
-		call.Normalized.NativeFinishReason += ":" + resp.IncompleteDetails.Reason
+	fromOutputTextField := objectText != ""
+	objectRefusal := ""
+	if hasJSONKey(raw, "usage") {
+		var holder struct {
+			Usage json.RawMessage `json:"usage"`
+		}
+		if json.Unmarshal(raw, &holder) == nil {
+			call.Normalized.Usage = usageFromResponses(holder.Usage, usageSource)
+		}
+	}
+	status := ""
+	if resp.Status != nil {
+		status = string(*resp.Status)
+	}
+	call.Normalized.NativeFinishReason = status
+	reason := ""
+	if resp.IncompleteDetails != nil && resp.IncompleteDetails.Reason != nil {
+		reason = string(*resp.IncompleteDetails.Reason)
+		if reason != "" {
+			call.Normalized.NativeFinishReason += ":" + reason
+		}
 	}
 	for i, item := range resp.Output {
-		if tool, ok := toolCallFromResponsesItem(i, item); ok {
+		if tool, ok := toolCallFromOutputItem(i, item); ok {
 			call.Normalized.ToolCalls = append(call.Normalized.ToolCalls, tool)
 			continue
 		}
-		var generic struct {
-			Type    string `json:"type"`
-			Content []struct {
-				Type string `json:"type"`
-				Text string `json:"text"`
-			} `json:"content"`
+		typed, err := item.ValueByDiscriminator()
+		if err != nil {
+			continue
 		}
-		if json.Unmarshal(item, &generic) == nil {
-			for _, content := range generic.Content {
-				if content.Text != "" {
-					call.Normalized.OutputText += content.Text
+		switch out := typed.(type) {
+		case openaiapi.OutputMessage:
+			for _, part := range out.Content {
+				switch content := mustOutputContent(part).(type) {
+				case openaiapi.OutputTextContent:
+					if !fromOutputTextField {
+						objectText += content.Text
+					}
+				case openaiapi.RefusalContent:
+					objectRefusal += content.Refusal
 				}
 			}
-			if strings.Contains(generic.Type, "reasoning") {
+		case openaiapi.ReasoningItem:
+			if call.Normalized.Reasoning == nil {
 				call.Normalized.Reasoning = &Reasoning{Present: true}
 			}
+			if out.EncryptedContent != nil && *out.EncryptedContent != "" {
+				call.Normalized.Reasoning.Encrypted = true
+			}
+			if out.Content != nil {
+				for _, part := range *out.Content {
+					call.Normalized.Reasoning.Chars += len(part.Text)
+				}
+			}
 		}
+	}
+	if objectText != "" {
+		call.Normalized.OutputText = objectText
+	}
+	if objectRefusal != "" {
+		call.Normalized.Refusal = objectRefusal
 	}
 	sortToolCalls(call.Normalized.ToolCalls)
 	if len(call.Normalized.ToolCalls) > 0 {
 		call.Normalized.FinishReason = "tool_calls"
 	} else {
-		call.Normalized.FinishReason = synthesizeResponsesFinish(resp.Status, resp.IncompleteDetails.Reason)
+		call.Normalized.FinishReason = synthesizeResponsesFinish(status, reason)
 	}
 	if resp.Error != nil {
+		code := string(resp.Error.Code)
+		typ := ""
+		if resp.Error.Type != nil {
+			typ = *resp.Error.Type
+		}
 		call.Normalized.Error = &CallError{
 			HTTPStatus: call.HTTPStatus,
-			Type:       resp.Error.Type,
-			Code:       resp.Error.Code,
+			Type:       typ,
+			Code:       code,
 			Message:    resp.Error.Message,
-			Normalized: normalizeError(call.HTTPStatus, resp.Error.Code, resp.Error.Type),
+			Normalized: normalizeError(call.HTTPStatus, code, typ),
 			MidStream:  call.HTTPStatus < 400,
 		}
 		call.Normalized.FinishReason = "error"
 	}
-	for _, rawFilter := range resp.ContentFilters {
-		collectFilter(call, rawFilter)
-	}
+	applyResponsesExtensions(call, raw)
 }
 
-func toolCallFromResponsesItem(index int, raw json.RawMessage) (ToolCall, bool) {
-	var item struct {
-		ID        string `json:"id"`
-		Type      string `json:"type"`
-		CallID    string `json:"call_id"`
-		Name      string `json:"name"`
-		Arguments string `json:"arguments"`
-		Input     string `json:"input"`
+func mustOutputContent(part openaiapi.OutputMessageContent) any {
+	typed, err := part.ValueByDiscriminator()
+	if err != nil {
+		return nil
 	}
-	if json.Unmarshal(raw, &item) != nil {
+	return typed
+}
+
+func toolCallFromOutputItem(index int, item openaiapi.OutputItem) (ToolCall, bool) {
+	typed, err := item.ValueByDiscriminator()
+	if err != nil {
 		return ToolCall{}, false
 	}
-	switch item.Type {
-	case "function_call":
-		args, argErr := parseJSONArguments(item.Arguments)
+	switch out := typed.(type) {
+	case openaiapi.FunctionToolCall:
+		args, argErr := parseJSONArguments(out.Arguments)
+		itemID := ""
+		if out.Id != nil {
+			itemID = *out.Id
+		}
 		return ToolCall{
-			Index: index, ID: item.CallID, ItemID: item.ID, Name: item.Name, Kind: "function",
-			ArgumentsRaw: item.Arguments, Arguments: args, ArgsParseError: argErr,
+			Index: index, ID: out.CallId, ItemID: itemID, Name: out.Name, Kind: "function",
+			ArgumentsRaw: out.Arguments, Arguments: args, ArgsParseError: argErr,
 		}, true
-	case "custom_tool_call":
+	case openaiapi.CustomToolCall:
+		itemID := ""
+		if out.Id != nil {
+			itemID = *out.Id
+		}
 		return ToolCall{
-			Index: index, ID: item.CallID, ItemID: item.ID, Name: item.Name, Kind: "custom",
-			ArgumentsRaw: item.Input,
+			Index: index, ID: out.CallId, ItemID: itemID, Name: out.Name, Kind: "custom",
+			ArgumentsRaw: out.Input,
 		}, true
 	default:
 		return ToolCall{}, false
@@ -272,9 +320,13 @@ func responsesInputCount(input json.RawMessage) int {
 	return 0
 }
 
-func responsesTools(rawTools []json.RawMessage) []ToolDecl {
-	out := make([]ToolDecl, 0, len(rawTools))
-	for _, raw := range rawTools {
+func responsesTools(tools openaiapi.ToolsArray) []ToolDecl {
+	out := make([]ToolDecl, 0, len(tools))
+	for _, tool := range tools {
+		raw, err := json.Marshal(tool)
+		if err != nil {
+			continue
+		}
 		var t struct {
 			Type       string          `json:"type"`
 			Name       string          `json:"name"`

@@ -1,0 +1,5 @@
+# OperationIds generated into internal/openaiapi.
+# Adding a line here and running `make gen` extends StrictServerInterface;
+# the proxy will not build until that method is implemented (no Unimplemented stubs).
+createChatCompletion
+createResponse

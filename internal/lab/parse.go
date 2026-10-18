@@ -18,9 +18,11 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/barzoj-co/llm-test-lab/internal/openaiapi"
 )
 
-const derivedVersion = 1
+const derivedVersion = 2
 
 type Parser interface {
 	Parse(call *Call)
@@ -408,23 +410,11 @@ func usageFromChat(raw json.RawMessage, source string) *Usage {
 	if len(raw) == 0 || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
 		return nil
 	}
-	var u struct {
-		PromptTokens        int `json:"prompt_tokens"`
-		CompletionTokens    int `json:"completion_tokens"`
-		TotalTokens         int `json:"total_tokens"`
-		PromptTokensDetails struct {
-			CachedTokens     int `json:"cached_tokens"`
-			CacheWriteTokens int `json:"cache_write_tokens"`
-		} `json:"prompt_tokens_details"`
-		CompletionTokensDetails struct {
-			ReasoningTokens int `json:"reasoning_tokens"`
-		} `json:"completion_tokens_details"`
-		Cost *float64 `json:"cost"`
-	}
+	var u openaiapi.CompletionUsage
 	if err := json.Unmarshal(raw, &u); err != nil {
 		return nil
 	}
-	usage := &Usage{Source: source, Raw: append(json.RawMessage(nil), raw...), CostUSD: u.Cost}
+	usage := &Usage{Source: source, Raw: append(json.RawMessage(nil), raw...)}
 	if hasJSONKey(raw, "prompt_tokens") {
 		usage.InputTokens = intPtr(u.PromptTokens)
 	}
@@ -434,15 +424,32 @@ func usageFromChat(raw json.RawMessage, source string) *Usage {
 	if hasJSONKey(raw, "total_tokens") {
 		usage.TotalTokens = intPtr(u.TotalTokens)
 	}
-	if hasNestedJSONKey(raw, "prompt_tokens_details", "cached_tokens") {
-		usage.CachedInputTokens = intPtr(u.PromptTokensDetails.CachedTokens)
+	if u.PromptTokensDetails != nil {
+		if hasNestedJSONKey(raw, "prompt_tokens_details", "cached_tokens") && u.PromptTokensDetails.CachedTokens != nil {
+			usage.CachedInputTokens = intPtr(*u.PromptTokensDetails.CachedTokens)
+		}
+		if hasNestedJSONKey(raw, "prompt_tokens_details", "cache_write_tokens") && u.PromptTokensDetails.CacheWriteTokens != nil {
+			usage.CacheWriteTokens = intPtr(*u.PromptTokensDetails.CacheWriteTokens)
+		}
+		if hasNestedJSONKey(raw, "prompt_tokens_details", "audio_tokens") && u.PromptTokensDetails.AudioTokens != nil {
+			usage.AudioTokens = intPtr(*u.PromptTokensDetails.AudioTokens)
+		}
 	}
-	if hasNestedJSONKey(raw, "prompt_tokens_details", "cache_write_tokens") {
-		usage.CacheWriteTokens = intPtr(u.PromptTokensDetails.CacheWriteTokens)
+	if u.CompletionTokensDetails != nil {
+		if hasNestedJSONKey(raw, "completion_tokens_details", "reasoning_tokens") && u.CompletionTokensDetails.ReasoningTokens != nil {
+			usage.ReasoningTokens = intPtr(*u.CompletionTokensDetails.ReasoningTokens)
+		}
+		if hasNestedJSONKey(raw, "completion_tokens_details", "accepted_prediction_tokens") && u.CompletionTokensDetails.AcceptedPredictionTokens != nil {
+			usage.AcceptedPredictionTokens = intPtr(*u.CompletionTokensDetails.AcceptedPredictionTokens)
+		}
+		if hasNestedJSONKey(raw, "completion_tokens_details", "rejected_prediction_tokens") && u.CompletionTokensDetails.RejectedPredictionTokens != nil {
+			usage.RejectedPredictionTokens = intPtr(*u.CompletionTokensDetails.RejectedPredictionTokens)
+		}
+		if usage.AudioTokens == nil && hasNestedJSONKey(raw, "completion_tokens_details", "audio_tokens") && u.CompletionTokensDetails.AudioTokens != nil {
+			usage.AudioTokens = intPtr(*u.CompletionTokensDetails.AudioTokens)
+		}
 	}
-	if hasNestedJSONKey(raw, "completion_tokens_details", "reasoning_tokens") {
-		usage.ReasoningTokens = intPtr(u.CompletionTokensDetails.ReasoningTokens)
-	}
+	applyUsageExtensions(usage, raw)
 	return usage
 }
 
@@ -450,17 +457,7 @@ func usageFromResponses(raw json.RawMessage, source string) *Usage {
 	if len(raw) == 0 || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
 		return nil
 	}
-	var u struct {
-		InputTokens        int `json:"input_tokens"`
-		OutputTokens       int `json:"output_tokens"`
-		TotalTokens        int `json:"total_tokens"`
-		InputTokensDetails struct {
-			CachedTokens int `json:"cached_tokens"`
-		} `json:"input_tokens_details"`
-		OutputTokensDetails struct {
-			ReasoningTokens int `json:"reasoning_tokens"`
-		} `json:"output_tokens_details"`
-	}
+	var u openaiapi.ResponseUsage
 	if err := json.Unmarshal(raw, &u); err != nil {
 		return nil
 	}
@@ -477,9 +474,13 @@ func usageFromResponses(raw json.RawMessage, source string) *Usage {
 	if hasNestedJSONKey(raw, "input_tokens_details", "cached_tokens") {
 		usage.CachedInputTokens = intPtr(u.InputTokensDetails.CachedTokens)
 	}
+	if hasNestedJSONKey(raw, "input_tokens_details", "cache_write_tokens") {
+		usage.CacheWriteTokens = intPtr(u.InputTokensDetails.CacheWriteTokens)
+	}
 	if hasNestedJSONKey(raw, "output_tokens_details", "reasoning_tokens") {
 		usage.ReasoningTokens = intPtr(u.OutputTokensDetails.ReasoningTokens)
 	}
+	applyUsageExtensions(usage, raw)
 	return usage
 }
 
@@ -508,21 +509,52 @@ func intPtr(v int) *int {
 }
 
 func midStreamError(status int, raw json.RawMessage) *CallError {
-	var holder struct {
-		Type  string `json:"type"`
-		Error any    `json:"error"`
+	if len(bytes.TrimSpace(raw)) == 0 {
+		return nil
 	}
-	if json.Unmarshal(raw, &holder) != nil || holder.Error == nil {
+	var holder struct {
+		Type    string          `json:"type"`
+		Code    *string         `json:"code"`
+		Message string          `json:"message"`
+		Error   json.RawMessage `json:"error"`
+	}
+	_ = json.Unmarshal(raw, &holder)
+
+	// Spec Responses stream error: top-level type/code/message (ResponseErrorEvent).
+	var ev openaiapi.ResponseErrorEvent
+	if json.Unmarshal(raw, &ev) == nil && (ev.Type == "error" || holder.Type == "error") && ev.Message != "" {
+		code := ""
+		if ev.Code != nil {
+			code = *ev.Code
+		}
+		return &CallError{
+			HTTPStatus: status,
+			Type:       string(ev.Type),
+			Code:       code,
+			Message:    ev.Message,
+			Normalized: normalizeError(status, code, string(ev.Type)),
+			MidStream:  true,
+		}
+	}
+
+	if len(holder.Error) == 0 || bytes.Equal(bytes.TrimSpace(holder.Error), []byte("null")) {
 		return nil
 	}
 	err := &CallError{HTTPStatus: status, MidStream: true}
-	switch v := holder.Error.(type) {
-	case string:
-		err.Message = v
-	case map[string]any:
-		err.Type, _ = v["type"].(string)
-		err.Code, _ = v["code"].(string)
-		err.Message, _ = v["message"].(string)
+	var nested openaiapi.Error
+	if json.Unmarshal(holder.Error, &nested) == nil && (nested.Message != "" || nested.Type != "") {
+		err.Type = nested.Type
+		if nested.Code != nil {
+			err.Code = *nested.Code
+		}
+		err.Message = nested.Message
+	} else {
+		var asString string
+		if json.Unmarshal(holder.Error, &asString) == nil {
+			err.Message = asString
+		} else {
+			return nil
+		}
 	}
 	err.Normalized = normalizeError(status, err.Code, err.Type)
 	return err
@@ -551,20 +583,30 @@ func errorFromHTTP(status int, raw []byte) *CallError {
 		return nil
 	}
 	err := &CallError{HTTPStatus: status, Normalized: normalizeError(status, "", "")}
-	var wrapper struct {
+	var wrapper openaiapi.ErrorResponse
+	if json.Unmarshal(raw, &wrapper) == nil && (wrapper.Error.Message != "" || wrapper.Error.Type != "") {
+		err.Type = wrapper.Error.Type
+		if wrapper.Error.Code != nil {
+			err.Code = *wrapper.Error.Code
+		}
+		err.Message = wrapper.Error.Message
+		err.Normalized = normalizeError(status, err.Code, err.Type)
+		return err
+	}
+	var loose struct {
 		Error struct {
 			Type    string `json:"type"`
 			Code    any    `json:"code"`
 			Message string `json:"message"`
 		} `json:"error"`
 	}
-	if json.Unmarshal(raw, &wrapper) == nil {
-		err.Type = wrapper.Error.Type
-		err.Code = fmt.Sprint(wrapper.Error.Code)
-		if wrapper.Error.Code == nil {
+	if json.Unmarshal(raw, &loose) == nil && (loose.Error.Message != "" || loose.Error.Type != "") {
+		err.Type = loose.Error.Type
+		err.Code = fmt.Sprint(loose.Error.Code)
+		if loose.Error.Code == nil {
 			err.Code = ""
 		}
-		err.Message = wrapper.Error.Message
+		err.Message = loose.Error.Message
 		err.Normalized = normalizeError(status, err.Code, err.Type)
 	}
 	return err

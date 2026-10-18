@@ -115,7 +115,7 @@ from an Azure-style `/deployments/{deployment}/...` path segment.
 
 ```json
 {
-  "derived_version": 1,
+  "derived_version": 2,
   "model": {
     "requested": "gpt-4.1-mini",
     "returned": "gpt-4.1-mini"
@@ -131,6 +131,7 @@ from an Azure-style `/deployments/{deployment}/...` path segment.
   "tool_calls": [],
   "tool_results_in": [],
   "output_text": "done",
+  "refusal": "",
   "reasoning": {
     "present": true,
     "chars": 128
@@ -149,7 +150,7 @@ from an Azure-style `/deployments/{deployment}/...` path segment.
 
 | Field | Meaning |
 |---|---|
-| `derived_version` | Normalized schema version. Current value is `1`. |
+| `derived_version` | Normalized schema version. Current value is `2`. Added `refusal` and extended usage fields (`audio_tokens`, `accepted_prediction_tokens`, `rejected_prediction_tokens`). |
 | `model.requested` | Request `model`, or empty if not parsed. |
 | `model.returned` | Response model when present. |
 | `served_by` | Provider field from compatible responses when present. |
@@ -163,6 +164,7 @@ from an Azure-style `/deployments/{deployment}/...` path segment.
 | `tool_calls` | Tool calls emitted by the model. |
 | `tool_results_in` | Tool results included in the request. |
 | `output_text` | Concatenated assistant text output. |
+| `refusal` | Chat `message.refusal` / stream `delta.refusal`, or a Responses `refusal` content part. `finish_reason` is preserved separately. |
 | `reasoning` | Presence/size of exposed reasoning fields. The proxy does not decrypt hidden reasoning. |
 | `finish_reason` | Cross-API normalized finish reason. |
 | `native_finish_reason` | Provider status/finish field when distinct. |
@@ -277,7 +279,11 @@ Chat Completions usage maps:
 | `total_tokens` | `total_tokens` |
 | `prompt_tokens_details.cached_tokens` | `cached_input_tokens` |
 | `prompt_tokens_details.cache_write_tokens` | `cache_write_tokens` |
+| `prompt_tokens_details.audio_tokens` | `audio_tokens` |
 | `completion_tokens_details.reasoning_tokens` | `reasoning_tokens` |
+| `completion_tokens_details.audio_tokens` | `audio_tokens` (when prompt audio is absent) |
+| `completion_tokens_details.accepted_prediction_tokens` | `accepted_prediction_tokens` |
+| `completion_tokens_details.rejected_prediction_tokens` | `rejected_prediction_tokens` |
 | `cost` | `cost_usd` |
 
 Responses usage maps:
