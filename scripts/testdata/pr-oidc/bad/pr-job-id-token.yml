@@ -1,0 +1,11 @@
+# Fixture: job-level id-token write on pull_request must be rejected.
+on: pull_request
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - run: echo ok

@@ -1,0 +1,11 @@
+# Fixture: != in the caller if: must be rejected.
+on:
+  workflow_call:
+jobs:
+  sign:
+    if: github.repository != 'barzoj-co/llm-test-lab'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - run: echo ok

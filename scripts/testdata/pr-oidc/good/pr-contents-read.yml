@@ -1,0 +1,9 @@
+# Fixture: pull_request without id-token write must be accepted.
+on: pull_request
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo ok

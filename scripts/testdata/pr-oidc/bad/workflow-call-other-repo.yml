@@ -1,0 +1,11 @@
+# Fixture: a different repository in the caller if: must be rejected.
+on:
+  workflow_call:
+jobs:
+  sign:
+    if: github.repository == 'other/repo'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - run: echo ok

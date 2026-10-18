@@ -1,0 +1,7 @@
+name: bad-main
+on: push
+jobs:
+  x:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@main

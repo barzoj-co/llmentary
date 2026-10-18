@@ -1,0 +1,60 @@
+- name: bug
+  color: "d73a4a"
+  description: Something is not working
+- name: enhancement
+  color: "a2eeef"
+  description: New feature or request
+- name: documentation
+  color: "0075ca"
+  description: Improvements or additions to documentation
+- name: question
+  color: "d876e3"
+  description: Further information is requested
+- name: needs-triage
+  color: "e4e669"
+  description: Needs maintainer triage
+- name: good first issue
+  color: "7057ff"
+  description: Good for newcomers
+- name: help wanted
+  color: "008672"
+  description: Extra attention is needed
+- name: breaking-change
+  color: "b60205"
+  description: Introduces a breaking change
+- name: security
+  color: "ee0701"
+  description: Security-related
+- name: dependencies
+  color: "0366d6"
+  description: Dependency updates
+- name: ci
+  color: "000000"
+  description: Continuous integration
+- name: "area: proxy"
+  color: "1d76db"
+  description: Recording proxy
+- name: "area: codegen"
+  color: "0e8a16"
+  description: OpenAPI codegen
+- name: "area: spec-validation"
+  color: "fbca04"
+  description: Runtime spec validation
+- name: "area: otel"
+  color: "c5def5"
+  description: OpenTelemetry
+- name: "provider: openai"
+  color: "10a37f"
+  description: OpenAI
+- name: "provider: azure"
+  color: "0078d4"
+  description: Azure OpenAI
+- name: "provider: openrouter"
+  color: "ffa657"
+  description: OpenRouter
+- name: "autorelease: pending"
+  color: "ededed"
+  description: release-please pending release
+- name: "autorelease: tagged"
+  color: "0e8a16"
+  description: release-please tagged release

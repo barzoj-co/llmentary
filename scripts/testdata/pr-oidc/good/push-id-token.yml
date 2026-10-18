@@ -1,0 +1,11 @@
+# Fixture: id-token write is allowed when the workflow is not PR-triggered.
+on:
+  push:
+    branches: [main]
+jobs:
+  sign:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - run: echo ok
