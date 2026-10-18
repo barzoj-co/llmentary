@@ -705,6 +705,9 @@ func TestD1ErrorStatuses(t *testing.T) {
 						rt.call.Normalized.Error.Message != tc.message {
 						t.Fatalf("error=%+v want type=%q message=%q", rt.call.Normalized.Error, tc.typ, tc.message)
 					}
+					if containsWarning(rt.call.Normalized.ParserWarnings, "missing required field") {
+						t.Fatalf("error bodies must not warn about missing success fields: %v", rt.call.Normalized.ParserWarnings)
+					}
 					if tc.headers["Retry-After"] != "" && rt.call.RetryAfter != "2" {
 						t.Fatalf("retry_after=%q", rt.call.RetryAfter)
 					}

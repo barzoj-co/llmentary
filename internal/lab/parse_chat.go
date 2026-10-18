@@ -44,7 +44,9 @@ func parseChatBody(call *Call) {
 		applyChatExtensions(call, call.RawResponse, nil)
 		return
 	}
-	noteMissingRequired(call, call.RawResponse, "id", "choices")
+	if call.HTTPStatus < 400 {
+		noteMissingRequired(call, call.RawResponse, "id", "choices")
+	}
 	if resp.Id != "" {
 		call.RequestIDs["body.id"] = resp.Id
 	}

@@ -149,7 +149,9 @@ func parseResponsesObject(call *Call, raw []byte, usageSource string) {
 		applyResponsesFallback(call, raw, warnStrictDecodeFailed+": "+err.Error(), usageSource)
 		return
 	}
-	noteMissingRequired(call, raw, "id")
+	if call.HTTPStatus < 400 {
+		noteMissingRequired(call, raw, "id")
+	}
 	if resp.Id != "" {
 		call.RequestIDs["body.id"] = resp.Id
 	}
