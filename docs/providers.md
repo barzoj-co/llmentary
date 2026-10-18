@@ -68,9 +68,15 @@ recognizes `response.completed`, `response.failed`, `response.incomplete`,
 The official spec's Responses stream `error` event has top-level `code` and
 `message` (`{"type":"error","code":"...","message":"..."}`). Some payloads nest
 `{"type":"error","error":{...}}`. The proxy accepts both and sets
-`normalized.error.mid_stream=true`. HTTP 400/401 from live OpenAI use the nested
-`ErrorResponse` object (`{"error":{"type","code","message"}}`), not a stream
-frame. Chat Completions mid-stream errors are description-only in the spec
+`normalized.error.mid_stream=true`. Live OpenAI HTTP 400/401 (verified in
+`tests/e2e`) use the nested `ErrorResponse` object, not a stream frame:
+
+```json
+{"error":{"message":"...","type":"invalid_request_error","code":"...","param":"..."}}
+```
+
+A 401 may also include a sibling `"status": 401` and `"param": null`. Chat
+Completions mid-stream errors are description-only in the spec
 (`data: {"error":{...}}` inside HTTP 200) and are handled by hand, as is the
 literal `data: [DONE]` terminator.
 

@@ -264,7 +264,7 @@ func TestE2EChatNonStreamAndStreamText(t *testing.T) {
 	if !bytes.Contains(bytes.ToLower(body), []byte("pong")) {
 		t.Fatalf("expected pong in chat body, got %s", body)
 	}
-	stream := []byte(`{"model":` + strconv.Quote(model) + `,"stream":true,"messages":[{"role":"user","content":"Reply with the single word pong."}],"temperature":0,"max_tokens":16}`)
+	stream := []byte(`{"model":` + strconv.Quote(model) + `,"stream":true,"stream_options":{"include_usage":true},"messages":[{"role":"user","content":"Reply with the single word pong."}],"temperature":0,"max_tokens":16}`)
 	streamBody := postOpenAI(t, apiKey, testLab, "/chat/completions", stream)
 	if !bytes.Contains(streamBody, []byte("data:")) {
 		t.Fatalf("expected chat SSE, got %s", streamBody)
