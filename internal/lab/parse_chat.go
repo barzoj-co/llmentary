@@ -8,27 +8,20 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/barzoj-co/llm-test-lab/internal/openaiapi"
 )
 
-type chatRequest struct {
-	Model    string `json:"model"`
-	Messages []struct {
-		Role       string          `json:"role"`
-		Content    json.RawMessage `json:"content"`
-		ToolCallID string          `json:"tool_call_id"`
-		Name       string          `json:"name"`
-	} `json:"messages"`
-	Tools []json.RawMessage `json:"tools"`
-}
-
 func parseChat(call *Call) {
-	var req chatRequest
+	var req openaiapi.CreateChatCompletionRequest
 	if err := json.Unmarshal(call.RawRequest, &req); err == nil {
-		call.Normalized.Model.Requested = req.Model
+		call.Normalized.Model.Requested = unionString(req.Model)
 		call.Normalized.MessagesCount = len(req.Messages)
 		call.Normalized.SystemPrompt = chatSystemPrompt(req.Messages)
 		call.Normalized.SystemPromptHash = systemHash(call.Normalized.SystemPrompt)
-		call.Normalized.ToolsDeclared = chatTools(req.Tools)
+		if req.Tools != nil {
+			call.Normalized.ToolsDeclared = chatTools(*req.Tools)
+		}
 		call.Normalized.ToolResultsIn = chatToolResults(req.Messages)
 	}
 	if call.Stream {
@@ -45,76 +38,45 @@ func parseChat(call *Call) {
 }
 
 func parseChatBody(call *Call) {
-	body := call.RawResponse
-	var resp struct {
-		ID       string          `json:"id"`
-		Model    string          `json:"model"`
-		Usage    json.RawMessage `json:"usage"`
-		Provider string          `json:"provider"`
-		Choices  []struct {
-			FinishReason       string `json:"finish_reason"`
-			NativeFinishReason string `json:"native_finish_reason"`
-			Message            struct {
-				Content          string `json:"content"`
-				Reasoning        string `json:"reasoning"`
-				ReasoningContent string `json:"reasoning_content"`
-				ToolCalls        []struct {
-					ID       string `json:"id"`
-					Type     string `json:"type"`
-					Function struct {
-						Name      string `json:"name"`
-						Arguments string `json:"arguments"`
-					} `json:"function"`
-				} `json:"tool_calls"`
-			} `json:"message"`
-			Error                any             `json:"error"`
-			ContentFilterResults json.RawMessage `json:"content_filter_results"`
-		} `json:"choices"`
-		Error any `json:"error"`
-	}
-	if err := json.Unmarshal(body, &resp); err != nil {
-		call.Normalized.ParserWarnings = append(call.Normalized.ParserWarnings, "chat response parse error: "+err.Error())
+	var resp openaiapi.CreateChatCompletionResponse
+	if err := json.Unmarshal(call.RawResponse, &resp); err != nil {
+		applyChatFallback(call, call.RawResponse, warnStrictDecodeFailed+": "+err.Error())
+		applyChatExtensions(call, call.RawResponse, nil)
 		return
 	}
-	if resp.ID != "" {
-		call.RequestIDs["body.id"] = resp.ID
+	if call.HTTPStatus < 400 {
+		noteMissingRequired(call, call.RawResponse, "id", "choices")
+	}
+	if resp.Id != "" {
+		call.RequestIDs["body.id"] = resp.Id
 	}
 	call.Normalized.Model.Returned = resp.Model
-	call.Normalized.ServedBy = resp.Provider
-	call.Normalized.Usage = usageFromChat(resp.Usage, "body")
+	if raw := jsonField(call.RawResponse, "usage"); len(raw) > 0 {
+		call.Normalized.Usage = usageFromChat(raw, "body")
+	}
 	var calls []ToolCall
-	for _, choice := range resp.Choices {
+	for i, choice := range resp.Choices {
 		if choice.FinishReason != "" {
-			call.Normalized.FinishReason = choice.FinishReason
+			call.Normalized.FinishReason = string(choice.FinishReason)
+			warnUnknownFinishReason(call, string(choice.FinishReason), choice.FinishReason.Valid())
 		}
-		if choice.NativeFinishReason != "" {
-			call.Normalized.NativeFinishReason = choice.NativeFinishReason
+		if choice.Message.Content != nil {
+			call.Normalized.OutputText += *choice.Message.Content
 		}
-		if choice.Message.Content != "" {
-			call.Normalized.OutputText += choice.Message.Content
+		if choice.Message.Refusal != nil && *choice.Message.Refusal != "" {
+			call.Normalized.Refusal = *choice.Message.Refusal
 		}
-		if choice.Message.Reasoning != "" || choice.Message.ReasoningContent != "" {
-			text := choice.Message.Reasoning + choice.Message.ReasoningContent
-			call.Normalized.Reasoning = &Reasoning{Present: true, Chars: len(text)}
+		if choice.Message.ToolCalls != nil {
+			for _, item := range *choice.Message.ToolCalls {
+				if tc, ok := toolCallFromChatItem(len(calls), item); ok {
+					calls = append(calls, tc)
+				}
+			}
 		}
-		for _, tc := range choice.Message.ToolCalls {
-			args, argErr := parseJSONArguments(tc.Function.Arguments)
-			calls = append(calls, ToolCall{
-				Index: len(calls), ID: tc.ID, Name: tc.Function.Name, Kind: coalesce(tc.Type, "function"),
-				ArgumentsRaw: tc.Function.Arguments, Arguments: args, ArgsParseError: argErr,
-			})
-		}
-		if choice.Error != nil && call.Normalized.Error == nil {
-			raw, _ := json.Marshal(map[string]any{"error": choice.Error})
-			call.Normalized.Error = midStreamError(call.HTTPStatus, raw)
-		}
-		collectFilter(call, choice.ContentFilterResults)
+		_ = i
 	}
 	call.Normalized.ToolCalls = calls
-	if resp.Error != nil && call.Normalized.Error == nil {
-		raw, _ := json.Marshal(map[string]any{"error": resp.Error})
-		call.Normalized.Error = midStreamError(call.HTTPStatus, raw)
-	}
+	applyChatExtensions(call, call.RawResponse, nil)
 }
 
 func parseChatStream(call *Call) {
@@ -126,6 +88,9 @@ func parseChatStream(call *Call) {
 		args  strings.Builder
 	}
 	accs := map[int]*acc{}
+	// [DONE] is described only in the OpenAPI operation description, not as a
+	// schema: https://github.com/openai/openai-openapi — CreateChatCompletion
+	// streaming "data: [DONE]" terminator.
 	complete := false
 	for _, event := range call.SSEEvents {
 		if event.Comment != "" || len(bytes.TrimSpace(event.Data)) == 0 {
@@ -135,100 +100,97 @@ func parseChatStream(call *Call) {
 			complete = true
 			continue
 		}
+		// Mid-stream error frames are also description-only, not a schema.
 		if err := midStreamError(call.HTTPStatus, event.Data); err != nil {
 			call.Normalized.Error = err
 		}
-		var chunk struct {
-			ID           string          `json:"id"`
-			Model        string          `json:"model"`
-			Provider     string          `json:"provider"`
-			Usage        json.RawMessage `json:"usage"`
-			Error        any             `json:"error"`
-			FinishReason string          `json:"finish_reason"`
-			Choices      []struct {
-				FinishReason       string `json:"finish_reason"`
-				NativeFinishReason string `json:"native_finish_reason"`
-				Error              any    `json:"error"`
-				Delta              struct {
-					Content          string `json:"content"`
-					Reasoning        string `json:"reasoning"`
-					ReasoningContent string `json:"reasoning_content"`
-					ToolCalls        []struct {
-						Index    int    `json:"index"`
-						ID       string `json:"id"`
-						Type     string `json:"type"`
-						Function struct {
-							Name      string `json:"name"`
-							Arguments string `json:"arguments"`
-						} `json:"function"`
-					} `json:"tool_calls"`
-				} `json:"delta"`
-				ContentFilterResults json.RawMessage `json:"content_filter_results"`
-			} `json:"choices"`
-		}
+		var chunk openaiapi.CreateChatCompletionStreamResponse
 		if err := json.Unmarshal(event.Data, &chunk); err != nil {
-			call.Normalized.ParserWarnings = append(call.Normalized.ParserWarnings, "chat stream chunk parse error: "+err.Error())
+			call.Normalized.ParserWarnings = append(call.Normalized.ParserWarnings, warnStrictDecodeFailed+": "+err.Error())
+			loose := extractLooseChatChunk(event.Data)
+			if loose.model != "" {
+				call.Normalized.Model.Returned = loose.model
+			}
+			if loose.id != "" {
+				call.RequestIDs["body.id"] = loose.id
+			}
+			call.Normalized.OutputText += loose.content
+			call.Normalized.Refusal += loose.refusal
+			if loose.finish != "" {
+				call.Normalized.FinishReason = loose.finish
+			}
+			if len(loose.usage) > 0 {
+				if u := usageFromLoose(loose.usage, "final_chunk"); u != nil {
+					call.Normalized.Usage = u
+				}
+			}
+			for _, delta := range loose.toolDeltas {
+				item := accs[delta.index]
+				if item == nil {
+					item = &acc{index: delta.index, kind: coalesce(delta.kind, "function")}
+					accs[delta.index] = item
+				}
+				if delta.id != "" {
+					item.id = delta.id
+				}
+				if delta.kind != "" {
+					item.kind = delta.kind
+				}
+				if delta.name != "" {
+					item.name = delta.name
+				}
+				if delta.args != "" {
+					item.args.WriteString(delta.args)
+				}
+			}
+			applyChatExtensions(call, event.Data, nil)
 			continue
 		}
-		if chunk.ID != "" {
-			call.RequestIDs["body.id"] = chunk.ID
+		if chunk.Id != "" {
+			call.RequestIDs["body.id"] = chunk.Id
 		}
 		if chunk.Model != "" {
 			call.Normalized.Model.Returned = chunk.Model
 		}
-		if chunk.Provider != "" {
-			call.Normalized.ServedBy = chunk.Provider
-		}
-		if len(chunk.Usage) > 0 && !bytes.Equal(bytes.TrimSpace(chunk.Usage), []byte("null")) {
-			call.Normalized.Usage = usageFromChat(chunk.Usage, "final_chunk")
-		}
-		if chunk.Error != nil && call.Normalized.Error == nil {
-			raw, _ := json.Marshal(map[string]any{"error": chunk.Error})
-			call.Normalized.Error = midStreamError(call.HTTPStatus, raw)
-		}
-		if chunk.FinishReason != "" {
-			call.Normalized.FinishReason = chunk.FinishReason
+		if raw := jsonField(event.Data, "usage"); len(raw) > 0 {
+			call.Normalized.Usage = usageFromChat(raw, "final_chunk")
 		}
 		for _, choice := range chunk.Choices {
-			if choice.FinishReason != "" {
-				call.Normalized.FinishReason = choice.FinishReason
+			if choice.FinishReason != nil && *choice.FinishReason != "" {
+				call.Normalized.FinishReason = string(*choice.FinishReason)
+				warnUnknownFinishReason(call, string(*choice.FinishReason), choice.FinishReason.Valid())
 			}
-			if choice.NativeFinishReason != "" {
-				call.Normalized.NativeFinishReason = choice.NativeFinishReason
+			if choice.Delta.Content != nil {
+				call.Normalized.OutputText += *choice.Delta.Content
 			}
-			if choice.Error != nil && call.Normalized.Error == nil {
-				raw, _ := json.Marshal(map[string]any{"error": choice.Error})
-				call.Normalized.Error = midStreamError(call.HTTPStatus, raw)
+			if choice.Delta.Refusal != nil && *choice.Delta.Refusal != "" {
+				call.Normalized.Refusal += *choice.Delta.Refusal
 			}
-			if choice.Delta.Content != "" {
-				call.Normalized.OutputText += choice.Delta.Content
-			}
-			reasoning := choice.Delta.Reasoning + choice.Delta.ReasoningContent
-			if reasoning != "" {
-				if call.Normalized.Reasoning == nil {
-					call.Normalized.Reasoning = &Reasoning{Present: true}
+			if choice.Delta.ToolCalls != nil {
+				for _, delta := range *choice.Delta.ToolCalls {
+					item := accs[delta.Index]
+					if item == nil {
+						item = &acc{index: delta.Index, kind: "function"}
+						accs[delta.Index] = item
+					}
+					if delta.Id != nil && *delta.Id != "" {
+						item.id = *delta.Id
+					}
+					if delta.Type != nil && *delta.Type != "" {
+						item.kind = string(*delta.Type)
+					}
+					if delta.Function != nil {
+						if delta.Function.Name != nil && *delta.Function.Name != "" {
+							item.name = *delta.Function.Name
+						}
+						if delta.Function.Arguments != nil {
+							item.args.WriteString(*delta.Function.Arguments)
+						}
+					}
 				}
-				call.Normalized.Reasoning.Chars += len(reasoning)
 			}
-			for _, delta := range choice.Delta.ToolCalls {
-				item := accs[delta.Index]
-				if item == nil {
-					item = &acc{index: delta.Index, kind: "function"}
-					accs[delta.Index] = item
-				}
-				if delta.ID != "" {
-					item.id = delta.ID
-				}
-				if delta.Type != "" {
-					item.kind = delta.Type
-				}
-				if delta.Function.Name != "" {
-					item.name = delta.Function.Name
-				}
-				item.args.WriteString(delta.Function.Arguments)
-			}
-			collectFilter(call, choice.ContentFilterResults)
 		}
+		applyChatExtensions(call, event.Data, nil)
 	}
 	if !complete {
 		call.Normalized.StreamTruncated = true
@@ -253,81 +215,114 @@ func parseChatStream(call *Call) {
 	sortToolCalls(call.Normalized.ToolCalls)
 }
 
-func chatSystemPrompt(messages []struct {
-	Role       string          `json:"role"`
-	Content    json.RawMessage `json:"content"`
-	ToolCallID string          `json:"tool_call_id"`
-	Name       string          `json:"name"`
-}) string {
+func toolCallFromChatItem(index int, item openaiapi.ChatCompletionMessageToolCalls_Item) (ToolCall, bool) {
+	if tc, err := item.AsChatCompletionMessageToolCall(); err == nil && tc.Function.Name != "" {
+		args, argErr := parseJSONArguments(tc.Function.Arguments)
+		return ToolCall{
+			Index: index, ID: tc.Id, Name: tc.Function.Name, Kind: coalesce(string(tc.Type), "function"),
+			ArgumentsRaw: tc.Function.Arguments, Arguments: args, ArgsParseError: argErr,
+		}, true
+	}
+	if custom, err := item.AsChatCompletionMessageCustomToolCall(); err == nil && custom.Custom.Name != "" {
+		return ToolCall{
+			Index: index, ID: custom.Id, Name: custom.Custom.Name, Kind: coalesce(string(custom.Type), "custom"),
+			ArgumentsRaw: custom.Custom.Input,
+		}, true
+	}
+	return ToolCall{}, false
+}
+
+func chatSystemPrompt(messages []openaiapi.ChatCompletionRequestMessage) string {
 	var parts []string
 	for _, message := range messages {
-		if message.Role == "system" || message.Role == "developer" {
-			parts = append(parts, contentString(message.Content))
+		typed, err := message.ValueByDiscriminator()
+		if err != nil {
+			continue
+		}
+		switch m := typed.(type) {
+		case openaiapi.ChatCompletionRequestSystemMessage:
+			parts = append(parts, unionContentString(m.Content))
+		case openaiapi.ChatCompletionRequestDeveloperMessage:
+			parts = append(parts, unionContentString(m.Content))
 		}
 	}
 	return strings.Join(parts, "\n")
 }
 
-func chatTools(rawTools []json.RawMessage) []ToolDecl {
-	out := make([]ToolDecl, 0, len(rawTools))
-	for _, raw := range rawTools {
-		var t struct {
-			Type     string `json:"type"`
-			Function struct {
-				Name       string          `json:"name"`
-				Parameters json.RawMessage `json:"parameters"`
-			} `json:"function"`
-		}
-		if json.Unmarshal(raw, &t) != nil {
+func chatTools(items []openaiapi.CreateChatCompletionRequest_Tools_Item) []ToolDecl {
+	out := make([]ToolDecl, 0, len(items))
+	for _, item := range items {
+		raw, err := json.Marshal(item)
+		if err != nil {
 			continue
 		}
-		out = append(out, ToolDecl{Name: t.Function.Name, Type: coalesce(t.Type, "function"), SchemaHash: schemaHash(t.Function.Parameters)})
+		var t openaiapi.ChatCompletionTool
+		if json.Unmarshal(raw, &t) == nil && t.Function.Name != "" {
+			var params json.RawMessage
+			if t.Function.Parameters != nil {
+				params, _ = json.Marshal(t.Function.Parameters)
+			}
+			out = append(out, ToolDecl{Name: t.Function.Name, Type: coalesce(string(t.Type), "function"), SchemaHash: schemaHash(params)})
+			continue
+		}
+		var custom struct {
+			Type   string `json:"type"`
+			Custom struct {
+				Name   string          `json:"name"`
+				Format json.RawMessage `json:"format"`
+			} `json:"custom"`
+			Name string `json:"name"`
+		}
+		if json.Unmarshal(raw, &custom) == nil {
+			name := custom.Custom.Name
+			if name == "" {
+				name = custom.Name
+			}
+			out = append(out, ToolDecl{Name: name, Type: coalesce(custom.Type, "custom"), SchemaHash: schemaHash(custom.Custom.Format)})
+		}
 	}
 	return out
 }
 
-func chatToolResults(messages []struct {
-	Role       string          `json:"role"`
-	Content    json.RawMessage `json:"content"`
-	ToolCallID string          `json:"tool_call_id"`
-	Name       string          `json:"name"`
-}) []ToolResult {
+func chatToolResults(messages []openaiapi.ChatCompletionRequestMessage) []ToolResult {
 	var out []ToolResult
 	for _, message := range messages {
-		if message.Role != "tool" {
+		tool, err := message.AsChatCompletionRequestToolMessage()
+		if err != nil {
 			continue
 		}
-		content := contentString(message.Content)
-		out = append(out, ToolResult{CallID: message.ToolCallID, Name: message.Name, OutputHash: systemHash(content)})
+		role, _ := message.Discriminator()
+		if role != "tool" {
+			continue
+		}
+		content := unionContentString(tool.Content)
+		out = append(out, ToolResult{CallID: tool.ToolCallId, OutputHash: systemHash(content)})
 	}
 	return out
 }
 
-func collectFilter(call *Call, raw json.RawMessage) {
-	if len(raw) == 0 || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
-		return
+func unionContentString(v any) string {
+	raw, err := json.Marshal(v)
+	if err != nil {
+		return ""
 	}
-	if call.Normalized.ContentFilter == nil {
-		call.Normalized.ContentFilter = &ContentFilter{Categories: map[string]FilterResult{}}
+	return contentString(raw)
+}
+
+func unionString(v any) string {
+	raw, err := json.Marshal(v)
+	if err != nil {
+		return ""
 	}
-	call.Normalized.ContentFilter.Raw = append(call.Normalized.ContentFilter.Raw, append(json.RawMessage(nil), raw...))
-	var m map[string]json.RawMessage
-	if json.Unmarshal(raw, &m) != nil {
-		return
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+		return ""
 	}
-	for key, value := range m {
-		if key == "error" {
-			call.Normalized.ContentFilter.FilterSystemError = true
-			continue
-		}
-		var result FilterResult
-		if json.Unmarshal(value, &result) == nil {
-			call.Normalized.ContentFilter.Categories[key] = result
-			if result.Filtered {
-				call.Normalized.ContentFilter.CompletionFiltered = true
-			}
-		}
+	var s string
+	if json.Unmarshal(raw, &s) == nil {
+		return s
 	}
+	return ""
 }
 
 func coalesce(value, fallback string) string {

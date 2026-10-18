@@ -13,3 +13,9 @@ client repos are MIT.
 Using the proxy in your test pipeline does not affect your application's
 license. Your app talks to the proxy over HTTP. The MIT client libraries are
 importable without linking the AGPL proxy/server code.
+
+The official OpenAI OpenAPI specification vendored at `api/openai/openapi.json`
+is MIT-licensed (see `api/openai/LICENSE`). It is pinned to a specific
+`openai/openai-openapi` commit recorded in `api/openai/SPEC_VERSION`. Generated
+Go (`internal/openaiapi/gen.go`) and the rest of the proxy are AGPL-3.0-only.
+oapi-codegen is an Apache-2.0 build-time tool only.

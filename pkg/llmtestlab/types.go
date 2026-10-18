@@ -76,6 +76,7 @@ type Normalized struct {
 	ToolCalls          []ToolCall      `json:"tool_calls,omitempty"`
 	ToolResultsIn      []ToolResult    `json:"tool_results_in,omitempty"`
 	OutputText         string          `json:"output_text,omitempty"`
+	Refusal            string          `json:"refusal,omitempty"`
 	Reasoning          *Reasoning      `json:"reasoning,omitempty"`
 	FinishReason       string          `json:"finish_reason,omitempty"`
 	NativeFinishReason string          `json:"native_finish_reason,omitempty"`
@@ -124,15 +125,18 @@ type Reasoning struct {
 }
 
 type Usage struct {
-	InputTokens       *int            `json:"input_tokens,omitempty"`
-	OutputTokens      *int            `json:"output_tokens,omitempty"`
-	TotalTokens       *int            `json:"total_tokens,omitempty"`
-	CachedInputTokens *int            `json:"cached_input_tokens,omitempty"`
-	CacheWriteTokens  *int            `json:"cache_write_tokens,omitempty"`
-	ReasoningTokens   *int            `json:"reasoning_tokens,omitempty"`
-	CostUSD           *float64        `json:"cost_usd,omitempty"`
-	Source            string          `json:"source,omitempty"`
-	Raw               json.RawMessage `json:"raw,omitempty"`
+	InputTokens              *int            `json:"input_tokens,omitempty"`
+	OutputTokens             *int            `json:"output_tokens,omitempty"`
+	TotalTokens              *int            `json:"total_tokens,omitempty"`
+	CachedInputTokens        *int            `json:"cached_input_tokens,omitempty"`
+	CacheWriteTokens         *int            `json:"cache_write_tokens,omitempty"`
+	ReasoningTokens          *int            `json:"reasoning_tokens,omitempty"`
+	AudioTokens              *int            `json:"audio_tokens,omitempty"`
+	AcceptedPredictionTokens *int            `json:"accepted_prediction_tokens,omitempty"`
+	RejectedPredictionTokens *int            `json:"rejected_prediction_tokens,omitempty"`
+	CostUSD                  *float64        `json:"cost_usd,omitempty"`
+	Source                   string          `json:"source,omitempty"`
+	Raw                      json.RawMessage `json:"raw,omitempty"`
 }
 
 type ContentFilter struct {

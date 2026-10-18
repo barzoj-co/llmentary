@@ -4,6 +4,7 @@ package lab
 
 import (
 	"fmt"
+	"log/slog"
 	"net"
 	"net/url"
 	"os"
@@ -15,6 +16,7 @@ type Config struct {
 	ControlAddr  string
 	ControlToken string
 	Upstreams    map[string]*url.URL
+	Logger       *slog.Logger
 }
 
 func ConfigFromEnv() (Config, error) {

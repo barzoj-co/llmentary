@@ -126,10 +126,13 @@ For recording:
 - If the SSE response is not gzip-encoded, events are recorded incrementally as chunks
   arrive.
 - If the upstream still returns gzip, the client receives the gzip bytes unchanged, while
-  the recorded tee copy is decompressed for parsing.
+  the recorded tee copy is decompressed for parsing. Gzip is stored decompressed
+  because `raw_response` is the parse input (and the E6 hash subject), not a
+  wire-capture of the HTTP envelope. See `docs/data-model.md` § Gzip and
+  raw-byte hashes.
 - A Chat Completions stream is considered complete when a `data: [DONE]` event is seen.
-- A Responses stream is considered complete when a terminal `response.completed` event is
-  parsed.
+- A Responses stream is considered complete when a terminal `response.completed`,
+  `response.failed`, or `response.incomplete` event is parsed.
 - SSE comment lines, including OpenRouter keep-alive comments, are recorded as comments
   and ignored by the normalizer.
 - If no terminal marker/event is seen, `normalized.stream_truncated` is set.
@@ -227,7 +230,7 @@ curl http://127.0.0.1:7778/sessions/test-1
       "stream": false,
       "http_status": 200,
       "normalized": {
-        "derived_version": 1,
+        "derived_version": 2,
         "model": {
           "requested": "gpt-4.1-mini",
           "returned": "gpt-4.1-mini"

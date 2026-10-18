@@ -705,6 +705,9 @@ func llmtestlabAttributes(call Call) []attribute.KeyValue {
 	if call.Normalized.Error != nil && call.Normalized.Error.MidStream {
 		attrs = append(attrs, attribute.Bool("llmtestlab.error.mid_stream", true))
 	}
+	if call.Normalized.Refusal != "" {
+		attrs = append(attrs, attribute.String("llmtestlab.refusal", call.Normalized.Refusal))
+	}
 	return attrs
 }
 

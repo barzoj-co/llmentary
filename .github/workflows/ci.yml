@@ -9,6 +9,21 @@ permissions:
   contents: read
 
 jobs:
+  codegen-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.x"
+          cache: true
+      - name: Verify spec pin, regenerate, and fail on drift
+        run: make codegen-check
+      - name: A2 proof — hand-edit of gen.go is detected
+        run: bash scripts/prove-a2.sh
+      - name: A5 proof — missing StrictServerInterface method fails the build
+        run: bash scripts/prove-a5.sh
+
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -39,7 +54,9 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork != true }}
+    # Live e2e once per change: pull_request (non-fork) or push to main.
+    # Do not also run on push of the PR branch (that would double-bill OpenAI).
+    if: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork != true) || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       OPENAI_E2E_MODEL: ${{ vars.OPENAI_E2E_MODEL }}

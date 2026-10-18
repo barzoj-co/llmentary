@@ -1,0 +1,23 @@
+# OpenAPI Overlay 1.0 — codegen-only fixes applied by oapi-codegen on the
+# filtered sub-spec. Do not use this file to change runtime request validation;
+# the proxy never rejects client bodies. Every action documents why it exists.
+overlay: 1.0.0
+info:
+  title: llm-test-lab codegen fixes
+  version: 0.0.1
+actions:
+  # why: oapi-codegen names both the `object` enum on CreateChatCompletionResponse
+  # and the strict-server response interface CreateChatCompletionResponseObject,
+  # which collides and fails to compile. Rename the enum type only.
+  - target: $.components.schemas.CreateChatCompletionResponse.properties.object
+    update:
+      x-go-type-name: ChatCompletionObjectType
+
+  # CreateEmbeddingResponse.properties.object is renamed to EmbeddingObjectType
+  # by tools/specfilter.renameResponseObjectEnums when createEmbedding is
+  # listed. A matching overlay action would fail strict apply while that
+  # schema is absent from the filtered subgraph (that is the A5 point).
+
+  # Discriminator mapping for ResponseStreamEvent (propertyName=type → wire
+  # values such as response.output_text.delta) is injected by tools/specfilter
+  # via ensureDiscriminatorMappings. It is not an overlay action.

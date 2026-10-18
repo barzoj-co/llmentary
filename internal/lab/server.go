@@ -8,22 +8,25 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
+	"github.com/barzoj-co/llm-test-lab/internal/openaiapi"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 )
 
 type Server struct {
-	cfg     Config
-	store   Store
-	parser  Parser
-	tracing *TracingRuntime
-	client  *http.Client
+	cfg         Config
+	store       Store
+	parser      Parser
+	tracing     *TracingRuntime
+	client      *http.Client
+	specHandler http.Handler
 }
 
 func NewServer(cfg Config, store Store, parser Parser) (*Server, error) {
@@ -40,7 +43,10 @@ func NewServer(cfg Config, store Store, parser Parser) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Server{
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
+	}
+	s := &Server{
 		cfg:     cfg,
 		store:   store,
 		parser:  parser,
@@ -52,7 +58,21 @@ func NewServer(cfg Config, store Store, parser Parser) (*Server, error) {
 			MaxIdleConns:      100,
 			IdleConnTimeout:   90 * time.Second,
 		}},
-	}, nil
+	}
+	handlers := &openAIHandlers{s: s}
+	strict := openaiapi.NewStrictHandlerWithOptions(handlers, nil, openaiapi.StrictHTTPServerOptions{
+		RequestErrorHandlerFunc:  s.handleRequestDecodeError,
+		ResponseErrorHandlerFunc: s.handleResponseError,
+	})
+	s.specHandler = openaiapi.HandlerWithOptions(strict, openaiapi.StdHTTPServerOptions{})
+	return s, nil
+}
+
+func (s *Server) logger() *slog.Logger {
+	if s != nil && s.cfg.Logger != nil {
+		return s.cfg.Logger
+	}
+	return slog.Default()
 }
 
 func (s *Server) ProxyHandler() http.Handler {
@@ -109,12 +129,11 @@ func (s *Server) serveProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	session := sessionFromRequest(r)
-	rawReq, err := io.ReadAll(r.Body)
+	rawReq, err := drainAndRestore(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	_ = r.Body.Close()
 
 	target := cleanJoin(targetBase, restPath)
 	target.RawQuery = r.URL.RawQuery
@@ -140,6 +159,13 @@ func (s *Server) serveProxy(w http.ResponseWriter, r *http.Request) {
 	call.ID = callID
 	call.Seq = seq
 	call.SessionID = session.ID
+	s.logger().Info("proxy request",
+		"method", r.Method,
+		"path", r.URL.Path,
+		"session", session.ID,
+		"call_id", callID,
+		"upstream", call.Upstream.URL,
+	)
 	traceCtx := s.tracing.Propagator.Extract(r.Context(), propagation.HeaderCarrier(r.Header))
 	traceCtx, span := s.tracing.Tracer.Start(
 		traceCtx,
@@ -148,93 +174,26 @@ func (s *Server) serveProxy(w http.ResponseWriter, r *http.Request) {
 		trace.WithTimestamp(startedAt),
 		trace.WithAttributes(startSpanAttributes(call)...),
 	)
+	r = r.WithContext(traceCtx)
+	ex := &proxyExchange{
+		s:         s,
+		r:         r,
+		rawReq:    rawReq,
+		session:   session,
+		callID:    callID,
+		startedAt: startedAt,
+		span:      span,
+		target:    target.String(),
+	}
 
-	req, err := http.NewRequestWithContext(traceCtx, r.Method, target.String(), bytes.NewReader(rawReq))
-	if err != nil {
-		endedCall := s.finishWithProxyError(session.ID, callID, startedAt, err, http.StatusBadGateway)
-		finishSpan(span, endedCall, endedCall.EndedAt)
-		http.Error(w, err.Error(), http.StatusBadGateway)
+	if rewritten, ok := matchSpecOperation(r.Method, r.URL.Path); ok {
+		r2 := r.Clone(withExchange(traceCtx, ex))
+		r2.URL.Path = rewritten
+		r2.Body = io.NopCloser(bytes.NewReader(rawReq))
+		s.specHandler.ServeHTTP(w, r2)
 		return
 	}
-	req.Header = cloneHeader(r.Header)
-	req.Header.Del(SessionHeaderName)
-	s.tracing.Propagator.Inject(StripLLMTestLabBaggageFromContext(traceCtx), propagation.HeaderCarrier(req.Header))
-	stripLLMTestLabBaggage(req.Header)
-	req.Header.Set("Accept-Encoding", "identity")
-	req.Host = target.Host
-	removeHopByHopHeaders(req.Header)
-
-	resp, err := s.client.Do(req)
-	if err != nil {
-		endedCall := s.finishWithProxyError(session.ID, callID, startedAt, err, http.StatusBadGateway)
-		finishSpan(span, endedCall, endedCall.EndedAt)
-		http.Error(w, err.Error(), http.StatusBadGateway)
-		return
-	}
-	defer func() { _ = resp.Body.Close() }()
-	var firstByte *time.Time
-
-	for key, values := range resp.Header {
-		for _, value := range values {
-			w.Header().Add(key, value)
-		}
-	}
-	removeHopByHopHeaders(w.Header())
-	w.WriteHeader(resp.StatusCode)
-
-	var rawResp bytes.Buffer
-	headerSSE := strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "text/event-stream")
-	gzipEncoded := strings.EqualFold(resp.Header.Get("Content-Encoding"), "gzip")
-	var recorder *sseRecorder
-	if headerSSE && !gzipEncoded {
-		recorder = newSSERecorder(startedAt)
-	}
-	_, copyErr := copyAndFlush(w, resp.Body, func(chunk []byte) {
-		if firstByte == nil {
-			now := time.Now().UTC()
-			firstByte = &now
-		}
-		_, _ = rawResp.Write(chunk)
-		if recorder != nil {
-			recorder.Write(chunk)
-		}
-	})
-	endedAt := time.Now().UTC()
-	respHeaders := sanitizeHeaders(resp.Header)
-	parseBody := decompressIfNeeded(rawResp.Bytes(), respHeaders)
-	stream := headerSSE || isSSE(resp.Header, parseBody)
-	var events []SSEEvent
-	var complete bool
-	var warnings []string
-	if recorder != nil {
-		events, complete, warnings = recorder.Finish()
-	} else if stream {
-		events, complete, warnings = parseSSE(parseBody, startedAt)
-	}
-	var endedCall Call
-	s.store.Finish(session.ID, callID, func(call *Call) {
-		call.FirstByteAt = firstByte
-		call.EndedAt = endedAt
-		call.LatencyMS = endedAt.Sub(startedAt).Milliseconds()
-		call.Response = Exchange{Headers: respHeaders}
-		call.RawResponse = parseBody
-		call.SSEEvents = events
-		call.Stream = stream
-		call.HTTPStatus = resp.StatusCode
-		call.RetryAfter = retryAfter(resp.Header)
-		call.Normalized.ParserWarnings = append(call.Normalized.ParserWarnings, warnings...)
-		if stream && !complete {
-			call.Normalized.StreamTruncated = true
-		}
-		if copyErr != nil {
-			call.Normalized.ClientAborted = true
-			call.Normalized.ParserWarnings = append(call.Normalized.ParserWarnings, "response copy error: "+copyErr.Error())
-		}
-		recordRequestIDs(call, resp.Header)
-		s.parser.Parse(call)
-		endedCall = *call
-	})
-	finishSpan(span, endedCall, endedAt)
+	s.passthrough(w, ex)
 }
 
 func (s *Server) route(requestPath string) (string, string, *url.URL, error) {

@@ -1,0 +1,8 @@
+# Generated oapi-codegen output is excluded only where unavoidable: gen.go is
+# ~26k lines of models/router that must stay byte-identical to `make gen`.
+version: "2"
+linters:
+  exclusions:
+    generated: lax
+    paths:
+      - internal/openaiapi/gen\.go
