@@ -15,8 +15,10 @@ Triggers are `push` to `main`, `pull_request`, and `workflow_dispatch`.
   a pinned `golangci-lint` version. Generated `internal/openaiapi/gen.go` is
   excluded in `.golangci.yml`.
 - `test`: checkout, Go 1.26.x, `go test` in the root module and
-  `tests/proxy` with atomic coverage profiles uploaded to Codecov (OIDC,
-  informational). GoReleaser snapshots live in the Hygiene workflow.
+  `tests/proxy` with atomic coverage profiles uploaded to Codecov
+  (`use_oidc: false`; this job does not grant `id-token: write`).
+  Coverage is informational. GoReleaser snapshots live in the Hygiene
+  workflow. OIDC and cosign signing stay in the release workflow.
 - `docs-mermaid`: checkout (`actions/checkout` SHA-pinned at v4.4.0), Node 22
   (`actions/setup-node` SHA-pinned at v4.4.0), and
   `@mermaid-js/mermaid-cli@11.12.0` (`mmdc`). Runs
@@ -27,10 +29,12 @@ Triggers are `push` to `main`, `pull_request`, and `workflow_dispatch`.
   `testdata/mermaid/`, and renders each with `mmdc`. A parse failure is
   reported as `FAIL <file>:<opening-fence-line>`. Extraction or missing-tool
   errors fail the job. Zero extracted blocks while `README.md` still has a
-  mermaid fence also fails. `--self-test` then proves a missing `python3`
-  exits non-zero, that `testdata/mermaid/fences.md` (tilde and 4-backtick
-  fences) parses, and that `testdata/mermaid/bad.md` (the original README
-  diagram from `main`, with unquoted `|llmtestlab.New(t)|`) is rejected.
+  mermaid fence also fails. An empty or mismatched `mmdc --version` fails
+  (it must equal the pinned `MERMAID_CLI_VERSION`). `--self-test` then proves
+  a missing `python3` exits non-zero, that empty and mismatched `mmdc --version`
+  fail, that `testdata/mermaid/fences.md` (tilde and 4-backtick fences) parses,
+  and that `testdata/mermaid/bad.md` (the original README diagram from `main`,
+  with unquoted `|llmtestlab.New(t)|`) is rejected.
   Run the same command locally after
   `npm install -g @mermaid-js/mermaid-cli@11.12.0`.
 - `e2e`: runs once per change — on `pull_request` (non-fork) and on pushes to

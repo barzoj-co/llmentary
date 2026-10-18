@@ -53,9 +53,6 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    permissions:
-      contents: read
-      id-token: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -85,7 +82,7 @@ jobs:
         uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5.5.5
         with:
           disable_search: true
-          use_oidc: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork) }}
+          use_oidc: false
           files: ./coverage-unit.out
           flags: unit
           fail_ci_if_error: ${{ vars.CODECOV_REQUIRED == 'true' }}
@@ -93,7 +90,7 @@ jobs:
         uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5.5.5
         with:
           disable_search: true
-          use_oidc: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork) }}
+          use_oidc: false
           files: ./tests/proxy/coverage-proxy.out
           flags: proxy
           fail_ci_if_error: ${{ vars.CODECOV_REQUIRED == 'true' }}

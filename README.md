@@ -86,7 +86,7 @@ After downloading `checksums.txt` and an archive:
 ```bash
 cosign verify-blob \
   --bundle checksums.txt.sigstore.json \
-  --certificate-identity-regexp '^https://github.com/barzoj-co/llm-test-lab/.github/workflows/' \
+  --certificate-identity-regexp '^https://github.com/barzoj-co/llm-test-lab/\.github/workflows/goreleaser\.yml@refs/tags/v.*$' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   checksums.txt
 sha256sum -c --ignore-missing checksums.txt

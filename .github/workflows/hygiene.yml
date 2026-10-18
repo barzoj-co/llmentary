@@ -42,6 +42,8 @@ jobs:
         run: python3 -m pip install --user pyyaml
       - name: Check workflow policy
         run: bash scripts/check-workflow-policy.sh
+      - name: Check PR OIDC policy
+        run: bash scripts/check-pr-oidc.sh --self-test
 
   pinned-actions:
     runs-on: ubuntu-latest
@@ -105,9 +107,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
-      contents: write
-      pull-requests: write
-      issues: write
+      contents: read
+      pull-requests: read
+      issues: read
     env:
       # renovate: datasource=npm depName=release-please
       RELEASE_PLEASE_VERSION: "17.11.2"

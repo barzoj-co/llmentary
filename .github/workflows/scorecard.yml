@@ -3,7 +3,6 @@ name: Scorecard
 on:
   push:
     branches: [main]
-  pull_request:
   schedule:
     - cron: "31 4 * * 1"
   branch_protection_rule:

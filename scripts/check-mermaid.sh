@@ -21,8 +21,8 @@ Fails with the Markdown file and opening-fence line of any block that
 does not parse. Fails closed if a required tool is missing or extraction
 finds nothing while README.md still contains a mermaid fence.
 
-  --self-test  also prove fail-closed tool checks, alternate fences, and
-               testdata/mermaid/bad.md
+  --self-test  also prove fail-closed tool checks, empty/mismatched
+               mmdc --version, alternate fences, and testdata/mermaid/bad.md
 EOF
 }
 
@@ -55,7 +55,11 @@ if ! command -v "$MMDC" >/dev/null 2>&1; then
 fi
 
 mmdc_ver="$("$MMDC" --version 2>/dev/null | head -n1 | tr -d '[:space:]')"
-if [[ -n "$mmdc_ver" && "$mmdc_ver" != "$MERMAID_CLI_VERSION" ]]; then
+if [[ -z "$mmdc_ver" ]]; then
+  echo "mmdc --version produced no output (need @mermaid-js/mermaid-cli@${MERMAID_CLI_VERSION})" >&2
+  exit 1
+fi
+if [[ "$mmdc_ver" != "$MERMAID_CLI_VERSION" ]]; then
   echo "mmdc version ${mmdc_ver} != pinned ${MERMAID_CLI_VERSION}" >&2
   exit 1
 fi
@@ -274,6 +278,59 @@ if ! grep -qi "python3" "${workdir}/nopython.err"; then
   exit 1
 fi
 echo "OK  missing python3 failed closed"
+
+echo "Self-test: empty mmdc --version must fail"
+empty_mmdc="${workdir}/mmdc-empty"
+cat >"$empty_mmdc" <<'EOF'
+#!/bin/sh
+exit 0
+EOF
+chmod +x "$empty_mmdc"
+set +e
+MMDC="$empty_mmdc" MERMAID_CLI_VERSION="$MERMAID_CLI_VERSION" \
+  PATH="$PATH" "$bash_bin" "$root/scripts/check-mermaid.sh" \
+  >"${workdir}/emptyver.out" 2>"${workdir}/emptyver.err"
+emptyver_status=$?
+set -e
+if [[ "$emptyver_status" -eq 0 ]]; then
+  echo "FAIL self-test: empty mmdc --version passed" >&2
+  cat "${workdir}/emptyver.out" >&2
+  cat "${workdir}/emptyver.err" >&2
+  exit 1
+fi
+if ! grep -qi "no output" "${workdir}/emptyver.err"; then
+  echo "FAIL self-test: empty mmdc --version did not mention missing output:" >&2
+  cat "${workdir}/emptyver.err" >&2
+  exit 1
+fi
+echo "OK  empty mmdc --version failed closed"
+
+echo "Self-test: mismatched mmdc --version must fail"
+wrong_mmdc="${workdir}/mmdc-wrong"
+cat >"$wrong_mmdc" <<'EOF'
+#!/bin/sh
+echo "0.0.0"
+exit 0
+EOF
+chmod +x "$wrong_mmdc"
+set +e
+MMDC="$wrong_mmdc" MERMAID_CLI_VERSION="$MERMAID_CLI_VERSION" \
+  PATH="$PATH" "$bash_bin" "$root/scripts/check-mermaid.sh" \
+  >"${workdir}/wrongver.out" 2>"${workdir}/wrongver.err"
+wrongver_status=$?
+set -e
+if [[ "$wrongver_status" -eq 0 ]]; then
+  echo "FAIL self-test: mismatched mmdc --version passed" >&2
+  cat "${workdir}/wrongver.out" >&2
+  cat "${workdir}/wrongver.err" >&2
+  exit 1
+fi
+if ! grep -q "0.0.0" "${workdir}/wrongver.err" || ! grep -q "$MERMAID_CLI_VERSION" "${workdir}/wrongver.err"; then
+  echo "FAIL self-test: mismatched mmdc --version did not report both versions:" >&2
+  cat "${workdir}/wrongver.err" >&2
+  exit 1
+fi
+echo "OK  mismatched mmdc --version failed closed"
 
 echo "Self-test: testdata/mermaid/fences.md tilde and 4-backtick fences"
 fences="testdata/mermaid/fences.md"

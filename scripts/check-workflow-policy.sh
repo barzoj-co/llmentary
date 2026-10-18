@@ -25,7 +25,7 @@ ALLOWED_JOB_PERMISSIONS = {
     "actions": {"read"},
     "security-events": {"write"},
     "id-token": {"write"},
-    "pull-requests": {"write"},
+    "pull-requests": {"read", "write"},
     "issues": {"read", "write"},
     "attestations": {"write"},
 }

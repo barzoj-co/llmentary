@@ -201,6 +201,9 @@ bash scripts/check-pinned-actions.sh --self-test
 python3 -m pip install pyyaml
 bash scripts/check-workflow-policy.sh
 
+# no id-token: write on pull_request / pull_request_target workflows
+bash scripts/check-pr-oidc.sh --self-test
+
 # README badges and cross-link block
 bash scripts/check-readme.sh
 

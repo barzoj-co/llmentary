@@ -1,0 +1,9 @@
+# Fixture: top-level id-token write on pull_request_target must be rejected.
+on: pull_request_target
+permissions:
+  id-token: write
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo ok
