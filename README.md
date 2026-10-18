@@ -120,6 +120,21 @@ OpenAI-wire calls when it can, and leaves everything else as raw passthrough.
 - [Troubleshooting](docs/troubleshooting.md)
 - [Contributing](CONTRIBUTING.md)
 
+## Licensing
+
+The owner has split the licensing by artifact:
+
+- Proxy binary and server/proxy framework code: AGPL-3.0-only, covered by the root
+  [LICENSE](LICENSE).
+- Go/Python/JS client libraries: MIT. The Go client lives in `pkg/llmtestlab` and is
+  covered by [`pkg/llmtestlab/LICENSE`](pkg/llmtestlab/LICENSE). The planned Python and
+  JavaScript/TypeScript clients will live in their separate repositories
+  (`llm-test-lab-python` and `llm-test-lab-js`).
+
+Using the proxy binary in your test pipeline does not affect your application's license.
+Your app talks to the proxy over HTTP, and the MIT client libraries are designed to be
+imported without linking the AGPL proxy/server code.
+
 ## Status and roadmap
 
 Current code is a Go proxy and Go client for deterministic integration tests. The session
@@ -128,13 +143,13 @@ store and OTLP span store are in memory.
 Planned outside this repo or in later versions:
 
 - Python client: `llm-test-lab-python`.
-- TypeScript client: `llm-test-lab-js`.
+- TypeScript/JavaScript client: `llm-test-lab-js`.
 - Anthropic Messages parsing in v2.
 - External OTLP export and stricter content-capture controls.
 - Record/replay cassettes, fault injection, packaging polish, and local TLS.
 
 The current `--tls` flag is parsed by the CLI but is not wired to any TLS listener.
 
-## License
+## Repository licenses
 
-AGPL-3.0. See [LICENSE](LICENSE).
+See [Licensing](#licensing).

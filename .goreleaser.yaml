@@ -5,7 +5,9 @@ project_name: llm-test-lab
 before:
   hooks:
     - go mod tidy
+    - sh -c "cd pkg/llmtestlab && go mod tidy"
     - go test ./...
+    - sh -c "cd pkg/llmtestlab && go test ./..."
 
 builds:
   - id: llmtestlab

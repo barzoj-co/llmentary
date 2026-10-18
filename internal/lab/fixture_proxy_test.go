@@ -1,4 +1,6 @@
-package llmtestlab_test
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package lab_test
 
 import (
 	"bytes"

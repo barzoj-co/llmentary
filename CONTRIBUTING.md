@@ -9,10 +9,11 @@ Thanks for working on `llm-test-lab`.
 
 ## Local checks
 
-Run unit and fixture tests:
+Run unit and fixture tests for both Go modules:
 
 ```bash
 go test ./...
+(cd pkg/llmtestlab && go test ./...)
 ```
 
 Run real-provider e2e tests:
@@ -42,6 +43,8 @@ CI also runs `golangci-lint-action@v8`.
 
 Document only behavior implemented in the current code. In particular:
 
+- The root module is AGPL-3.0-only. The nested Go client module at `pkg/llmtestlab` is
+  MIT-licensed and should stay importable without proxy/server packages.
 - CLI flags are in `cmd/llmtestlab/main.go`.
 - Environment variables and validation are in `internal/lab/config.go`.
 - Proxy routing and control endpoints are in `internal/lab/server.go`.
@@ -57,8 +60,9 @@ Avoid documenting planned flags, endpoints, or APIs as if they already exist.
 ## Provider fixtures
 
 Parser behavior should be covered by fixture tests when possible. Existing fixtures live
-under `pkg/llmtestlab/testdata` and are exercised by
-`pkg/llmtestlab/fixture_proxy_test.go`.
+under `internal/lab/testdata` and are exercised by `internal/lab/fixture_proxy_test.go`.
+Proxy fixture tests should stay outside `pkg/llmtestlab` so the MIT client module does
+not import AGPL proxy/server code.
 
 Good fixture coverage includes:
 

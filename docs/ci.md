@@ -3,7 +3,8 @@
 The repository's own workflow is in `.github/workflows/ci.yml`:
 
 - `lint`: checkout, Go 1.26.x, `golangci/golangci-lint-action@v8`.
-- `test`: checkout, Go 1.26.x, `go test ./...`.
+- `test`: checkout, Go 1.26.x, `go test ./...` in the root AGPL proxy module and
+  `go test ./...` in the nested MIT Go client module at `pkg/llmtestlab`.
 - `e2e`: skipped for fork pull requests; for pushes and non-fork PRs it requires
   `OPENAI_API_KEY` and runs `go test -v -tags=e2e ./...`.
 
@@ -68,8 +69,12 @@ jobs:
           cat llmtestlab.log
           exit 1
 
-      - name: Run tests
+      - name: Run proxy/root tests
         run: go test ./...
+
+      - name: Run MIT Go client tests
+        run: go test ./...
+        working-directory: pkg/llmtestlab
 ```
 
 Replace `VERSION` with a published release tag. Release archives are built by
@@ -104,6 +109,8 @@ For projects that are comfortable building from source during CI:
 The repository's e2e tests are behind the `e2e` build tag:
 
 ```bash
+go test ./...
+(cd pkg/llmtestlab && go test ./...)
 OPENAI_API_KEY=sk-... go test -v -tags=e2e ./...
 ```
 
