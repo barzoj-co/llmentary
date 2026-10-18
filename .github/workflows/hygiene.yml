@@ -105,7 +105,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
-      contents: read
+      contents: write
+      pull-requests: write
+      issues: write
     env:
       # renovate: datasource=npm depName=release-please
       RELEASE_PLEASE_VERSION: "17.11.2"
@@ -124,8 +126,7 @@ jobs:
         run: |
           npx --yes --package "release-please@${RELEASE_PLEASE_VERSION}" release-please release-pr \
             --dry-run \
-            --local \
-            --local-path=. \
+            --skip-labeling \
             --repo-url=barzoj-co/llm-test-lab \
             --target-branch="${TARGET_BRANCH}" \
             --config-file=release-please-config.json \
