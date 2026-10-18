@@ -93,7 +93,6 @@ func TestE2EResponsesToolFlow(t *testing.T) {
 		"model":` + strconv.Quote(model) + `,
 		"input":"Call the echo_city tool with city Paris. Do not answer in text.",
 		"stream":true,
-		"store":false,
 		"temperature":0,
 		"tool_choice":{"type":"function","name":"echo_city"},
 		"tools":[{
@@ -115,11 +114,15 @@ func TestE2EResponsesToolFlow(t *testing.T) {
 		t.Fatalf("expected one responses tool call:\n%s", firstTrace.Summary())
 	}
 	toolCallID := responseCalls[0].Normalized.ToolCalls[0].ID
+	responseID := responseCalls[0].RequestIDs["body.id"]
+	if responseID == "" {
+		t.Fatalf("first Responses call did not record body.id:\n%s", firstTrace.Summary())
+	}
 
 	secondBody := []byte(`{
 		"model":` + strconv.Quote(model) + `,
 		"stream":true,
-		"store":false,
+		"previous_response_id":` + strconv.Quote(responseID) + `,
 		"input":[
 			{"type":"function_call_output","call_id":` + strconv.Quote(toolCallID) + `,"output":"{\"city\":\"Paris\",\"echoed\":true}"},
 			{"role":"user","content":"Now give the final answer in text and include Paris."}
