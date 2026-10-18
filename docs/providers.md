@@ -62,8 +62,9 @@ The parser records:
 Responses stream parsing uses generated `ResponseStreamEvent.ValueByDiscriminator()`
 with wire `type` values (`response.output_text.delta`, not schema names). It
 recognizes `response.completed`, `response.failed`, `response.incomplete`,
-`response.output_item.done`, `response.function_call_arguments.delta/done`,
-`response.refusal.delta/done`, and `error`.
+`response.output_item.done`, `response.output_text.delta`,
+`response.function_call_arguments.delta`, `response.refusal.delta/done`, and
+`error`.
 
 The official spec's Responses stream `error` event has top-level `code` and
 `message` (`{"type":"error","code":"...","message":"..."}`). Some payloads nest

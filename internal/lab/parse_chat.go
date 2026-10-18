@@ -48,10 +48,8 @@ func parseChatBody(call *Call) {
 		call.RequestIDs["body.id"] = resp.Id
 	}
 	call.Normalized.Model.Returned = resp.Model
-	if resp.Usage != nil {
-		if raw, err := json.Marshal(resp.Usage); err == nil {
-			call.Normalized.Usage = usageFromChat(raw, "body")
-		}
+	if raw := jsonField(call.RawResponse, "usage"); len(raw) > 0 {
+		call.Normalized.Usage = usageFromChat(raw, "body")
 	}
 	var calls []ToolCall
 	for i, choice := range resp.Choices {
@@ -114,10 +112,8 @@ func parseChatStream(call *Call) {
 		if chunk.Model != "" {
 			call.Normalized.Model.Returned = chunk.Model
 		}
-		if chunk.Usage != nil {
-			if raw, err := json.Marshal(chunk.Usage); err == nil {
-				call.Normalized.Usage = usageFromChat(raw, "final_chunk")
-			}
+		if raw := jsonField(event.Data, "usage"); len(raw) > 0 {
+			call.Normalized.Usage = usageFromChat(raw, "final_chunk")
 		}
 		for _, choice := range chunk.Choices {
 			if choice.FinishReason != nil && *choice.FinishReason != "" {

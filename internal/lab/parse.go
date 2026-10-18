@@ -484,6 +484,14 @@ func usageFromResponses(raw json.RawMessage, source string) *Usage {
 	return usage
 }
 
+func jsonField(raw json.RawMessage, key string) json.RawMessage {
+	var m map[string]json.RawMessage
+	if json.Unmarshal(raw, &m) != nil {
+		return nil
+	}
+	return m[key]
+}
+
 func hasJSONKey(raw json.RawMessage, key string) bool {
 	var m map[string]json.RawMessage
 	return json.Unmarshal(raw, &m) == nil && m[key] != nil

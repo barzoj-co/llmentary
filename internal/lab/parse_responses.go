@@ -89,14 +89,13 @@ func parseResponsesStream(call *Call) {
 		switch ev := typed.(type) {
 		case openaiapi.ResponseCompletedEvent:
 			complete = true
-			raw, _ := json.Marshal(ev.Response)
-			parseResponsesObject(call, raw, "terminal_event")
+			parseResponsesObject(call, jsonField(event.Data, "response"), "terminal_event")
 		case openaiapi.ResponseFailedEvent:
-			raw, _ := json.Marshal(ev.Response)
-			parseResponsesObject(call, raw, "terminal_event")
+			complete = true
+			parseResponsesObject(call, jsonField(event.Data, "response"), "terminal_event")
 		case openaiapi.ResponseIncompleteEvent:
-			raw, _ := json.Marshal(ev.Response)
-			parseResponsesObject(call, raw, "terminal_event")
+			complete = true
+			parseResponsesObject(call, jsonField(event.Data, "response"), "terminal_event")
 		case openaiapi.ResponseOutputItemDoneEvent:
 			fallbackItems[ev.OutputIndex] = ev.Item
 		case openaiapi.ResponseFunctionCallArgumentsDeltaEvent:
@@ -162,13 +161,8 @@ func parseResponsesObject(call *Call, raw []byte, usageSource string) {
 	}
 	fromOutputTextField := objectText != ""
 	objectRefusal := ""
-	if hasJSONKey(raw, "usage") {
-		var holder struct {
-			Usage json.RawMessage `json:"usage"`
-		}
-		if json.Unmarshal(raw, &holder) == nil {
-			call.Normalized.Usage = usageFromResponses(holder.Usage, usageSource)
-		}
+	if usageRaw := jsonField(raw, "usage"); len(usageRaw) > 0 {
+		call.Normalized.Usage = usageFromResponses(usageRaw, usageSource)
 	}
 	status := ""
 	if resp.Status != nil {
