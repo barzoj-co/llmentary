@@ -4,6 +4,13 @@ The Go package `github.com/barzoj-co/llm-test-lab/pkg/llmtestlab` provides the t
 API for deterministic LLM integration tests. It never uses an LLM judge. Assertions run
 against calls recorded by the local proxy.
 
+Related references:
+
+- [Proxy configuration and control API](proxy.md)
+- [Provider compatibility and SDK wiring](providers.md)
+- [Recorded trace data model](data-model.md)
+- [OTel GenAI mapping](otel.md)
+
 ## Session per test
 
 ```go
@@ -172,3 +179,6 @@ filter chunks, and structured output. The fixture tests serve those bodies from 
 See [`examples/go/weather_test.go`](../examples/go/weather_test.go) for a complete
 proxy-backed example using `openai-go` with `lab.OpenAIBaseURL("openai")` and
 `lab.HTTPClient()`.
+
+For CI wiring, see [GitHub Actions and CI](ci.md). For common setup failures, see
+[Troubleshooting](troubleshooting.md).
