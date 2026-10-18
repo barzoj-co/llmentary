@@ -42,13 +42,9 @@ func TestOpenAIChatThroughProxy(t *testing.T) {
 	defer proxy.Close()
 	control := httptest.NewServer(server.ControlHandler())
 	defer control.Close()
-	client, err := llmtestlab.NewClient(control.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	sessionID := client.NewSession()
+	testLab := llmtestlab.New(t, llmtestlab.WithProxyURL(proxy.URL), llmtestlab.WithControlURL(control.URL), llmtestlab.WithWait(100*time.Millisecond, 5*time.Second))
 
-	body := []byte(`{
+	chatBody := []byte(`{
 		"model":` + strconv.Quote(model) + `,
 		"messages":[{"role":"user","content":"Call the echo_city tool with city Paris. Do not answer in text."}],
 		"stream":true,
@@ -63,13 +59,50 @@ func TestOpenAIChatThroughProxy(t *testing.T) {
 			}
 		}]
 	}`)
-	req, err := http.NewRequest(http.MethodPost, proxy.URL+"/u/openai/chat/completions", bytes.NewReader(body))
+	chatStream := postOpenAI(t, apiKey, testLab, "/chat/completions", chatBody)
+	if !bytes.Contains(chatStream, []byte("data:")) {
+		t.Fatalf("expected chat SSE stream, got %q", chatStream)
+	}
+
+	responsesBody := []byte(`{
+		"model":` + strconv.Quote(model) + `,
+		"input":"Call the echo_city tool with city Paris. Do not answer in text.",
+		"stream":true,
+		"store":false,
+		"tool_choice":{"type":"function","name":"echo_city"},
+		"tools":[{
+			"type":"function",
+			"name":"echo_city",
+			"description":"Echo a city name.",
+			"parameters":{"type":"object","properties":{"city":{"type":"string"}},"required":["city"],"additionalProperties":false}
+		}]
+	}`)
+	responsesStream := postOpenAI(t, apiKey, testLab, "/responses", responsesBody)
+	if !bytes.Contains(responsesStream, []byte("event:")) {
+		t.Fatalf("expected responses SSE stream, got %q", responsesStream)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	assert := testLab.Expect(ctx)
+	assert.CallCount(2)
+	assert.ToolCalledTimes("echo_city", 2, llmtestlab.ArgsSubset(map[string]any{"city": "Paris"}))
+	assert.ToolOrder("echo_city", "echo_city")
+	assert.ToolNotCalled("unknown_tool")
+	assert.NoErrors()
+	assert.TokensBelow(2000)
+}
+
+func postOpenAI(t *testing.T, apiKey string, lab *llmtestlab.Lab, path string, body []byte) []byte {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodPost, lab.OpenAIBaseURL("openai")+path, bytes.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set(llmtestlab.SessionHeaderName, sessionID)
+	key, value := lab.Header()
+	req.Header.Set(key, value)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -82,19 +115,5 @@ func TestOpenAIChatThroughProxy(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("openai status=%d body=%s", resp.StatusCode, string(stream))
 	}
-	if !bytes.Contains(stream, []byte("data:")) {
-		t.Fatalf("expected SSE stream, got %q", stream)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	calls, err := client.Wait(ctx, sessionID, 100*time.Millisecond, 5*time.Second)
-	if err != nil {
-		t.Fatal(err)
-	}
-	llmtestlab.AssertCallCount(t, calls, 1)
-	llmtestlab.AssertToolCalled(t, calls, "echo_city", map[string]any{"city": "Paris"})
-	llmtestlab.AssertToolOrder(t, calls, "echo_city")
-	llmtestlab.AssertToolNotCalled(t, calls, "unknown_tool")
-	llmtestlab.AssertTokensBelow(t, calls, 1000)
+	return stream
 }
