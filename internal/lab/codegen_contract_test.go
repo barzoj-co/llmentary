@@ -82,11 +82,15 @@ func TestA5CompileTimeAssertionPresent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Contains(overlay, []byte("EmbeddingObjectType")) {
-		t.Fatal("overlay must rename CreateEmbeddingResponse.object so adding createEmbedding generates a clean missing-method error")
-	}
 	if bytes.Contains(overlay, []byte("no-op marker")) {
 		t.Fatal("overlay must not keep the ResponseStreamEvent no-op marker; mapping comes from specfilter")
+	}
+	filter, err := os.ReadFile(filepath.Join(repoRoot(t), "tools", "specfilter", "main.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(filter, []byte(`"CreateEmbeddingResponse"`)) {
+		t.Fatal("specfilter must rename CreateEmbeddingResponse.object so adding createEmbedding generates a clean missing-method error")
 	}
 }
 

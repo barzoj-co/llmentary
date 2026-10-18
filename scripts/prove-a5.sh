@@ -7,9 +7,11 @@ set -euo pipefail
 root="$(git rev-parse --show-toplevel)"
 cd "$root"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/a5-proof.XXXXXX")"
+errfile=""
 cleanup() {
   git -C "$root" worktree remove --force "$tmp" >/dev/null 2>&1 || true
   rm -rf "$tmp"
+  rm -f "$errfile"
 }
 trap cleanup EXIT
 git worktree add --detach "$tmp" HEAD
@@ -20,8 +22,8 @@ if grep -qx 'createEmbedding' api/openai/operations.txt; then
 fi
 printf '\ncreateEmbedding\n' >> api/openai/operations.txt
 make gen
-errfile="$(mktemp "${TMPDIR:-/tmp}/a5-build.XXXXXX")"
-if go build -o /tmp/llmtestlab-a5-proof ./internal/lab 2>"$errfile"; then
+errfile="$tmp/a5-build.err"
+if go build -o "$tmp/llmtestlab-a5-proof" ./internal/lab 2>"$errfile"; then
   echo "A5 proof failed: build succeeded after adding createEmbedding" >&2
   exit 1
 fi

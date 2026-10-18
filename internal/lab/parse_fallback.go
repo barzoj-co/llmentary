@@ -23,7 +23,6 @@ type looseChatDelta struct {
 	usage      json.RawMessage
 	model      string
 	id         string
-	err        *CallError
 }
 
 type looseToolDelta struct {
@@ -67,8 +66,10 @@ func applyChatFallback(call *Call, raw []byte, reason string) {
 			call.Normalized.ParserWarnings = append(call.Normalized.ParserWarnings, "tool args not valid JSON for "+item.name+": "+argErr)
 		}
 	}
-	if got.err != nil && call.Normalized.Error == nil {
-		call.Normalized.Error = got.err
+	if call.Normalized.Error == nil {
+		if err := errorFromHTTP(call.HTTPStatus, raw); err != nil && err.Message != "" {
+			call.Normalized.Error = err
+		}
 	}
 }
 
@@ -82,9 +83,6 @@ func extractLooseChat(raw []byte) looseChatDelta {
 	out.id = rawString(root["id"])
 	if u := root["usage"]; len(u) > 0 {
 		out.usage = u
-	}
-	if err := errorFromHTTP(400, raw); err != nil && err.Message != "" {
-		out.err = err
 	}
 	var choices []map[string]json.RawMessage
 	if json.Unmarshal(root["choices"], &choices) != nil {
@@ -160,6 +158,8 @@ func applyResponsesFallback(call *Call, raw []byte, reason, usageSource string) 
 			call.Normalized.FinishReason = synthesizeResponsesFinish(status, rawString(jsonField(root["incomplete_details"], "reason")))
 		}
 	}
+	objectText := ""
+	objectRefusal := ""
 	var output []map[string]json.RawMessage
 	if json.Unmarshal(root["output"], &output) == nil {
 		for i, item := range output {
@@ -186,16 +186,22 @@ func applyResponsesFallback(call *Call, raw []byte, reason, usageSource string) 
 				for _, part := range content {
 					switch rawString(part["type"]) {
 					case "output_text":
-						call.Normalized.OutputText += rawString(part["text"])
+						objectText += rawString(part["text"])
 					case "refusal":
-						call.Normalized.Refusal += rawString(part["refusal"])
+						objectRefusal += rawString(part["refusal"])
 					}
 				}
 			}
 		}
 	}
 	if text := rawString(root["output_text"]); text != "" {
-		call.Normalized.OutputText = text
+		objectText = text
+	}
+	if objectText != "" {
+		call.Normalized.OutputText = objectText
+	}
+	if objectRefusal != "" {
+		call.Normalized.Refusal = objectRefusal
 	}
 	if errRaw := root["error"]; len(bytes.TrimSpace(errRaw)) > 0 && !bytes.Equal(bytes.TrimSpace(errRaw), []byte("null")) {
 		if typ, code, message, ok := parseLooseError(errRaw); ok {

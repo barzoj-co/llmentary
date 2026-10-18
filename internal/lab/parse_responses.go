@@ -73,12 +73,18 @@ func parseResponsesStream(call *Call) {
 		typed, err := streamEvent.ValueByDiscriminator()
 		if err != nil {
 			name := event.Event
-			if name == "" {
-				var probe struct {
-					Type string `json:"type"`
-				}
-				_ = json.Unmarshal(event.Data, &probe)
+			var probe struct {
+				Type string `json:"type"`
+			}
+			_ = json.Unmarshal(event.Data, &probe)
+			if probe.Type != "" {
 				name = probe.Type
+			}
+			switch name {
+			case "response.completed", "response.failed", "response.incomplete":
+				complete = true
+				parseResponsesObject(call, jsonField(event.Data, "response"), "terminal_event")
+				continue
 			}
 			if name == "" {
 				name = "unknown"

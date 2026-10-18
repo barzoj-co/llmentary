@@ -146,10 +146,11 @@ Completions and Responses, then assert against the recorded session through the 
 Do not expose provider secrets to untrusted fork PRs. The repository workflow uses:
 
 ```yaml
-if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork != true }}
+if: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork != true) || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
 ```
 
-on the e2e job so fork pull requests do not receive `OPENAI_API_KEY`.
+on the e2e job so it runs once per change (non-fork PRs and pushes to `main`) and
+fork pull requests do not receive `OPENAI_API_KEY`.
 
 For public repositories, keep this split:
 

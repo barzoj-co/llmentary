@@ -505,10 +505,7 @@ func postOpenAIRetryNetwork(t *testing.T, apiKey string, lab *llmtestlab.Lab, pa
 		raw, readErr := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
 		if readErr != nil {
-			lastErr = readErr
-			t.Logf("read error on attempt %d/3: %v", attempt, readErr)
-			time.Sleep(time.Duration(attempt) * 400 * time.Millisecond)
-			continue
+			t.Fatalf("read error after response (call already recorded): %v", readErr)
 		}
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("openai status=%d body=%s", resp.StatusCode, string(raw))
