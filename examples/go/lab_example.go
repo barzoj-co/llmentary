@@ -8,7 +8,7 @@ import (
 	"github.com/barzoj-co/llm-test-lab/pkg/llmtestlab"
 )
 
-func testAgentWeather(t *testing.T) {
+func AgentWeatherExample(t *testing.T) {
 	lab := llmtestlab.New(t)
 
 	req, err := http.NewRequest(http.MethodPost, lab.OpenAIBaseURL("openai")+"/chat/completions", nil)
