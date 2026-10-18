@@ -71,27 +71,30 @@ func TestA2FlagsAndEnv(t *testing.T) {
 
 func TestA4OffOmitsFields(t *testing.T) {
 	p := startSpecProxy(t, "off", "relaxed", chatOK())
-	bodies := [][]byte{
-		[]byte(`{"model":"gpt-fixture","messages":[{"role":"user","content":"hi"}]}`),
-		[]byte(`{"model":"gpt-fixture","messages":[{"role":"user","content":"hi"}],"foo":1}`),
-		[]byte(`{"model":"gpt-fixture"}`),
-		[]byte(`{}`),
-		[]byte(`{"model":"gpt-fixture","messages":[{"role":"user","content":"hi"}]} xyz`),
-		[]byte(`{"model":"m","messages":[{"role":"user","content":"hi","foo":1}]}`),
-		[]byte(`{"model":"m","input":"hi"}`),
-		[]byte(`{"model":"m","messages":[{"role":"user","content":"hi"}],"tools":[{"type":"function","function":{"name":"x","parameters":{},"foo":1}}]}`),
-		[]byte(`{"model":"m","input":"hi","tools":[{"type":"function","name":"x","parameters":{}}]}`),
-		[]byte(`{"model":"m","messages":[{"role":"user","content":"hi"}],"temperature":"0.7"}`),
+	cases := []struct {
+		name, route string
+		body        []byte
+	}{
+		{"chat_clean", "/v1/chat/completions", []byte(`{"model":"gpt-fixture","messages":[{"role":"user","content":"hi"}]}`)},
+		{"chat_unknown_top", "/v1/chat/completions", []byte(`{"model":"gpt-fixture","messages":[{"role":"user","content":"hi"}],"foo":1}`)},
+		{"chat_missing_messages", "/v1/chat/completions", []byte(`{"model":"gpt-fixture"}`)},
+		{"chat_empty", "/v1/chat/completions", []byte(`{}`)},
+		{"chat_trailing", "/v1/chat/completions", []byte(`{"model":"gpt-fixture","messages":[{"role":"user","content":"hi"}]} xyz`)},
+		{"chat_message_extra", "/v1/chat/completions", []byte(`{"model":"m","messages":[{"role":"user","content":"hi","foo":1}]}`)},
+		{"responses_clean", "/v1/responses", []byte(`{"model":"m","input":"hi"}`)},
+		{"chat_tool_extra", "/v1/chat/completions", []byte(`{"model":"m","messages":[{"role":"user","content":"hi"}],"tools":[{"type":"function","function":{"name":"x","parameters":{},"foo":1}}]}`)},
+		{"responses_tool", "/v1/responses", []byte(`{"model":"m","input":"hi","tools":[{"type":"function","name":"x","parameters":{}}]}`)},
+		{"chat_wrong_type", "/v1/chat/completions", []byte(`{"model":"m","messages":[{"role":"user","content":"hi"}],"temperature":"0.7"}`)},
 	}
-	paths := []string{"/v1/chat/completions", "/v1/chat/completions", "/v1/chat/completions", "/v1/chat/completions", "/v1/chat/completions", "/v1/chat/completions", "/v1/responses", "/v1/chat/completions", "/v1/responses", "/v1/chat/completions"}
-	for i, body := range bodies {
-		sid := newSession()
-		_, _, _, session := postRaw(t, p, paths[i], sid, nil, body)
-		raw := sessionRaw(t, p.controlURL, sid)
-		if rawJSONHasKey(raw, "validation") || rawJSONHasKey(raw, "spec_violations") || rawJSONHasKey(raw, "ignored_fields") {
-			t.Fatalf("off mode leaked keys in %s", raw)
-		}
-		_ = session
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			sid := newSession()
+			postRaw(t, p, tc.route, sid, nil, tc.body)
+			raw := sessionRaw(t, p.controlURL, sid)
+			if rawJSONHasKey(raw, "validation") || rawJSONHasKey(raw, "spec_violations") || rawJSONHasKey(raw, "ignored_fields") {
+				t.Fatalf("off mode leaked keys in %s", raw)
+			}
+		})
 	}
 }
 

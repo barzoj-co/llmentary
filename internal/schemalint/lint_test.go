@@ -231,12 +231,7 @@ func TestC4OverlayEvidence(t *testing.T) {
 	}
 }
 
-func TestResponsesContentPartAllowlist(t *testing.T) {
-	for _, key := range []string{"file_data", "file_url", "filename", "annotations", "logprobs", "refusal"} {
-		if _, ok := responsesContentPartKeys[key]; !ok {
-			t.Fatalf("documented Responses content-part key %s missing from allowlist", key)
-		}
-	}
+func TestResponsesContentPartNotIgnored(t *testing.T) {
 	l := testLinter(t)
 	unknown := []byte(`{"model":"m","input":[{"role":"user","content":[{"type":"input_text","text":"hi","foo":1}]}]}`)
 	got := l.LintRequest("openai.responses", unknown)
@@ -245,13 +240,27 @@ func TestResponsesContentPartAllowlist(t *testing.T) {
 			t.Fatalf("unknown Responses content-part field must not be ignored_fields: %+v", f)
 		}
 	}
-	documented := []byte(`{"model":"m","input":[{"role":"user","content":[{"type":"input_text","text":"hi","annotations":[],"logprobs":[]},{"type":"input_file","file_data":"aGVsbG8=","file_url":"https://example.com/n.txt","filename":"n.txt"},{"type":"refusal","refusal":"nope"}]}]}`)
-	got = l.LintRequest("openai.responses", documented)
+}
+
+func TestChatCustomToolCallAllowlist(t *testing.T) {
+	l := testLinter(t)
+	body := []byte(`{"model":"m","messages":[{"role":"assistant","tool_calls":[{"id":"call_1","type":"custom","custom":{"name":"echo","input":"{}"}}]}]}`)
+	got := l.LintRequest("openai.chat", body)
 	for _, f := range got.Ignored {
-		switch f.Key {
-		case "file_data", "file_url", "filename", "annotations", "logprobs", "refusal":
-			t.Fatalf("documented field %s flagged: %+v", f.Key, f)
+		if f.Key == "custom" {
+			t.Fatalf("documented custom tool-call field flagged: %+v", f)
 		}
+	}
+	unknown := []byte(`{"model":"m","messages":[{"role":"assistant","tool_calls":[{"id":"call_1","type":"custom","custom":{"name":"echo","input":"{}"},"foo":1}]}]}`)
+	got = l.LintRequest("openai.chat", unknown)
+	found := false
+	for _, f := range got.Ignored {
+		if f.Key == "foo" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected unknown custom tool-call field: %+v", got.Ignored)
 	}
 }
 

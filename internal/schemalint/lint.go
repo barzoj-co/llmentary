@@ -86,7 +86,11 @@ func (l *Linter) lintChat(body map[string]any, fineTuned bool) Result {
 			if calls, ok := msg["tool_calls"].([]any); ok {
 				for j, call := range calls {
 					c, _ := call.(map[string]any)
-					res.Ignored = append(res.Ignored, unknownKeys(c, chatToolCallKeys, base+"/tool_calls/"+strconv.Itoa(j), ContextChatMessage, l)...)
+					known := chatToolCallKeys
+					if typ, _ := c["type"].(string); typ == "custom" {
+						known = chatCustomToolCallKeys
+					}
+					res.Ignored = append(res.Ignored, unknownKeys(c, known, base+"/tool_calls/"+strconv.Itoa(j), ContextChatMessage, l)...)
 				}
 			}
 		}
@@ -440,12 +444,10 @@ var chatContentPartKeys = map[string]struct{}{
 var chatToolCallKeys = map[string]struct{}{
 	"id": {}, "type": {}, "function": {}, "index": {},
 }
+var chatCustomToolCallKeys = map[string]struct{}{
+	"id": {}, "type": {}, "custom": {}, "index": {},
+}
 var responsesFunctionKeys = map[string]struct{}{
 	"type": {}, "name": {}, "async": {}, "description": {}, "parameters": {},
 	"output_schema": {}, "strict": {}, "defer_loading": {}, "allowed_callers": {},
-}
-var responsesContentPartKeys = map[string]struct{}{
-	"type": {}, "text": {}, "image_url": {}, "detail": {}, "file_id": {},
-	"file_data": {}, "file_url": {}, "filename": {}, "annotations": {},
-	"logprobs": {}, "refusal": {}, "prompt_cache_breakpoint": {},
 }
