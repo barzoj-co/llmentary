@@ -202,6 +202,7 @@ func liveUsageCallCounted(t *testing.T, apiKey string, p liveProxy, path, usageK
 		}
 		t.Logf("retrying %s: usage.%s was 0 on a 200", path, usageKey)
 	}
+	t.Fatalf("usage.%s was 0 after retry on HTTP 200 for %s: %s", usageKey, path, redactLiveBody(resp))
 	return status, resp, n, tokens
 }
 

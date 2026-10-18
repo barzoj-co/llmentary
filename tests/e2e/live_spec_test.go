@@ -284,9 +284,7 @@ func runLiveProbe(t *testing.T, rowID, path string, body func(model string) []by
 	p := startLiveProxy(t, "warn", "relaxed")
 	sid := liveSession()
 	status, _, resp, _ := postLive(t, apiKey, p, path, sid, body(liveModel()))
-	if status != row.Status {
-		t.Fatalf("OpenAI changed behavior for %s: status=%d want %d. Update live-behavior.json and the overlay. body=%s", rowID, status, row.Status, redactLiveBody(resp))
-	}
+	assertLiveError(t, row, status, resp)
 }
 
 func runEnumDescriptionsLive(t *testing.T, path string, bodyFn func(model string) []byte) {
