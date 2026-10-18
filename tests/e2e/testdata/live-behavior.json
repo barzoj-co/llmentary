@@ -185,6 +185,52 @@
     "epsilon": 2,
     "min_control_delta": 200,
     "method": "token_delta",
-    "epsilon_why": "ε=2 absorbs serialization artifacts of an extra JSON key. A real reading of T would cost hundreds of tokens."
+    "epsilon_why": "ε=2 absorbs serialization artifacts of an extra JSON key. A real reading of T would cost hundreds of tokens.",
+    "verified": "2026-10-18",
+    "model": "gpt-4.1-nano",
+    "cells": {
+      "messages[0].foo": {
+        "test": "TestLiveTokens_UnknownInMessage_Chat",
+        "base": 11,
+        "with": 11,
+        "control": 495
+      },
+      "tools[0].function.foo": {
+        "test": "TestLiveTokens_UnknownInFunctionTool_Chat",
+        "base": 36,
+        "with": 36,
+        "control": 511
+      },
+      "tools[0].foo": {
+        "test": "TestLiveTokens_UnknownInFunctionTool_Responses",
+        "base": 30,
+        "with": 30,
+        "control": 505
+      },
+      "enumDescriptions_chat_tool": {
+        "test": "TestLiveTokens_EnumDescriptions_ChatTool",
+        "base": 125,
+        "with": 125,
+        "control": 601
+      },
+      "enumDescriptions_chat_tool_strict": {
+        "test": "TestLiveTokens_EnumDescriptions_ChatToolStrict",
+        "base": 125,
+        "with": 125,
+        "control": 601
+      },
+      "enumDescriptions_responses_tool": {
+        "test": "TestLiveTokens_EnumDescriptions_ResponsesTool",
+        "base": 119,
+        "with": 119,
+        "control": 595
+      },
+      "enumDescriptions_responses_tool_strict": {
+        "test": "TestLiveTokens_EnumDescriptions_ResponsesToolStrict",
+        "base": 119,
+        "with": 119,
+        "control": 595
+      }
+    }
   }
 }

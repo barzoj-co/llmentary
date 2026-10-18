@@ -145,18 +145,15 @@ func runTokenDelta(t *testing.T, path, usageKey string, base, with, ctrl map[str
 	b1 := mustJSON(t, base)
 	b2 := mustJSON(t, with)
 	b3 := mustJSON(t, ctrl)
-	s1, body1, n1 := liveUsageCall(t, apiKey, p, path, b1)
-	s2, body2, n2 := liveUsageCall(t, apiKey, p, path, b2)
-	s3, body3, n3 := liveUsageCall(t, apiKey, p, path, b3)
+	s1, body1, n1, p1 := liveUsageCallCounted(t, apiKey, p, path, usageKey, b1)
+	s2, body2, n2, p2 := liveUsageCallCounted(t, apiKey, p, path, usageKey, b2)
+	s3, body3, n3, p3 := liveUsageCallCounted(t, apiKey, p, path, usageKey, b3)
 	if s1 != 200 || s2 != 200 || s3 != 200 {
 		if s2 != 200 {
 			t.Fatalf("OpenAI now processes %s (delta=n/a / status=%d). Revisit api/openai/schema-subset.yaml, the ignored_fields classification, the hint text, and live-behavior.json. body=%s", field, s2, redactLiveBody(body2))
 		}
 		t.Fatalf("token-delta HTTP statuses base=%d with=%d control=%d bodies=%s %s %s", s1, s2, s3, redactLiveBody(body1), redactLiveBody(body2), redactLiveBody(body3))
 	}
-	p1 := usageTokens(t, body1, usageKey)
-	p2 := usageTokens(t, body2, usageKey)
-	p3 := usageTokens(t, body3, usageKey)
 	d2 := p2 - p1
 	d3 := p3 - p1
 	t.Logf("token_delta field=%s model=%s base=%d with=%d control=%d d2=%d d3=%d", field, liveModel(), p1, p2, p3, d2, d3)
@@ -186,6 +183,26 @@ func liveUsageCall(t *testing.T, apiKey string, p liveProxy, path string, body [
 	sid := liveSession()
 	status, _, resp, session := postLive(t, apiKey, p, path, sid, body)
 	return status, resp, liveNormalized(liveLastCall(t, session))
+}
+
+func liveUsageCallCounted(t *testing.T, apiKey string, p liveProxy, path, usageKey string, body []byte) (int, []byte, map[string]any, int) {
+	t.Helper()
+	var status int
+	var resp []byte
+	var n map[string]any
+	var tokens int
+	for attempt := 0; attempt < 2; attempt++ {
+		status, resp, n = liveUsageCall(t, apiKey, p, path, body)
+		if status != 200 {
+			return status, resp, n, 0
+		}
+		tokens = usageTokens(t, resp, usageKey)
+		if tokens > 0 {
+			return status, resp, n, tokens
+		}
+		t.Logf("retrying %s: usage.%s was 0 on a 200", path, usageKey)
+	}
+	return status, resp, n, tokens
 }
 
 func usageTokens(t *testing.T, body []byte, key string) int {
