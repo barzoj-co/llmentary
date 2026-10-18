@@ -187,7 +187,7 @@ func TestLiveIgnored_EnumDescriptions_ResponsesToolStrictOmitted(t *testing.T) {
 	apiKey := requireAPIKey(t)
 	p := startLiveProxy(t, "warn", "relaxed")
 	sid := liveSession()
-	status, _, body, session := postLive(t, apiKey, p, "/responses", sid, responsesEnumDescBody(nil))
+	status, _, body, session := postLive(t, apiKey, p, "/responses", sid, responsesEnumDescBody(nil)(liveModel()))
 	if status != 200 {
 		t.Fatalf("status=%d body=%s", status, redactLiveBody(body))
 	}

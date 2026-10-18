@@ -577,10 +577,13 @@ func asAnySlice(v any) []any {
 }
 
 func TestA6OverlayStaleProof(t *testing.T) {
-	root := filepath.Join("..", "..")
+	root, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
 	script := filepath.Join(root, "scripts", "prove-a6.sh")
 	if _, err := os.Stat(script); err != nil {
-		t.Skip("prove-a6.sh not required in this package; CI runs it")
+		t.Fatalf("scripts/prove-a6.sh not present: %v", err)
 	}
 }
 
