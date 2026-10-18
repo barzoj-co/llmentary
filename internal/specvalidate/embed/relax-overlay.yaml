@@ -1,0 +1,95 @@
+# Relaxed-profile deviations from the pinned OpenAI spec + closed-world transform.
+# Every entry is live-verified. Adding an entry requires a live e2e test named in
+# evidence.live_test (see CONTRIBUTING.md).
+#
+# Applied on top of the strict profile (pinned spec + closed-world transform).
+
+overlay: 1.0.0
+info:
+  title: llm-test-lab relaxed spec profile
+  version: 0.0.1
+  added: "2026-10-18"
+
+# Pre-checks that the live API accepts. strict still flags them; relaxed does not.
+prechecks:
+  skip:
+    - id: duplicateKey
+      why: Live Chat Completions accepts duplicate JSON object keys (last value wins).
+      evidence:
+        live_test: TestLiveSpec_DuplicateKeys_Chat
+      added: "2026-10-18"
+    - id: utf8BOM
+      why: Live Chat Completions and Responses accept a UTF-8 BOM prefix before the JSON object.
+      evidence:
+        live_test: TestLiveSpec_UTF8BOM_Chat
+      added: "2026-10-18"
+
+entries:
+  - id: chat-message-extra-props
+    why: Live Chat Completions silently ignores unknown fields inside message objects (L2).
+    evidence:
+      live_test: TestLiveSpec_UnknownInMessage_Chat
+      url: https://developers.openai.com/api/docs/api-reference/chat/create
+    added: "2026-10-18"
+    action: reopen_object
+    schemas:
+      - ChatCompletionRequestDeveloperMessage
+      - ChatCompletionRequestSystemMessage
+      - ChatCompletionRequestUserMessage
+      - ChatCompletionRequestAssistantMessage
+      - ChatCompletionRequestToolMessage
+      - ChatCompletionRequestFunctionMessage
+
+  - id: function-tool-extra-props
+    why: Live Chat Completions and Responses silently ignore unknown fields on function tool objects (L3).
+    evidence:
+      live_test: TestLiveSpec_UnknownInFunctionTool_Chat
+      url: https://developers.openai.com/api/docs/guides/function-calling
+    added: "2026-10-18"
+    action: reopen_object
+    schemas:
+      - FunctionObject
+      - FunctionTool
+
+  - id: responses-function-tool-strict-optional
+    why: The spec requires FunctionTool.strict, but Responses accepts an omitted strict and normalizes the schema (L4).
+    evidence:
+      live_test: TestLiveSpec_FunctionToolWithoutStrict_Responses
+      url: https://developers.openai.com/api/docs/guides/function-calling#strict-mode
+    added: "2026-10-18"
+    action: remove_required
+    schemas:
+      - FunctionTool
+    property: strict
+
+  - id: chat-content-part-extra-props
+    why: Live Chat Completions silently ignores unknown fields on message content parts.
+    evidence:
+      live_test: TestLiveSpec_UnknownInContentPart_Chat
+    added: "2026-10-18"
+    action: reopen_object
+    schemas:
+      - ChatCompletionRequestMessageContentPartText
+      - ChatCompletionRequestMessageContentPartImage
+      - ChatCompletionRequestMessageContentPartAudio
+      - ChatCompletionRequestMessageContentPartRefusal
+
+  - id: chat-tool-call-extra-props
+    why: Live Chat Completions silently ignores unknown fields on assistant message tool_calls[].
+    evidence:
+      live_test: TestLiveSpec_UnknownInToolCall_Chat
+    added: "2026-10-18"
+    action: reopen_object
+    schemas:
+      - ChatCompletionMessageToolCall
+      - ChatCompletionMessageToolCallChunk
+
+  - id: responses-content-part-extra-props
+    why: Live Responses silently ignores unknown fields on input content parts (not on the input item itself).
+    evidence:
+      live_test: TestLiveSpec_UnknownInContentPart_Responses
+    added: "2026-10-18"
+    action: reopen_object
+    schemas:
+      - InputTextContent
+      - InputImageContent

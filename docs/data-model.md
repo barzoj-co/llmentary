@@ -132,7 +132,7 @@ from an Azure-style `/deployments/{deployment}/...` path segment.
 
 ```json
 {
-  "derived_version": 2,
+  "derived_version": 3,
   "model": {
     "requested": "gpt-4.1-mini",
     "returned": "gpt-4.1-mini"
@@ -167,7 +167,7 @@ from an Azure-style `/deployments/{deployment}/...` path segment.
 
 | Field | Meaning |
 |---|---|
-| `derived_version` | Normalized schema version. Current value is `2`. Added `refusal` and extended usage fields (`audio_tokens`, `accepted_prediction_tokens`, `rejected_prediction_tokens`). |
+| `derived_version` | Normalized schema version. Current value is `3`. Version 3 adds `validation`, `spec_violations`, and `ignored_fields` (additive). |
 | `model.requested` | Request `model`, or empty if not parsed. |
 | `model.returned` | Response model when present. |
 | `served_by` | Provider field from compatible responses when present. |
@@ -191,7 +191,28 @@ from an Azure-style `/deployments/{deployment}/...` path segment.
 | `stream_truncated` | Stream ended without a terminal marker/event. |
 | `client_aborted` | Copying the upstream response to the client returned an error. |
 | `parser_warnings` | Non-fatal parser warnings. |
+| `validation` | Present in `warn`/`enforce`. Mode, profile, spec SHA, subset retrieval date, checked flags, optional `skipped_reason`, `duration_us`, and `truncated`. Absent in `off`. |
+| `spec_violations` | Pointer-to-slice so `[]` (clean) is distinct from absent (not checked). Sorted by side, pointer, keyword. Capped at 200. |
+| `ignored_fields` | Silently ignored request content (unknown schema keywords, unknown request fields, strict fallback). Same empty-vs-absent rule as `spec_violations`. |
 | `raw` | Reserved raw normalized payload field; currently not populated by parsers. |
+
+### Spec validation fields
+
+```json
+"validation": {
+  "mode": "warn", "profile": "relaxed",
+  "spec_sha": "<openai-openapi commit>", "schema_subset_retrieved": "2026-10-18",
+  "request_checked": true, "response_checked": true,
+  "skipped_reason": null,
+  "duration_us": 412
+}
+```
+
+`spec_violations` entries use `side` (`request`/`response`), `source` (`syntax`/`schema`/`strict_mode`), `path`, `pointer`, `keyword`, `message`, `profile`, and optional `offset` / `event_index`.
+
+`ignored_fields` entries use `path`, `pointer`, `key`, `kind`, `context`, `effective_strict`, `upstream_behavior`, `evidence`, `severity`, `action`, `hint`, optional `suggested_description`, and `confirmed`.
+
+In `off` mode the three keys are missing. In `warn`/`enforce` the two arrays are always present.
 
 ## Tools
 

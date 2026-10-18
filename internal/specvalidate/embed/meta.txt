@@ -1,0 +1,2 @@
+spec_sha=f88d2f78b75f46b53b0baef3f5f47dc991add4a2
+schema_subset_retrieved=2026-10-18

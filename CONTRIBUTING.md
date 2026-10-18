@@ -131,6 +131,28 @@ stored in memory. Treat the control API as sensitive:
 - require `--control-token` / `LLMTESTLAB_CONTROL_TOKEN` for non-loopback binds;
 - do not print raw session JSON in public CI logs.
 
+## Spec validation overlay and schema subset
+
+`api/openai/relax-overlay.yaml` is the relaxed-profile deviation list. Every
+entry needs `id`, `why`, `evidence.live_test` (an existing `tests/e2e` function),
+an optional docs URL, and `added` (ISO date). Adding an entry without a live
+test fails `TestC4OverlayEvidence`. After editing the overlay or
+`api/openai/schema-subset.yaml`, run `make gen` so
+`internal/specvalidate/embed/` stays in sync. `codegen-check` fails if the
+embed is stale (`scripts/prove-a6.sh`).
+
+`api/openai/schema-subset.yaml` is the single source for OpenAI's documented
+JSON Schema keyword subset. Refresh it from:
+
+- https://developers.openai.com/api/docs/guides/structured-outputs#supported-schemas
+- https://developers.openai.com/api/docs/guides/function-calling#strict-mode
+
+Bump `retrieved` when the docs change. Do not hard-code keyword lists in Go.
+
+When OpenAI changes live behavior, update `tests/e2e/testdata/live-behavior.json`
+and the overlay together. Live tests fail with a message that names those files.
+Never auto-update or skip.
+
 ## Pull requests
 
 Keep changes focused. For docs, cross-link the relevant reference pages:

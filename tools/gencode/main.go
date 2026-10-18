@@ -16,6 +16,7 @@ import (
 const (
 	spdxLine = "// SPDX-License-Identifier: AGPL-3.0-only"
 	genFile  = "internal/openaiapi/gen.go"
+	embedDir = "internal/specvalidate/embed"
 )
 
 func main() {
@@ -48,6 +49,9 @@ func run() error {
 	); err != nil {
 		return err
 	}
+	if err := writeValidationEmbed(tmpPath); err != nil {
+		return err
+	}
 	if err := runCmd(os.Stdout, os.Stderr, "go", "tool", "oapi-codegen",
 		"-config", "internal/openaiapi/cfg.yaml",
 		tmpPath,
@@ -58,6 +62,64 @@ func run() error {
 		return err
 	}
 	return runCmd(os.Stdout, os.Stderr, "gofmt", "-w", genFile)
+}
+
+func writeValidationEmbed(filteredSpecPath string) error {
+	if err := os.MkdirAll(embedDir, 0o755); err != nil {
+		return err
+	}
+	spec, err := os.ReadFile(filteredSpecPath)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(embedDir, "validation_subspec.json"), spec, 0o644); err != nil {
+		return err
+	}
+	if err := copyFile("api/openai/relax-overlay.yaml", filepath.Join(embedDir, "relax-overlay.yaml")); err != nil {
+		return err
+	}
+	if err := copyFile("api/openai/schema-subset.yaml", filepath.Join(embedDir, "schema-subset.yaml")); err != nil {
+		return err
+	}
+	sha := specSHAFromVersionFile()
+	retrieved := subsetRetrievedFromYAML()
+	meta := "spec_sha=" + sha + "\nschema_subset_retrieved=" + retrieved + "\n"
+	return os.WriteFile(filepath.Join(embedDir, "meta.txt"), []byte(meta), 0o644)
+}
+
+func subsetRetrievedFromYAML() string {
+	raw, err := os.ReadFile("api/openai/schema-subset.yaml")
+	if err != nil {
+		return "2026-10-18"
+	}
+	for _, line := range strings.Split(string(raw), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "retrieved:") {
+			return strings.Trim(strings.TrimSpace(strings.TrimPrefix(line, "retrieved:")), `"`)
+		}
+	}
+	return "2026-10-18"
+}
+
+func specSHAFromVersionFile() string {
+	raw, err := os.ReadFile("api/openai/SPEC_VERSION")
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(string(raw), "\n") {
+		if strings.HasPrefix(line, "commit:") {
+			return strings.TrimSpace(strings.TrimPrefix(line, "commit:"))
+		}
+	}
+	return ""
+}
+
+func copyFile(src, dst string) error {
+	raw, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(dst, raw, 0o644)
 }
 
 func addSPDX(path string) error {

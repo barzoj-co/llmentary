@@ -27,6 +27,7 @@ type Server struct {
 	tracing     *TracingRuntime
 	client      *http.Client
 	specHandler http.Handler
+	validation  *validationRuntime
 }
 
 func NewServer(cfg Config, store Store, parser Parser) (*Server, error) {
@@ -46,11 +47,16 @@ func NewServer(cfg Config, store Store, parser Parser) (*Server, error) {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
+	validation, err := newValidationRuntime(cfg)
+	if err != nil {
+		return nil, err
+	}
 	s := &Server{
-		cfg:     cfg,
-		store:   store,
-		parser:  parser,
-		tracing: tracing,
+		cfg:        cfg,
+		store:      store,
+		parser:     parser,
+		tracing:    tracing,
+		validation: validation,
 		client: &http.Client{Transport: &http.Transport{
 			Proxy:             http.ProxyFromEnvironment,
 			DialContext:       (&net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
@@ -84,6 +90,9 @@ func (s *Server) ControlHandler() http.Handler {
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok\n"))
+	})
+	mux.HandleFunc("/config", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, s.validation.configJSON())
 	})
 	mux.HandleFunc("/sessions/", s.serveSession)
 	return s.controlAuth(mux)
@@ -187,6 +196,12 @@ func (s *Server) serveProxy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if rewritten, ok := matchSpecOperation(r.Method, r.URL.Path); ok {
+		rv := s.validation.checkRequest(call.APIFamily, r.Header.Get("Content-Type"), r.Header.Get("Content-Encoding"), rawReq)
+		ex.requestVal = rv
+		if s.validation != nil && s.validation.mode == "enforce" && rv.reject {
+			s.rejectLocal(w, ex, rv)
+			return
+		}
 		r2 := r.Clone(withExchange(traceCtx, ex))
 		r2.URL.Path = rewritten
 		r2.Body = io.NopCloser(bytes.NewReader(rawReq))

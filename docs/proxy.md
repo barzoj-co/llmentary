@@ -21,6 +21,9 @@ variables plus CLI flags.
 | `--control-token` | `LLMTESTLAB_CONTROL_TOKEN` | empty | Bearer token required by the control API when set. Also required when the control listener is non-loopback. |
 | `--upstream` | `LLMTESTLAB_UPSTREAMS`, fallback `LLMTESTLAB_UPSTREAM` | none | Upstream mapping. Repeat the flag or use comma-separated environment values. |
 | `--tls` | none | `false` | Parsed by the CLI, but not wired to a TLS listener in the current code. |
+| `--spec-validation` | `LLMTESTLAB_SPEC_VALIDATION` | `warn` | Request spec validation mode: `off`, `warn`, or `enforce`. Invalid values exit non-zero. |
+| `--spec-profile` | `LLMTESTLAB_SPEC_PROFILE` | `relaxed` | Spec profile: `strict` (pinned spec + closed-world) or `relaxed` (strict plus `api/openai/relax-overlay.yaml`). |
+| `--spec-validation-max-bytes` | `LLMTESTLAB_SPEC_VALIDATION_MAX_BYTES` | `8388608` | Maximum request body size to validate. Larger bodies are forwarded and marked `skipped_reason: body_too_large`. |
 
 At least one upstream is required.
 
@@ -317,3 +320,40 @@ Unsupported methods under `/sessions/{id}` return `405 Method Not Allowed` with:
 ```http
 Allow: GET, DELETE
 ```
+
+### `GET /config`
+
+Returns the effective spec-validation settings so clients can tell "validated, clean" from "not validated":
+
+```json
+{"spec_validation":"warn","spec_profile":"relaxed","spec_sha":"…","schema_subset_retrieved":"2026-10-18"}
+```
+
+## Spec validation
+
+Raw Chat Completions and Responses request bytes are validated against the pinned OpenAI sub-spec after capture and before the typed handler. The original bytes are always forwarded (or, in `enforce`, not forwarded). Response bytes are validated report-only after they have been flushed to the client.
+
+| Mode | Behavior |
+|---|---|
+| `off` | No compile, no run. `validation`, `spec_violations`, and `ignored_fields` are absent from the trace. |
+| `warn` (default) | Record findings and forward byte-for-byte. Arrays are always present (`[]` when clean). |
+| `enforce` | If there is a request-side `spec_violation` or a `reject_in_enforce` ignored field, the proxy answers a local 400 and does **not** call the upstream. Response-side findings never reject. |
+
+Local enforce 400:
+
+```http
+HTTP/1.1 400 Bad Request
+Content-Type: application/json
+X-LLMTestLab-Rejected: spec_violation
+
+{"error":{"message":"llm-test-lab: request rejected (profile=relaxed): …","type":"invalid_request_error","param":"…","code":"llmtestlab_spec_violation"}}
+```
+
+`code` is `llmtestlab_spec_violation` or `llmtestlab_ignored_field`. Streamed requests still get a JSON 400, not SSE.
+
+Profiles:
+
+- `strict`: pinned spec plus the closed-world transform (`unevaluatedProperties:false` on complete object schemas; allOf fragments stay open so compositions still work; free-form payloads such as tool `parameters` stay open).
+- `relaxed`: `strict` plus `api/openai/relax-overlay.yaml`. Overlay entries are live-verified.
+
+**D5 (reworded).** In `--spec-validation=off` and `warn` modes, a request body that does not decode into the generated type (malformed JSON, valid JSON with a field of unknown type, trailing data) is **not** answered by the proxy: it goes upstream byte-for-byte, the client gets the upstream response, and `parser_warnings` contains the reason; in `warn`, `spec_violations` also records it. In `enforce` mode, and only for requests, the proxy answers a local OpenAI-shaped 400 (`code: llmtestlab_spec_violation` or `llmtestlab_ignored_field`) **without calling the upstream** if there is at least one request-side spec violation or reject-class ignored field. Responses are never rejected or altered in any mode.

@@ -536,8 +536,11 @@ func TestF8StreamUnknownRejectedAsJSON(t *testing.T) {
 }
 
 func TestG1FunctionCallArgumentsDoneWithoutName(t *testing.T) {
-	// Overlay #545 is not applied: the pinned spec still requires `name` on
-	// response.function_call_arguments.done. That requirement is not live-verified.
+	// Overlay #545 is not applied. The pinned openai-openapi commit no longer
+	// requires `name` on ResponseFunctionCallArgumentsDoneEvent (required:
+	// type, item_id, output_index, arguments, sequence_number). Missing name
+	// is therefore not a spec_violation under either profile. This is not
+	// live-verified; do not add a response-side relax entry without evidence.
 	payload := `{"type":"response.function_call_arguments.done","item_id":"fc_1","output_index":0,"arguments":"{}","sequence_number":1}`
 	stream := "event: response.function_call_arguments.done\ndata: " + payload + "\n\n"
 	up := func(w http.ResponseWriter, _ *http.Request) {
@@ -545,31 +548,28 @@ func TestG1FunctionCallArgumentsDoneWithoutName(t *testing.T) {
 		_, _ = io.WriteString(w, stream)
 	}
 	body := []byte(`{"model":"m","input":"hi"}`)
-	p := startSpecProxy(t, "warn", "strict", up)
-	sid := newSession()
-	_, _, client, session := postRaw(t, p, "/v1/responses", sid, nil, body)
-	if !bytes.Equal(client, []byte(stream)) {
-		t.Fatalf("client bytes changed\n%s\n%s", client, stream)
-	}
-	found := false
-	for _, v := range asAnySlice(normalized(lastCall(t, session))["spec_violations"]) {
-		m := v.(map[string]any)
-		if m["side"] == "response" && m["event_index"] != nil {
-			found = true
-			break
+	for _, mode := range []string{"off", "warn", "enforce"} {
+		p := startSpecProxy(t, mode, "strict", up)
+		sid := newSession()
+		status, _, client, session := postRaw(t, p, "/v1/responses", sid, nil, body)
+		if status == 400 {
+			t.Fatalf("mode=%s rejected a valid request: %s", mode, client)
 		}
-	}
-	if !found {
-		t.Errorf("expected response-side violation with event_index (pinned spec requires name; overlay #545 not applied): %v", normalized(lastCall(t, session))["spec_violations"])
-	}
-	p2 := startSpecProxy(t, "enforce", "strict", up)
-	sid2 := newSession()
-	status, _, _, _ := postRaw(t, p2, "/v1/responses", sid2, nil, body)
-	if status == 400 {
-		t.Fatal("enforce must still forward response-side violations")
-	}
-	if p2.upstream.Count() != 1 {
-		t.Fatalf("upstream=%d", p2.upstream.Count())
+		if !bytes.Equal(client, []byte(stream)) {
+			t.Fatalf("mode=%s client bytes changed\n%s\n%s", mode, client, stream)
+		}
+		if p.upstream.Count() != 1 {
+			t.Fatalf("mode=%s upstream=%d", mode, p.upstream.Count())
+		}
+		if mode == "off" {
+			continue
+		}
+		for _, v := range asAnySlice(normalized(lastCall(t, session))["spec_violations"]) {
+			m := v.(map[string]any)
+			if m["side"] == "response" && strings.Contains(fmt.Sprint(m["keyword"]), "required") {
+				t.Fatalf("pinned spec does not require name; unexpected violation %v", m)
+			}
+		}
 	}
 }
 

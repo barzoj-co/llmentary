@@ -1,0 +1,15 @@
+crimson is a deep warm red used on emergency stop buttons, warning labels, festival lanterns, and vintage theater curtains; keep this sentence unique so tokenizers spend many tokens reading it.
+azure is a bright clear sky blue found on alpine lakes, railway enamel signs, summer laundry, and glazed pottery; this sentence is distinct and deliberately long for measurement.
+amber is a honey gold tone seen on traffic caution lights, resin jewelry, late-afternoon wheat, and brass instruments; the wording here must stay unique and lengthy.
+emerald is a saturated green of rainforest canopies, bottle glass, billiard felt, and spring moss after rain; this line is a dedicated token-delta payload sentence.
+violet is a cool purple of dusk thunderheads, iris petals, analog neon, and velvet cinema seats; keep this text unused except as a dropped-field payload.
+ivory is a warm off-white of piano keys, old letters, seashell interiors, and gallery plaster; this sentence exists only to inflate prompt size when read.
+obsidian is a near-black volcanic glass used in blades, jewelry, and architectural tile; the description is intentionally verbose for token accounting.
+saffron is a spice-yellow of autumn crocus, temple cloth, and street-market dye vats; write nothing shorter than this distinctive measurement sentence.
+teal is a blue-green of harbor water, hospital scrubs, and mid-century kitchen tile; this line remains a unique control string for prompt-token deltas.
+coral is a pink-orange of reef polyps, retro diner stools, and sunset stucco; keep the wording long enough that a real model read would cost hundreds of tokens.
+slate is a muted gray-blue of roof tiles, chalkboard dust, and winter rivers; this sentence is reserved for silently-ignored field experiments.
+ochre is an earthy yellow-brown of canyon walls, oil-paint tubes, and kiln-fired clay; do not shorten this distinctive tokenizer ballast.
+indigo is a deep dye-vat blue of denim warps, midnight uniforms, and ink bottles; this text must remain unique across the committed token block.
+mauve is a dusty rose-lilac of vintage wallpaper, dried statice, and dusk brick; another long dedicated sentence for dropped-field proofs.
+chartreuse is a sharp yellow-green of liqueur bottles, safety vests, and lichen; the last unique sentence in this committed measurement block.

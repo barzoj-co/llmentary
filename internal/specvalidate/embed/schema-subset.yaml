@@ -1,0 +1,139 @@
+# OpenAI Structured Outputs / function-calling JSON Schema keyword subset.
+# Single source of truth for internal/schemalint. No keyword lists are hard-coded
+# in Go. Refresh from the source URLs and bump retrieved when the docs change.
+#
+# Sources (retrieved 2026-10-18):
+# - https://developers.openai.com/api/docs/guides/structured-outputs#supported-schemas
+# - https://developers.openai.com/api/docs/guides/function-calling#strict-mode
+
+retrieved: "2026-10-18"
+sources:
+  structured_outputs: https://developers.openai.com/api/docs/guides/structured-outputs#supported-schemas
+  function_calling_strict: https://developers.openai.com/api/docs/guides/function-calling#strict-mode
+
+supported:
+  types:
+    - string
+    - number
+    - boolean
+    - integer
+    - object
+    - array
+    - enum
+    - anyOf
+  keywords:
+    - type
+    - properties
+    - required
+    - additionalProperties
+    - unevaluatedProperties
+    - items
+    - anyOf
+    - enum
+    - const
+    - $defs
+    - $ref
+    - definitions
+    - description
+    - pattern
+    - format
+    - multipleOf
+    - maximum
+    - exclusiveMaximum
+    - minimum
+    - exclusiveMinimum
+    - minItems
+    - maxItems
+  format_values:
+    - date-time
+    - time
+    - date
+    - duration
+    - email
+    - hostname
+    - ipv4
+    - ipv6
+    - uuid
+
+# Docs do not classify these. Findings are severity=info and report_only.
+unverified:
+  keywords:
+    - title
+    - $schema
+    - $id
+
+unsupported_documented:
+  keywords:
+    - allOf
+    - not
+    - if
+    - then
+    - else
+    - dependentRequired
+    - dependentSchemas
+  fine_tuned_additional:
+    - minLength
+    - maxLength
+    - pattern
+    - format
+    - minimum
+    - maximum
+    - multipleOf
+    - patternProperties
+    - minItems
+    - maxItems
+
+# Anything else is unknown_schema_keyword (enumDescriptions, oneOf, $comment, x-*, …).
+
+limits:
+  max_properties: 5000
+  max_nesting: 10
+  max_enum_values: 1000
+  max_name_chars: 120000
+  max_string_enum_values_before_char_cap: 250
+  max_string_enum_chars: 15000
+
+strict_mode:
+  additional_properties_false: true
+  all_properties_required: true
+  root_must_be_object: true
+  root_must_not_be_anyOf: true
+
+hints:
+  enumDescriptions: "OpenAI does not read `enumDescriptions`; the model never sees it. Move the per-value descriptions into this property's `description`."
+  enum_descriptions: "OpenAI does not read `enum_descriptions`; the model never sees it. Move the per-value descriptions into this property's `description`."
+  oneOf: "use `anyOf`"
+  allOf: "OpenAI Structured Outputs does not support `allOf`; flatten the schemas or use `anyOf`."
+  not: "OpenAI Structured Outputs does not support `not`; express the constraint in `description` and validate in your code."
+  if: "OpenAI Structured Outputs does not support `if`/`then`/`else`; express the condition in `description` and validate in your code."
+  then: "OpenAI Structured Outputs does not support `if`/`then`/`else`; express the condition in `description` and validate in your code."
+  else: "OpenAI Structured Outputs does not support `if`/`then`/`else`; express the condition in `description` and validate in your code."
+  dependentRequired: "OpenAI Structured Outputs does not support `dependentRequired`; validate in your code or describe it in `description`."
+  dependentSchemas: "OpenAI Structured Outputs does not support `dependentSchemas`; validate in your code or describe it in `description`."
+  minLength: "not enforced by OpenAI Structured Outputs; validate in your code or describe it in `description`"
+  maxLength: "not enforced by OpenAI Structured Outputs; validate in your code or describe it in `description`"
+  $comment: "OpenAI does not read `$comment`; the model never sees it. Move the note into `description`."
+  examples: "OpenAI does not read `examples`; the model never sees it. Move useful examples into `description`."
+  default: "OpenAI does not guarantee `default`; set the value in your code or describe it in `description`."
+  uniqueItems: "not enforced by OpenAI Structured Outputs; validate in your code or describe it in `description`"
+  prefixItems: "not enforced by OpenAI Structured Outputs; use `items` or describe the constraint in `description`"
+  contains: "not enforced by OpenAI Structured Outputs; validate in your code or describe it in `description`"
+  propertyNames: "not enforced by OpenAI Structured Outputs; validate in your code or describe it in `description`"
+  patternProperties: "not supported by OpenAI Structured Outputs; list explicit `properties` instead."
+  deprecated: "OpenAI does not read `deprecated`; the model never sees it."
+  title: "OpenAI docs do not list `title` as a supported schema keyword; treat it as informational only."
+  $schema: "OpenAI docs do not list `$schema` as a supported schema keyword; treat it as informational only."
+  $id: "OpenAI docs do not list `$id` as a supported schema keyword; treat it as informational only."
+  unsupported_format_value: "OpenAI Structured Outputs only documents format values date-time, time, date, duration, email, hostname, ipv4, ipv6, and uuid."
+  suspicious_enum_values: "OpenAI enum values must be strings, numbers, or booleans — not `{value, description}` objects. Put each description in this property's `description`."
+  unknown_request_field: "The live OpenAI API accepts this field and silently ignores it. Remove it, or it will never reach the model."
+  strict_fallback_predicted: "Responses omitted `strict` and the schema is not strict-compatible, so the API is expected to fall back to best-effort, non-strict function calling."
+  strict_fallback: "The Responses API echoed `strict:false` after the request omitted `strict`. The tool ran in non-strict, best-effort mode."
+  unresolved_ref: "This `$ref` could not be resolved. Point it at a `$defs` / `definitions` entry or `#`."
+  minItems: "not enforced by OpenAI Structured Outputs on fine-tuned models; validate in your code or describe it in `description`"
+  maxItems: "not enforced by OpenAI Structured Outputs on fine-tuned models; validate in your code or describe it in `description`"
+  pattern: "not supported by OpenAI Structured Outputs on fine-tuned models; validate in your code or describe it in `description`"
+  format: "not supported by OpenAI Structured Outputs on fine-tuned models; validate in your code or describe it in `description`"
+  minimum: "not supported by OpenAI Structured Outputs on fine-tuned models; validate in your code or describe it in `description`"
+  maximum: "not supported by OpenAI Structured Outputs on fine-tuned models; validate in your code or describe it in `description`"
+  multipleOf: "not supported by OpenAI Structured Outputs on fine-tuned models; validate in your code or describe it in `description`"

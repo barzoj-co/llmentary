@@ -5,16 +5,22 @@ package lab
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/barzoj-co/llm-test-lab/internal/openaiapi"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 )
+
+// UpstreamCallCount is incremented each time the proxy issues an upstream HTTP
+// request. Live e2e uses it as a cost guard.
+var UpstreamCallCount atomic.Int64
 
 // Compile-time assertion: adding an operationId without implementing it
 // fails the build. Do not embed Unimplemented stubs.
@@ -49,6 +55,7 @@ type proxyExchange struct {
 	target        string
 	decodeWarning string
 	finished      bool
+	requestVal    requestValidation
 }
 
 func withExchange(ctx context.Context, ex *proxyExchange) context.Context {
@@ -143,6 +150,7 @@ func (ex *proxyExchange) doUpstream() (*http.Response, error) {
 		req.Host = targetURL.Host
 	}
 	removeHopByHopHeaders(req.Header)
+	UpstreamCallCount.Add(1)
 	return ex.s.client.Do(req)
 }
 
@@ -206,6 +214,7 @@ func (ex *proxyExchange) finishCall(resp *http.Response, rawBody []byte, firstBy
 		call.HTTPStatus = resp.StatusCode
 		call.RetryAfter = retryAfter(resp.Header)
 		call.Normalized.ParserWarnings = append(call.Normalized.ParserWarnings, warnings...)
+		call.UpstreamCalled = true
 		if ex.decodeWarning != "" {
 			call.Normalized.ParserWarnings = append(call.Normalized.ParserWarnings, ex.decodeWarning)
 		}
@@ -218,6 +227,17 @@ func (ex *proxyExchange) finishCall(resp *http.Response, rawBody []byte, firstBy
 		}
 		recordRequestIDs(call, resp.Header)
 		ex.s.parser.Parse(call)
+		applyRequestValidation(call, ex.requestVal)
+		if call.Normalized.Error != nil && call.RetryAfter != "" {
+			call.Normalized.Error.RetryAfter = call.RetryAfter
+		}
+		if ex.s.validation != nil {
+			vios, extra, dur, trunc := ex.s.validation.checkResponse(call.APIFamily, parseBody, stream, events)
+			if call.APIFamily == "openai.responses" && ex.s.validation.linter != nil {
+				extra = append(extra, ex.s.validation.linter.ConfirmStrictFallback(parseBody, omittedStrictToolIndexes(call.RawRequest))...)
+			}
+			mergeResponseValidation(call, vios, extra, dur, trunc)
+		}
 		endedCall = *call
 	})
 	ex.s.logger().Info("proxy response",
@@ -239,6 +259,69 @@ func (s *Server) passthrough(w http.ResponseWriter, ex *proxyExchange) {
 	}
 	defer func() { _ = resp.Body.Close() }()
 	_ = ex.copyAndFinish(w, resp)
+}
+
+func (s *Server) rejectLocal(w http.ResponseWriter, ex *proxyExchange, rv requestValidation) {
+	writeEnforceReject(w, rv)
+	endedAt := time.Now().UTC()
+	var endedCall Call
+	s.store.Finish(ex.session.ID, ex.callID, func(call *Call) {
+		call.EndedAt = endedAt
+		call.LatencyMS = endedAt.Sub(ex.startedAt).Milliseconds()
+		call.HTTPStatus = http.StatusBadRequest
+		call.UpstreamCalled = false
+		call.Normalized.Error = &CallError{
+			HTTPStatus: http.StatusBadRequest,
+			Type:       "invalid_request_error",
+			Code:       rejectCode(rv.rejectKind),
+			Message:    "llm-test-lab rejected the request",
+			Normalized: "bad_request",
+			Source:     "proxy",
+		}
+		s.parser.Parse(call)
+		applyRequestValidation(call, rv)
+		call.Normalized.Error.Source = "proxy"
+		call.Normalized.Error.HTTPStatus = http.StatusBadRequest
+		endedCall = *call
+	})
+	if ex.span != nil {
+		finishSpan(ex.span, endedCall, endedAt)
+	}
+	ex.finished = true
+}
+
+func rejectCode(kind string) string {
+	if kind == "ignored_field" {
+		return "llmtestlab_ignored_field"
+	}
+	return "llmtestlab_spec_violation"
+}
+
+func omittedStrictToolIndexes(raw []byte) []int {
+	var body map[string]any
+	if json.Unmarshal(firstJSONBytes(raw), &body) != nil {
+		return nil
+	}
+	tools, _ := body["tools"].([]any)
+	var out []int
+	for i, item := range tools {
+		tool, _ := item.(map[string]any)
+		if tool == nil {
+			continue
+		}
+		if _, ok := tool["strict"]; !ok {
+			out = append(out, i)
+		}
+	}
+	return out
+}
+
+func firstJSONBytes(raw []byte) []byte {
+	first, _, err := splitFirstJSON(raw)
+	if err != nil {
+		return raw
+	}
+	return first
 }
 
 func drainAndRestore(r *http.Request) ([]byte, error) {

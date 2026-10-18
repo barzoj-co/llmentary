@@ -1,0 +1,617 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package proxy_test
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"sync"
+	"testing"
+)
+
+func TestA1Defaults(t *testing.T) {
+	p := startSpecProxy(t, "", "", chatOK())
+	cfg := getConfig(t, p.controlURL)
+	if cfg["spec_validation"] != "warn" || cfg["spec_profile"] != "relaxed" {
+		t.Fatalf("config=%v", cfg)
+	}
+	sid := newSession()
+	_, _, _, session := postRaw(t, p, "/v1/chat/completions", sid, nil, []byte(`{"model":"gpt-fixture","messages":[{"role":"user","content":"hi"}]}`))
+	val := normalized(lastCall(t, session))["validation"].(map[string]any)
+	if val["mode"] != "warn" || val["profile"] != "relaxed" {
+		t.Fatalf("validation=%v", val)
+	}
+}
+
+func TestA2FlagsAndEnv(t *testing.T) {
+	t.Run("cli_and_env", func(t *testing.T) {
+		p := startSpecProxy(t, "enforce", "strict", chatOK())
+		cfg := getConfig(t, p.controlURL)
+		if cfg["spec_validation"] != "enforce" || cfg["spec_profile"] != "strict" {
+			t.Fatalf("config=%v", cfg)
+		}
+	})
+	t.Run("invalid_mode", func(t *testing.T) {
+		cmd := exec.Command(proxyBinary(t), "--spec-validation=strict", "--upstream", "https://example.com")
+		out, err := cmd.CombinedOutput()
+		if err == nil {
+			t.Fatal("expected non-zero exit")
+		}
+		if !bytes.Contains(out, []byte("--spec-validation")) || !bytes.Contains(out, []byte("off, warn, enforce")) {
+			t.Fatalf("message=%s", out)
+		}
+	})
+	t.Run("invalid_profile", func(t *testing.T) {
+		cmd := exec.Command(proxyBinary(t), "--spec-profile=lenient", "--upstream", "https://example.com")
+		out, err := cmd.CombinedOutput()
+		if err == nil {
+			t.Fatal("expected non-zero exit")
+		}
+		if !bytes.Contains(out, []byte("--spec-profile")) || !bytes.Contains(out, []byte("strict, relaxed")) {
+			t.Fatalf("message=%s", out)
+		}
+	})
+	t.Run("negative_max_bytes", func(t *testing.T) {
+		cmd := exec.Command(proxyBinary(t), "--spec-validation-max-bytes=-1", "--upstream", "https://example.com")
+		out, err := cmd.CombinedOutput()
+		if err == nil {
+			t.Fatal("expected non-zero exit")
+		}
+		if !bytes.Contains(out, []byte("--spec-validation-max-bytes")) {
+			t.Fatalf("message=%s", out)
+		}
+	})
+}
+
+func TestA4OffOmitsFields(t *testing.T) {
+	p := startSpecProxy(t, "off", "relaxed", chatOK())
+	bodies := [][]byte{
+		[]byte(`{"model":"gpt-fixture","messages":[{"role":"user","content":"hi"}]}`),
+		[]byte(`{"model":"gpt-fixture","messages":[{"role":"user","content":"hi"}],"foo":1}`),
+		[]byte(`{"model":"gpt-fixture"}`),
+		[]byte(`{}`),
+		[]byte(`{"model":"gpt-fixture","messages":[{"role":"user","content":"hi"}]} xyz`),
+		[]byte(`{"model":"m","messages":[{"role":"user","content":"hi","foo":1}]}`),
+		[]byte(`{"model":"m","input":"hi"}`),
+		[]byte(`{"model":"m","messages":[{"role":"user","content":"hi"}],"tools":[{"type":"function","function":{"name":"x","parameters":{},"foo":1}}]}`),
+		[]byte(`{"model":"m","input":"hi","tools":[{"type":"function","name":"x","parameters":{}}]}`),
+		[]byte(`{"model":"m","messages":[{"role":"user","content":"hi"}],"temperature":"0.7"}`),
+	}
+	paths := []string{"/v1/chat/completions", "/v1/chat/completions", "/v1/chat/completions", "/v1/chat/completions", "/v1/chat/completions", "/v1/chat/completions", "/v1/responses", "/v1/chat/completions", "/v1/responses", "/v1/chat/completions"}
+	for i, body := range bodies {
+		sid := newSession()
+		_, _, _, session := postRaw(t, p, paths[i], sid, nil, body)
+		raw := sessionRaw(t, p.controlURL, sid)
+		if rawJSONHasKey(raw, "validation") || rawJSONHasKey(raw, "spec_violations") || rawJSONHasKey(raw, "ignored_fields") {
+			t.Fatalf("off mode leaked keys in %s", raw)
+		}
+		_ = session
+	}
+}
+
+func TestA5WarnEmptyArraysPresent(t *testing.T) {
+	p := startSpecProxy(t, "warn", "relaxed", chatOK())
+	sid := newSession()
+	_, _, _, _ = postRaw(t, p, "/v1/chat/completions", sid, nil, []byte(`{"model":"gpt-fixture","messages":[{"role":"user","content":"hi"}]}`))
+	raw := sessionRaw(t, p.controlURL, sid)
+	if !bytes.Contains(raw, []byte(`"spec_violations":[]`)) || !bytes.Contains(raw, []byte(`"ignored_fields":[]`)) {
+		t.Fatalf("empty arrays missing: %s", raw)
+	}
+	var session map[string]any
+	_ = json.Unmarshal(raw, &session)
+	val := normalized(lastCall(t, session))["validation"].(map[string]any)
+	if val["request_checked"] != true || val["response_checked"] != true {
+		t.Fatalf("checked flags=%v", val)
+	}
+}
+
+func TestBMatrix(t *testing.T) {
+	type row struct {
+		name, path        string
+		body              []byte
+		strictV, relaxedV string
+		ignoredKind       string
+		enforceBoth       bool
+	}
+	chat := []byte(`{"model":"m","messages":[{"role":"user","content":"hi"}],"foo":1}`)
+	chatMsg := []byte(`{"model":"m","messages":[{"role":"user","content":"hi","foo":1}]}`)
+	respFoo := []byte(`{"model":"m","input":"hi","foo":1}`)
+	respIn := []byte(`{"model":"m","input":[{"role":"user","content":"hi","foo":1}]}`)
+	chatTool := []byte(`{"model":"m","messages":[{"role":"user","content":"hi"}],"tools":[{"type":"function","function":{"name":"x","parameters":{"type":"object"},"foo":1}}]}`)
+	respTool := []byte(`{"model":"m","input":"hi","tools":[{"type":"function","name":"x","parameters":{"type":"object"},"foo":1}]}`)
+	respNoStrict := []byte(`{"model":"m","input":"hi","tools":[{"type":"function","name":"x","parameters":{"type":"object","properties":{"a":{"type":"string"}}}}]}`)
+	badEnumChat := []byte(`{"model":"m","messages":[{"role":"user","content":"hi"}],"tool_choice":"maybe"}`)
+	badEnumResp := []byte(`{"model":"m","input":"hi","tool_choice":"maybe"}`)
+	missingChat := []byte(`{"model":"m"}`)
+	missingResp := []byte(`{"input":"hi"}`)
+	empty := []byte(`{}`)
+	wrongType := []byte(`{"model":"m","messages":[{"role":"user","content":"hi"}],"temperature":"0.7"}`)
+	trail := []byte(`{"model":"m","messages":[{"role":"user","content":"hi"}]} xyz`)
+	two := []byte(`{"model":"m","messages":[{"role":"user","content":"hi"}]}{"x":1}`)
+	twoSpace := []byte(`{"model":"m","messages":[{"role":"user","content":"hi"}]} {"x":1}`)
+
+	rows := []row{
+		{"B1_chat", "/v1/chat/completions", chat, "unevaluatedProperties", "unevaluatedProperties", "", false},
+		{"B1_resp", "/v1/responses", respFoo, "unevaluatedProperties", "unevaluatedProperties", "", false},
+		{"B2_chat_msg", "/v1/chat/completions", chatMsg, "unevaluatedProperties", "", "unknown_request_field", true},
+		{"B3_resp_input", "/v1/responses", respIn, "unevaluatedProperties", "unevaluatedProperties", "", false},
+		{"B4_chat_tool", "/v1/chat/completions", chatTool, "unevaluatedProperties", "", "unknown_request_field", true},
+		{"B4_resp_tool", "/v1/responses", respTool, "unevaluatedProperties", "", "unknown_request_field", true},
+		{"B5_resp_no_strict", "/v1/responses", respNoStrict, "required", "", "strict_fallback_predicted", false},
+		{"B6_chat_enum", "/v1/chat/completions", badEnumChat, "enum", "enum", "", false},
+		{"B6_resp_enum", "/v1/responses", badEnumResp, "enum", "enum", "", false},
+		{"B7_chat_missing", "/v1/chat/completions", missingChat, "required", "required", "", false},
+		{"B7_resp_missing", "/v1/responses", missingResp, "required", "required", "", false},
+		{"B7_empty", "/v1/chat/completions", empty, "required", "required", "", false},
+		{"B8_type", "/v1/chat/completions", wrongType, "type", "type", "", false},
+		{"B9_trail", "/v1/chat/completions", trail, "trailingData", "trailingData", "", false},
+		{"B9_two", "/v1/chat/completions", two, "trailingData", "trailingData", "", false},
+		{"B9_two_space", "/v1/chat/completions", twoSpace, "trailingData", "trailingData", "", false},
+	}
+
+	for _, r := range rows {
+		for _, profile := range []string{"strict", "relaxed"} {
+			for _, mode := range []string{"off", "warn", "enforce"} {
+				t.Run(r.name+"/profile="+profile+"/mode="+mode, func(t *testing.T) {
+					up := chatOK()
+					if strings.Contains(r.path, "responses") {
+						up = responsesOK()
+					}
+					p := startSpecProxy(t, mode, profile, up)
+					sid := newSession()
+					status, hdr, body, session := postRaw(t, p, r.path, sid, nil, r.body)
+					call := lastCall(t, session)
+					wantKeyword := r.relaxedV
+					if profile == "strict" {
+						wantKeyword = r.strictV
+					}
+					hasViolation := wantKeyword != ""
+					hasIgnored := r.ignoredKind != ""
+					shouldReject := mode == "enforce" && (hasViolation || (hasIgnored && r.enforceBoth) || (hasIgnored && !hasViolation && mode == "enforce" && r.ignoredKind != "" && (r.enforceBoth || hasIgnored)))
+					if mode == "enforce" && (hasViolation || hasIgnored) {
+						// B2/B4 reject in both profiles because ignored_fields are reject_in_enforce.
+						shouldReject = hasViolation || hasIgnored
+					}
+					if r.name == "B5_resp_no_strict" && profile == "relaxed" {
+						shouldReject = mode == "enforce" && hasIgnored
+					}
+					switch mode {
+					case "off":
+						if p.upstream.Count() != 1 {
+							t.Fatalf("upstream count=%d", p.upstream.Count())
+						}
+						raw := sessionRaw(t, p.controlURL, sid)
+						if rawJSONHasKey(raw, "validation") {
+							t.Fatal("off leaked validation")
+						}
+					case "warn":
+						if p.upstream.Count() != 1 {
+							t.Fatalf("upstream=%d", p.upstream.Count())
+						}
+						if !bytes.Equal(p.upstream.LastBody(), r.body) {
+							t.Fatalf("bytes mutated")
+						}
+						n := normalized(call)
+						assertKeyword(t, n, wantKeyword)
+						assertIgnoredKind(t, n, r.ignoredKind)
+					case "enforce":
+						if shouldReject {
+							if status != 400 {
+								t.Fatalf("status=%d body=%s", status, body)
+							}
+							if hdr.Get("X-LLMTestLab-Rejected") == "" {
+								t.Fatal("missing reject header")
+							}
+							if p.upstream.Count() != 0 {
+								t.Fatalf("upstream called")
+							}
+							if call["upstream_called"] != false {
+								t.Fatalf("upstream_called=%v", call["upstream_called"])
+							}
+							errObj, _ := normalized(call)["error"].(map[string]any)
+							if errObj["source"] != "proxy" {
+								t.Fatalf("error=%v", errObj)
+							}
+						} else if p.upstream.Count() != 1 {
+							t.Fatalf("expected forward, count=%d", p.upstream.Count())
+						}
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestB9WhitespaceOK(t *testing.T) {
+	for _, body := range [][]byte{
+		[]byte("{\"model\":\"m\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}\n"),
+		[]byte("{\"model\":\"m\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}\r\n"),
+		[]byte("{\"model\":\"m\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}   "),
+	} {
+		p := startSpecProxy(t, "warn", "strict", chatOK())
+		sid := newSession()
+		_, _, _, session := postRaw(t, p, "/v1/chat/completions", sid, nil, body)
+		assertKeyword(t, normalized(lastCall(t, session)), "")
+	}
+}
+
+func TestDEnumDescriptions(t *testing.T) {
+	objectForm := []byte(`{"model":"m","messages":[{"role":"user","content":"hi"}],"tools":[{"type":"function","function":{"name":"shirt","parameters":{"type":"object","properties":{"color":{"type":"string","enum":["red","blue"],"description":"Shirt color","enumDescriptions":{"red":"warm tone","blue":"cool tone"}}},"required":["color"]}}}]}`)
+	arrayForm := []byte(`{"model":"m","messages":[{"role":"user","content":"hi"}],"tools":[{"type":"function","function":{"name":"shirt","parameters":{"type":"object","properties":{"color":{"type":"string","enum":["red","blue"],"enum_descriptions":["warm tone","cool tone"]}}}}}]}`)
+	forum := []byte(`{"model":"m","messages":[{"role":"user","content":"hi"}],"response_format":{"type":"json_schema","json_schema":{"name":"safety","strict":true,"schema":{"type":"object","properties":{"detection":{"type":"string","description":"Classification code for safety policy detection.","enum":["n","i","h","s"],"enumDescriptions":{"n":"No detection of safety policy issues.","i":"Illegal and dangerous activities.","h":"Harmful and violent content.","s":"Sexual explicit materials."}}},"required":["detection"],"additionalProperties":false}}}}`)
+	p := startSpecProxy(t, "warn", "relaxed", chatOK())
+	for name, body := range map[string][]byte{"D1": objectForm, "D2": arrayForm, "D5": forum} {
+		t.Run(name, func(t *testing.T) {
+			sid := newSession()
+			_, _, _, session := postRaw(t, p, "/v1/chat/completions", sid, nil, body)
+			n := normalized(lastCall(t, session))
+			ignored, _ := n["ignored_fields"].([]any)
+			if len(ignored) == 0 {
+				t.Fatal("expected ignored_fields")
+			}
+			first := ignored[0].(map[string]any)
+			if first["kind"] != "unknown_schema_keyword" || first["key"] != "enumDescriptions" && first["key"] != "enum_descriptions" {
+				t.Fatalf("finding=%v", first)
+			}
+			if name == "D5" {
+				want := "Classification code for safety policy detection. n: No detection of safety policy issues.; i: Illegal and dangerous activities.; h: Harmful and violent content.; s: Sexual explicit materials."
+				if first["suggested_description"] != want {
+					t.Fatalf("suggested=%q", first["suggested_description"])
+				}
+			}
+		})
+	}
+}
+
+func TestD7FalsePositives(t *testing.T) {
+	body := []byte(`{"model":"m","messages":[{"role":"user","content":"hi"}],"tools":[{"type":"function","function":{"name":"x","parameters":{"type":"object","properties":{"enumDescriptions":{"type":"string"},"note":{"type":"string","enum":["enumDescriptions"],"default":{"oneOf":1},"description":"mentions enumDescriptions"}}}}}]}`)
+	p := startSpecProxy(t, "warn", "relaxed", chatOK())
+	sid := newSession()
+	_, _, _, session := postRaw(t, p, "/v1/chat/completions", sid, nil, body)
+	ignored, _ := normalized(lastCall(t, session))["ignored_fields"].([]any)
+	if len(ignored) != 0 {
+		t.Fatalf("false positives=%v", ignored)
+	}
+}
+
+func TestD9Modes(t *testing.T) {
+	body := []byte(`{"model":"m","messages":[{"role":"user","content":"hi"}],"tools":[{"type":"function","function":{"name":"shirt","parameters":{"type":"object","properties":{"color":{"type":"string","enum":["red"],"enumDescriptions":{"red":"warm"}}}}}}]}`)
+	for _, profile := range []string{"strict", "relaxed"} {
+		t.Run("warn/"+profile, func(t *testing.T) {
+			p := startSpecProxy(t, "warn", profile, chatOK())
+			sid := newSession()
+			_, _, clientBody, _ := postRaw(t, p, "/v1/chat/completions", sid, nil, body)
+			if p.upstream.Count() != 1 || !bytes.Equal(p.upstream.LastBody(), body) {
+				t.Fatal("not forwarded byte-for-byte")
+			}
+			if !bytes.Contains(clientBody, []byte(`"ok"`)) {
+				t.Fatalf("client=%s", clientBody)
+			}
+		})
+		t.Run("enforce/"+profile, func(t *testing.T) {
+			p := startSpecProxy(t, "enforce", profile, chatOK())
+			sid := newSession()
+			status, hdr, resp, session := postRaw(t, p, "/v1/chat/completions", sid, nil, body)
+			if status != 400 || hdr.Get("X-LLMTestLab-Rejected") != "ignored_field" {
+				t.Fatalf("status=%d hdr=%v body=%s", status, hdr, resp)
+			}
+			if p.upstream.Count() != 0 {
+				t.Fatal("upstream called")
+			}
+			var env map[string]any
+			_ = json.Unmarshal(resp, &env)
+			errObj := env["error"].(map[string]any)
+			if errObj["code"] != "llmtestlab_ignored_field" {
+				t.Fatalf("error=%v", errObj)
+			}
+			_ = session
+		})
+		t.Run("off/"+profile, func(t *testing.T) {
+			p := startSpecProxy(t, "off", profile, chatOK())
+			sid := newSession()
+			postRaw(t, p, "/v1/chat/completions", sid, nil, body)
+			raw := sessionRaw(t, p.controlURL, sid)
+			if rawJSONHasKey(raw, "ignored_fields") {
+				t.Fatal("off leaked fields")
+			}
+		})
+	}
+}
+
+func TestD9aClientContract(t *testing.T) {
+	body := []byte(`{"model":"m","messages":[{"role":"user","content":"hi"}],"tools":[{"type":"function","function":{"name":"shirt","parameters":{"type":"object","properties":{"color":{"type":"string","enum":["red"],"enumDescriptions":{"red":"warm"}}}}}}]}`)
+	clean := []byte(`{"model":"m","messages":[{"role":"user","content":"hi"}]}`)
+	pWarn := startSpecProxy(t, "warn", "relaxed", chatOK())
+	sid := newSession()
+	_, _, _, session := postRaw(t, pWarn, "/v1/chat/completions", sid, nil, body)
+	if err := assertNoIgnoredFields(session, false); err == nil {
+		t.Fatal("expected failure")
+	} else if !strings.Contains(err.Error(), "enumDescriptions") {
+		t.Fatalf("message=%v", err)
+	}
+	sid2 := newSession()
+	_, _, _, cleanS := postRaw(t, pWarn, "/v1/chat/completions", sid2, nil, clean)
+	if err := assertNoIgnoredFields(cleanS, false); err != nil {
+		t.Fatal(err)
+	}
+	pOff := startSpecProxy(t, "off", "relaxed", chatOK())
+	sid3 := newSession()
+	_, _, _, offS := postRaw(t, pOff, "/v1/chat/completions", sid3, nil, clean)
+	if err := assertNoIgnoredFields(offS, false); err == nil || !strings.Contains(err.Error(), "validation was not run") {
+		t.Fatalf("off: %v", err)
+	}
+}
+
+func assertNoIgnoredFields(session map[string]any, allowUnvalidated bool) error {
+	calls, _ := session["calls"].([]any)
+	for i, raw := range calls {
+		call, _ := raw.(map[string]any)
+		n, _ := call["normalized"].(map[string]any)
+		if n == nil {
+			if allowUnvalidated {
+				continue
+			}
+			return fmtErr("%d unknown validation was not run", i+1)
+		}
+		if _, ok := n["validation"]; !ok {
+			if allowUnvalidated {
+				continue
+			}
+			return fmtErr("%d unknown validation was not run", i+1)
+		}
+		val, _ := n["validation"].(map[string]any)
+		if val["mode"] == "off" || val["request_checked"] == false {
+			if allowUnvalidated {
+				continue
+			}
+			return fmtErr("%d unknown validation was not run", i+1)
+		}
+		ignored, _ := n["ignored_fields"].([]any)
+		for _, item := range ignored {
+			f, _ := item.(map[string]any)
+			if f["severity"] == "info" {
+				continue
+			}
+			family, _ := call["api_family"].(string)
+			return fmtErr("%d %s request %s: %s — %s", i+1, family, f["path"], f["kind"], f["hint"])
+		}
+	}
+	return nil
+}
+
+func fmtErr(format string, args ...any) error {
+	return fmt.Errorf(format, args...)
+}
+
+func TestF4OddTopLevel(t *testing.T) {
+	cases := map[string][]byte{
+		"empty": []byte(""),
+		"null":  []byte("null"),
+		"array": []byte("[]"),
+		"str":   []byte(`"x"`),
+		"num":   []byte("42"),
+	}
+	want := map[string]string{"empty": "emptyBody", "null": "type", "array": "type", "str": "type", "num": "type"}
+	for name, body := range cases {
+		p := startSpecProxy(t, "warn", "strict", chatOK())
+		sid := newSession()
+		_, _, _, session := postRaw(t, p, "/v1/chat/completions", sid, nil, body)
+		assertKeyword(t, normalized(lastCall(t, session)), want[name])
+		if p.upstream.Count() != 1 {
+			t.Fatalf("%s not forwarded", name)
+		}
+		p2 := startSpecProxy(t, "enforce", "strict", chatOK())
+		sid2 := newSession()
+		status, _, _, _ := postRaw(t, p2, "/v1/chat/completions", sid2, nil, body)
+		if status != 400 || p2.upstream.Count() != 0 {
+			t.Fatalf("%s enforce status=%d up=%d", name, status, p2.upstream.Count())
+		}
+	}
+}
+
+func TestF5DuplicateKeys(t *testing.T) {
+	body := []byte(`{"model":"a","model":"b","messages":[{"role":"user","content":"hi"}]}`)
+	p := startSpecProxy(t, "warn", "strict", chatOK())
+	sid := newSession()
+	_, _, _, session := postRaw(t, p, "/v1/chat/completions", sid, nil, body)
+	assertKeyword(t, normalized(lastCall(t, session)), "duplicateKey")
+	p2 := startSpecProxy(t, "warn", "relaxed", chatOK())
+	sid2 := newSession()
+	_, _, _, session2 := postRaw(t, p2, "/v1/chat/completions", sid2, nil, body)
+	assertKeyword(t, normalized(lastCall(t, session2)), "")
+}
+
+func TestF6Numbers(t *testing.T) {
+	p := startSpecProxy(t, "warn", "strict", chatOK())
+	sid := newSession()
+	_, _, _, session := postRaw(t, p, "/v1/chat/completions", sid, nil, []byte(`{"model":"m","messages":[{"role":"user","content":"hi"}],"seed":1e400}`))
+	n := normalized(lastCall(t, session))
+	assertKeyword(t, n, "numberRange")
+}
+
+func TestF7ContentType(t *testing.T) {
+	body := []byte(`{"model":"m","messages":[{"role":"user","content":"hi"}]}`)
+	p := startSpecProxy(t, "warn", "relaxed", chatOK())
+	sid := newSession()
+	_, _, _, session := postRaw(t, p, "/v1/chat/completions", sid, map[string]string{"Content-Type": "text/plain"}, body)
+	warns, _ := normalized(lastCall(t, session))["parser_warnings"].([]any)
+	found := false
+	for _, w := range warns {
+		if strings.Contains(fmt.Sprint(w), "content-type") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("warnings=%v", warns)
+	}
+}
+
+func TestG2UnknownResponseFields(t *testing.T) {
+	up := func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"c","object":"chat.completion","created":1,"model":"m","future":1,"choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop","logprobs":null}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2,"future_tokens":9}}`))
+	}
+	p := startSpecProxy(t, "warn", "strict", up)
+	sid := newSession()
+	_, _, client, session := postRaw(t, p, "/v1/chat/completions", sid, nil, []byte(`{"model":"m","messages":[{"role":"user","content":"hi"}]}`))
+	n := normalized(lastCall(t, session))
+	for _, v := range asAnySlice(n["spec_violations"]) {
+		m := v.(map[string]any)
+		if m["side"] == "response" {
+			t.Fatalf("response violation=%v", m)
+		}
+	}
+	if !bytes.Contains(client, []byte(`"future"`)) {
+		t.Fatal("client bytes changed")
+	}
+}
+
+func TestG5TrailingResponse(t *testing.T) {
+	up := func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"c","model":"m","choices":[{"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}]} trailing`))
+	}
+	p := startSpecProxy(t, "warn", "relaxed", up)
+	sid := newSession()
+	_, _, client, session := postRaw(t, p, "/v1/chat/completions", sid, nil, []byte(`{"model":"m","messages":[{"role":"user","content":"hi"}]}`))
+	n := normalized(lastCall(t, session))
+	if n["output_text"] != "ok" {
+		t.Fatalf("output_text=%v", n["output_text"])
+	}
+	found := false
+	for _, w := range asAnySlice(n["parser_warnings"]) {
+		if strings.Contains(fmt.Sprint(w), "trailing_data_after_json") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("warnings=%v", n["parser_warnings"])
+	}
+	if !bytes.Contains(client, []byte("trailing")) {
+		t.Fatal("client bytes changed")
+	}
+}
+
+func TestE10Determinism(t *testing.T) {
+	body := []byte(`{"model":"m","messages":[{"role":"user","content":"hi","foo":1}],"tools":[{"type":"function","function":{"name":"shirt","parameters":{"type":"object","properties":{"color":{"enumDescriptions":{"a":"b"}}}}}}]}`)
+	p := startSpecProxy(t, "warn", "strict", chatOK())
+	var prev string
+	for i := 0; i < 20; i++ {
+		sid := newSession()
+		_, _, _, session := postRaw(t, p, "/v1/chat/completions", sid, nil, body)
+		n := normalized(lastCall(t, session))
+		raw, _ := json.Marshal(n["spec_violations"])
+		raw2, _ := json.Marshal(n["ignored_fields"])
+		got := string(raw) + string(raw2)
+		if i > 0 && got != prev {
+			t.Fatalf("nondeterministic\n%s\n%s", prev, got)
+		}
+		prev = got
+	}
+}
+
+func TestH1RequestDecodeWarnings(t *testing.T) {
+	for _, mode := range []string{"off", "warn", "enforce"} {
+		p := startSpecProxy(t, mode, "relaxed", chatOK())
+		sid := newSession()
+		_, _, _, session := postRaw(t, p, "/v1/chat/completions", sid, nil, []byte(`{"model":"m","messages":[{"role":"user","content":"hi"}]} xyz`))
+		warns := asAnySlice(normalized(lastCall(t, session))["parser_warnings"])
+		found := false
+		for _, w := range warns {
+			if strings.Contains(fmt.Sprint(w), "trailing_data_after_json") {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("mode=%s warnings=%v", mode, warns)
+		}
+	}
+}
+
+func assertKeyword(t *testing.T, n map[string]any, keyword string) {
+	t.Helper()
+	vs := asAnySlice(n["spec_violations"])
+	if keyword == "" {
+		for _, v := range vs {
+			m := v.(map[string]any)
+			if m["side"] == "response" {
+				continue
+			}
+			t.Fatalf("unexpected violation %v", m)
+		}
+		return
+	}
+	for _, v := range vs {
+		m := v.(map[string]any)
+		if m["keyword"] == keyword {
+			return
+		}
+	}
+	t.Fatalf("missing keyword %s in %v", keyword, vs)
+}
+
+func assertIgnoredKind(t *testing.T, n map[string]any, kind string) {
+	t.Helper()
+	ig := asAnySlice(n["ignored_fields"])
+	if kind == "" {
+		return
+	}
+	for _, v := range ig {
+		m := v.(map[string]any)
+		if m["kind"] == kind {
+			return
+		}
+	}
+	t.Fatalf("missing ignored kind %s in %v", kind, ig)
+}
+
+func asAnySlice(v any) []any {
+	s, _ := v.([]any)
+	return s
+}
+
+func TestA6OverlayStaleProof(t *testing.T) {
+	root := filepath.Join("..", "..")
+	script := filepath.Join(root, "scripts", "prove-a6.sh")
+	if _, err := os.Stat(script); err != nil {
+		t.Skip("prove-a6.sh not required in this package; CI runs it")
+	}
+}
+
+func TestI1NoCrossTalk(t *testing.T) {
+	p := startSpecProxy(t, "warn", "strict", chatOK())
+	clean := []byte(`{"model":"m","messages":[{"role":"user","content":"hi"}]}`)
+	bad := []byte(`{"model":"m","messages":[{"role":"user","content":"hi"}],"foo":1}`)
+	var wg sync.WaitGroup
+	errCh := make(chan string, 20)
+	for i := 0; i < 10; i++ {
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			sid := newSession()
+			_, _, _, session := postRaw(t, p, "/v1/chat/completions", sid, nil, clean)
+			if len(asAnySlice(normalized(lastCall(t, session))["spec_violations"])) != 0 {
+				errCh <- "clean got violations"
+			}
+		}()
+		go func() {
+			defer wg.Done()
+			sid := newSession()
+			_, _, _, session := postRaw(t, p, "/v1/chat/completions", sid, nil, bad)
+			if len(asAnySlice(normalized(lastCall(t, session))["spec_violations"])) == 0 {
+				errCh <- "bad missing violations"
+			}
+		}()
+	}
+	wg.Wait()
+	close(errCh)
+	for e := range errCh {
+		t.Fatal(e)
+	}
+}

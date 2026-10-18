@@ -8,23 +8,43 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 )
 
+const (
+	DefaultSpecValidation         = "warn"
+	DefaultSpecProfile            = "relaxed"
+	DefaultSpecValidationMaxBytes = 8 << 20
+)
+
 type Config struct {
-	ListenAddr   string
-	ControlAddr  string
-	ControlToken string
-	Upstreams    map[string]*url.URL
-	Logger       *slog.Logger
+	ListenAddr             string
+	ControlAddr            string
+	ControlToken           string
+	Upstreams              map[string]*url.URL
+	Logger                 *slog.Logger
+	SpecValidation         string
+	SpecProfile            string
+	SpecValidationMaxBytes int
 }
 
 func ConfigFromEnv() (Config, error) {
 	cfg := Config{
-		ListenAddr:   getenv("LLMTESTLAB_LISTEN", ":7777"),
-		ControlAddr:  getenv("LLMTESTLAB_CONTROL_LISTEN", "127.0.0.1:7778"),
-		ControlToken: os.Getenv("LLMTESTLAB_CONTROL_TOKEN"),
-		Upstreams:    map[string]*url.URL{},
+		ListenAddr:             getenv("LLMTESTLAB_LISTEN", ":7777"),
+		ControlAddr:            getenv("LLMTESTLAB_CONTROL_LISTEN", "127.0.0.1:7778"),
+		ControlToken:           os.Getenv("LLMTESTLAB_CONTROL_TOKEN"),
+		Upstreams:              map[string]*url.URL{},
+		SpecValidation:         getenv("LLMTESTLAB_SPEC_VALIDATION", DefaultSpecValidation),
+		SpecProfile:            getenv("LLMTESTLAB_SPEC_PROFILE", DefaultSpecProfile),
+		SpecValidationMaxBytes: DefaultSpecValidationMaxBytes,
+	}
+	if raw := strings.TrimSpace(os.Getenv("LLMTESTLAB_SPEC_VALIDATION_MAX_BYTES")); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil {
+			return cfg, fmt.Errorf("--spec-validation-max-bytes=%q is invalid; allowed values: non-negative byte count (env LLMTESTLAB_SPEC_VALIDATION_MAX_BYTES)", raw)
+		}
+		cfg.SpecValidationMaxBytes = n
 	}
 	raw := strings.TrimSpace(os.Getenv("LLMTESTLAB_UPSTREAMS"))
 	if raw == "" {
@@ -75,6 +95,33 @@ func (c Config) Validate() error {
 	}
 	if !isLoopbackListenAddr(c.ControlAddr) && c.ControlToken == "" {
 		return fmt.Errorf("control API on non-loopback address %q requires --control-token or LLMTESTLAB_CONTROL_TOKEN", c.ControlAddr)
+	}
+	if err := validateSpecSettings(orDefault(c.SpecValidation, DefaultSpecValidation), orDefault(c.SpecProfile, DefaultSpecProfile), c.SpecValidationMaxBytes); err != nil {
+		return err
+	}
+	return nil
+}
+
+func orDefault(value, fallback string) string {
+	if strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	return value
+}
+
+func validateSpecSettings(mode, profile string, maxBytes int) error {
+	switch mode {
+	case "off", "warn", "enforce":
+	default:
+		return fmt.Errorf("--spec-validation=%q is invalid; allowed values: off, warn, enforce (env LLMTESTLAB_SPEC_VALIDATION)", mode)
+	}
+	switch profile {
+	case "strict", "relaxed":
+	default:
+		return fmt.Errorf("--spec-profile=%q is invalid; allowed values: strict, relaxed (env LLMTESTLAB_SPEC_PROFILE)", profile)
+	}
+	if maxBytes < 0 {
+		return fmt.Errorf("--spec-validation-max-bytes=%d is invalid; allowed values: non-negative byte count (env LLMTESTLAB_SPEC_VALIDATION_MAX_BYTES)", maxBytes)
 	}
 	return nil
 }

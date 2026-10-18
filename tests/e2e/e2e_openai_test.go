@@ -7,6 +7,8 @@ package llmtestlab_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -425,21 +427,44 @@ func TestE2EResponsesStreamErrorShape(t *testing.T) {
 	apiKey := requireAPIKey(t)
 	model := e2eModel()
 	testLab := newE2ELab(t)
-	// A mid-stream Responses `event: error` is not cheaply injectable. Probe a
-	// streamed call that OpenAI rejects and record the live shape.
+	// A real mid-stream Responses `event: error` is not cheaply triggerable;
+	// fixture coverage remains D4. This live probe pins the pre-stream JSON
+	// error for previous_response_id:"resp_does_not_exist".
 	body := []byte(`{"model":` + strconv.Quote(model) + `,"stream":true,"previous_response_id":"resp_does_not_exist","input":"hi"}`)
 	status, resp := postOpenAIStatus(t, apiKey, testLab, "/responses", body)
-	t.Logf("live Responses stream-error probe status=%d body=%s", status, resp)
-	if status == http.StatusOK && bytes.Contains(resp, []byte("event: error")) {
-		t.Logf("live Responses mid-stream error event was triggerable")
-	} else {
-		t.Logf("live Responses mid-stream error event was not cheaply triggerable; recorded HTTP %d instead", status)
+	row := loadLiveBehavior(t).Rows["stream_error_responses"]
+	if status != row.Status {
+		t.Fatalf("status=%d want %d body=%s", status, row.Status, resp)
+	}
+	if bytes.Contains(resp, []byte("event:")) || bytes.HasPrefix(bytes.TrimSpace(resp), []byte("data:")) {
+		t.Fatalf("Content-Type must be application/json, not text/event-stream; body=%s", resp)
+	}
+	var env map[string]any
+	if err := json.Unmarshal(resp, &env); err != nil {
+		t.Fatalf("expected application/json error, not SSE: %v body=%s", err, resp)
+	}
+	errObj, _ := env["error"].(map[string]any)
+	if want, _ := row.Error["type"].(string); want != "" && fmt.Sprint(errObj["type"]) != want {
+		t.Fatalf("error.type=%v want %s", errObj["type"], want)
+	}
+	if want, ok := row.Error["param"].(string); ok && want != "" && fmt.Sprint(errObj["param"]) != want {
+		t.Fatalf("error.param=%v want %s", errObj["param"], want)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	trace := testLab.Wait(ctx)
 	if len(trace.Calls) == 0 {
 		t.Fatal("expected a recorded call")
+	}
+	call := assert.Trace().Calls[0]
+	if call.Normalized.Error == nil {
+		t.Fatal("normalized.error missing")
+	}
+	if call.Normalized.Error.MidStream {
+		t.Fatal("normalized.error.mid_stream must be false for a pre-stream JSON error")
+	}
+	if call.Normalized.Error.HTTPStatus != status {
+		t.Fatalf("normalized.error.http_status=%d want %d", call.Normalized.Error.HTTPStatus, status)
 	}
 }
 

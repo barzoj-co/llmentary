@@ -22,7 +22,7 @@ import (
 	"github.com/barzoj-co/llm-test-lab/internal/openaiapi"
 )
 
-const derivedVersion = 2
+const derivedVersion = 3
 
 type Parser interface {
 	Parse(call *Call)
@@ -45,6 +45,18 @@ func (p TolerantParser) Parse(call *Call) {
 			call.Normalized.FinishReason = "unknown"
 		}
 	}
+}
+
+func normalizeJSONBody(raw []byte) ([]byte, string) {
+	first, rest, err := splitFirstJSON(raw)
+	if err != nil {
+		return raw, ""
+	}
+	if i := indexNonWS(rest); i >= 0 {
+		offset := len(raw) - len(rest) + i
+		return first, fmt.Sprintf("trailing_data_after_json at offset %d", offset)
+	}
+	return first, ""
 }
 
 func detectAPIFamily(method, requestPath string) string {

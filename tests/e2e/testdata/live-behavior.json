@@ -1,0 +1,190 @@
+{
+  "retrieved": "2026-10-18",
+  "model": "gpt-4.1-nano",
+  "source": "Live probes against https://api.openai.com on 2026-10-18, plus LTL-API-2 ticket table L1–L8.",
+  "prediction": "Under relaxed, a request-side spec_violation predicts HTTP 400, and its absence predicts non-400.",
+  "rows": {
+    "L1_chat": {
+      "test": "TestLiveSpec_UnknownTopLevel_Chat",
+      "status": 400,
+      "error": {"type": "invalid_request_error", "code": null, "param": null, "message_contains": "Unrecognized request argument supplied: foo"},
+      "relaxed_violations": true,
+      "strict_violations": true,
+      "ignored_fields": false
+    },
+    "L1_responses": {
+      "test": "TestLiveSpec_UnknownTopLevel_Responses",
+      "status": 400,
+      "error": {"type": "invalid_request_error", "code": "unknown_parameter", "param": "foo"},
+      "relaxed_violations": true,
+      "strict_violations": true,
+      "ignored_fields": false
+    },
+    "L2_chat": {
+      "test": "TestLiveSpec_UnknownInMessage_Chat",
+      "status": 200,
+      "contradicts_strict": true,
+      "overlay": "chat-message-extra-props",
+      "relaxed_violations": false,
+      "strict_violations": true,
+      "ignored_kind": "unknown_request_field",
+      "method": "token_delta"
+    },
+    "L2_responses": {
+      "test": "TestLiveSpec_UnknownInInputItem_Responses",
+      "status": 400,
+      "error": {"type": "invalid_request_error", "code": "unknown_parameter", "param": "input[0].foo"},
+      "relaxed_violations": true,
+      "strict_violations": true,
+      "ignored_fields": false,
+      "token_delta_excluded": "upstream returns 400"
+    },
+    "L3_chat": {
+      "test": "TestLiveSpec_UnknownInFunctionTool_Chat",
+      "status": 200,
+      "contradicts_strict": true,
+      "overlay": "function-tool-extra-props",
+      "relaxed_violations": false,
+      "strict_violations": true,
+      "ignored_kind": "unknown_request_field",
+      "method": "token_delta"
+    },
+    "L3_responses": {
+      "test": "TestLiveSpec_UnknownInFunctionTool_Responses",
+      "status": 200,
+      "contradicts_strict": true,
+      "overlay": "function-tool-extra-props",
+      "relaxed_violations": false,
+      "strict_violations": true,
+      "ignored_kind": "unknown_request_field",
+      "method": "token_delta"
+    },
+    "L4_responses": {
+      "test": "TestLiveSpec_FunctionToolWithoutStrict_Responses",
+      "status": 200,
+      "contradicts_strict": true,
+      "overlay": "responses-function-tool-strict-optional",
+      "relaxed_violations": false,
+      "strict_violations": true,
+      "token_delta_excluded": "not a dropped field"
+    },
+    "L5_chat": {
+      "test": "TestLiveSpec_BadEnum_Chat",
+      "status": 400,
+      "error": {"type": "invalid_request_error", "code": "invalid_value", "param": "tool_choice"},
+      "relaxed_violations": true,
+      "strict_violations": true
+    },
+    "L5_responses": {
+      "test": "TestLiveSpec_BadEnum_Responses",
+      "status": 400,
+      "error": {"type": "invalid_request_error", "code": "invalid_value", "param": "tool_choice"},
+      "relaxed_violations": true,
+      "strict_violations": true
+    },
+    "L6_chat": {
+      "test": "TestLiveSpec_MissingRequired_Chat",
+      "status": 400,
+      "error": {"type": "invalid_request_error", "code": "missing_required_parameter", "param": "messages"},
+      "relaxed_violations": true,
+      "strict_violations": true
+    },
+    "L6_responses": {
+      "test": "TestLiveSpec_MissingRequired_Responses",
+      "status": 400,
+      "error": {"type": "invalid_request_error", "code": "missing_required_parameter", "param": "model"},
+      "relaxed_violations": true,
+      "strict_violations": true
+    },
+    "L7_chat": {
+      "test": "TestLiveSpec_WrongType_Chat",
+      "status": 400,
+      "error": {"type": "invalid_request_error", "code": "invalid_type", "param": "temperature"},
+      "relaxed_violations": true,
+      "strict_violations": true
+    },
+    "L7_responses": {
+      "test": "TestLiveSpec_WrongType_Responses",
+      "status": 400,
+      "error": {"type": "invalid_request_error", "code": "invalid_type", "param": "temperature"},
+      "relaxed_violations": true,
+      "strict_violations": true
+    },
+    "L8_chat": {
+      "test": "TestLiveSpec_TrailingGarbage_Chat",
+      "status": 400,
+      "error": {"type": "invalid_request_error", "code": null, "message_contains": "could not parse the JSON body"},
+      "relaxed_violations": true,
+      "strict_violations": true
+    },
+    "L8_responses": {
+      "test": "TestLiveSpec_TrailingGarbage_Responses",
+      "status": 400,
+      "error": {"type": "invalid_request_error", "code": "invalid_json"},
+      "relaxed_violations": true,
+      "strict_violations": true
+    },
+    "invalid_utf8_chat": {
+      "test": "TestLiveSpec_InvalidUTF8_Chat",
+      "status": 400,
+      "error": {"type": "invalid_request_error"}
+    },
+    "invalid_utf8_responses": {
+      "test": "TestLiveSpec_InvalidUTF8_Responses",
+      "status": 400,
+      "error": {"type": "invalid_request_error"}
+    },
+    "utf8_bom_chat": {
+      "test": "TestLiveSpec_UTF8BOM_Chat",
+      "status": 200,
+      "overlay": "utf8BOM"
+    },
+    "duplicate_keys_chat": {
+      "test": "TestLiveSpec_DuplicateKeys_Chat",
+      "status": 200,
+      "overlay": "duplicateKey"
+    },
+    "content_part_chat": {
+      "test": "TestLiveSpec_UnknownInContentPart_Chat",
+      "status": 200,
+      "overlay": "chat-content-part-extra-props"
+    },
+    "tool_call_chat": {
+      "test": "TestLiveSpec_UnknownInToolCall_Chat",
+      "status": 200,
+      "overlay": "chat-tool-call-extra-props"
+    },
+    "content_part_responses": {
+      "test": "TestLiveSpec_UnknownInContentPart_Responses",
+      "status": 200,
+      "overlay": "responses-content-part-extra-props"
+    },
+    "stream_error_responses": {
+      "test": "TestE2EResponsesStreamErrorShape",
+      "status": 400,
+      "content_type": "application/json",
+      "error": {"type": "invalid_request_error", "code": null, "param": "previous_response_id"},
+      "mid_stream": false
+    },
+    "enumDescriptions": {
+      "dropped": true,
+      "method": "token_delta",
+      "epsilon": 2,
+      "min_control_delta": 200,
+      "verified": "2026-10-18",
+      "model": "gpt-4.1-nano",
+      "tests": [
+        "TestLiveTokens_EnumDescriptions_ChatTool",
+        "TestLiveTokens_EnumDescriptions_ChatToolStrict",
+        "TestLiveTokens_EnumDescriptions_ResponsesTool",
+        "TestLiveTokens_EnumDescriptions_ResponsesToolStrict"
+      ]
+    }
+  },
+  "token_delta": {
+    "epsilon": 2,
+    "min_control_delta": 200,
+    "method": "token_delta",
+    "epsilon_why": "ε=2 absorbs serialization artifacts of an extra JSON key. A real reading of T would cost hundreds of tokens."
+  }
+}
