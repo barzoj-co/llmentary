@@ -21,7 +21,7 @@ import (
 
 	"github.com/barzoj-co/llm-test-lab/internal/lab"
 	"github.com/barzoj-co/llm-test-lab/internal/openaiapi"
-	"github.com/barzoj-co/llm-test-lab/pkg/llmtestlab"
+	"github.com/barzoj-co/llm-test-lab/internal/tracetest"
 )
 
 type capturedUpstream struct {
@@ -37,9 +37,9 @@ type proxyRoundtrip struct {
 	headers    http.Header
 	body       []byte
 	upstream   capturedUpstream
-	call       llmtestlab.Call
-	session    llmtestlab.Session
-	lab        *llmtestlab.Lab
+	call       lab.Call
+	session    lab.Session
+	lab        *tracetest.Lab
 	proxyURL   string
 	controlURL string
 }
@@ -79,7 +79,7 @@ func startAcceptanceLog(t *testing.T, upstream http.HandlerFunc, logger *slog.Lo
 
 func doProxy(t *testing.T, method, proxyURL, controlURL, path string, headers map[string]string, body []byte) proxyRoundtrip {
 	t.Helper()
-	testLab := llmtestlab.New(t, llmtestlab.WithProxyURL(proxyURL), llmtestlab.WithControlURL(controlURL), llmtestlab.WithWait(time.Millisecond, 2*time.Second))
+	testLab := tracetest.New(t, tracetest.WithProxyURL(proxyURL), tracetest.WithControlURL(controlURL), tracetest.WithWait(time.Millisecond, 2*time.Second))
 	req, err := http.NewRequest(method, proxyURL+path, bytes.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
@@ -102,8 +102,7 @@ func doProxy(t *testing.T, method, proxyURL, controlURL, path string, headers ma
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	assert := testLab.Expect(ctx)
-	calls := assert.Trace().Calls
+	calls := testLab.Wait(ctx).Calls
 	if len(calls) == 0 {
 		t.Fatal("no recorded calls")
 	}
@@ -112,7 +111,7 @@ func doProxy(t *testing.T, method, proxyURL, controlURL, path string, headers ma
 		headers:    resp.Header.Clone(),
 		body:       got,
 		call:       calls[len(calls)-1],
-		session:    llmtestlab.Session{ID: testLab.SessionID(), Calls: calls},
+		session:    lab.Session{ID: testLab.SessionID(), Calls: calls},
 		lab:        testLab,
 		proxyURL:   proxyURL,
 		controlURL: controlURL,
@@ -1237,7 +1236,7 @@ func deref(v *int) int {
 	return *v
 }
 
-func names(calls []llmtestlab.ToolCall) []string {
+func names(calls []lab.ToolCall) []string {
 	out := make([]string, len(calls))
 	for i, c := range calls {
 		out[i] = c.Name

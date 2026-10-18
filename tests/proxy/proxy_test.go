@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/barzoj-co/llm-test-lab/internal/lab"
-	"github.com/barzoj-co/llm-test-lab/pkg/llmtestlab"
+	"github.com/barzoj-co/llm-test-lab/internal/tracetest"
 )
 
 func TestProxyPassesStreamUnchangedAndRecordsToolCall(t *testing.T) {
@@ -28,7 +28,7 @@ func TestProxyPassesStreamUnchangedAndRecordsToolCall(t *testing.T) {
 	var upstreamTraceparent string
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sawAuth = r.Header.Get("Authorization") == "Bearer test-token"
-		sawSessionHeader = r.Header.Get(llmtestlab.SessionHeaderName) != ""
+		sawSessionHeader = r.Header.Get(tracetest.SessionHeaderName) != ""
 		sawOtherBaggage = r.Header.Get("baggage") == "other=value"
 		sawLLMTestLabBaggage = bytes.Contains([]byte(r.Header.Get("baggage")), []byte("llmtestlab."))
 		upstreamTraceparent = r.Header.Get("traceparent")
@@ -61,7 +61,7 @@ func TestProxyPassesStreamUnchangedAndRecordsToolCall(t *testing.T) {
 	defer proxy.Close()
 	control := httptest.NewServer(server.ControlHandler())
 	defer control.Close()
-	client, err := llmtestlab.NewClient(control.URL)
+	client, err := tracetest.NewClient(control.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +73,7 @@ func TestProxyPassesStreamUnchangedAndRecordsToolCall(t *testing.T) {
 		t.Fatal(err)
 	}
 	req.Header.Set("Authorization", "Bearer test-token")
-	req.Header.Set(llmtestlab.SessionHeaderName, sessionID)
+	req.Header.Set(tracetest.SessionHeaderName, sessionID)
 	req.Header.Set("baggage", "llmtestlab.session.id=from-baggage, other=value")
 	req.Header.Set("traceparent", "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00")
 	req.Header.Set("x-stainless-retry-count", "1")
@@ -105,11 +105,11 @@ func TestProxyPassesStreamUnchangedAndRecordsToolCall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	llmtestlab.AssertCallCount(t, calls, 1)
-	llmtestlab.AssertToolCalled(t, calls, "lookup", map[string]any{"city": "Paris"})
-	llmtestlab.AssertToolOrder(t, calls, "lookup")
-	llmtestlab.AssertToolNotCalled(t, calls, "other")
-	llmtestlab.AssertTokensBelow(t, calls, 20)
+	assertCallCount(t, calls, 1)
+	assertToolCalled(t, calls, "lookup", map[string]any{"city": "Paris"})
+	assertToolOrder(t, calls, "lookup")
+	assertToolNotCalled(t, calls, "other")
+	assertTokensBelow(t, calls, 20)
 	if got := calls[0].Request.Headers["Authorization"][0]; got == "Bearer test-token" || got == "" {
 		t.Fatalf("authorization header not redacted: %q", got)
 	}
@@ -285,7 +285,7 @@ func TestGzipSSEIsDecompressedForParsing(t *testing.T) {
 	defer proxy.Close()
 	control := httptest.NewServer(server.ControlHandler())
 	defer control.Close()
-	client, err := llmtestlab.NewClient(control.URL)
+	client, err := tracetest.NewClient(control.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -294,7 +294,7 @@ func TestGzipSSEIsDecompressedForParsing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	req.Header.Set(llmtestlab.SessionHeaderName, sessionID)
+	req.Header.Set(tracetest.SessionHeaderName, sessionID)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -305,7 +305,7 @@ func TestGzipSSEIsDecompressedForParsing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	llmtestlab.AssertToolCalled(t, calls, "lookup", map[string]any{})
+	assertToolCalled(t, calls, "lookup", map[string]any{})
 	if calls[0].Normalized.StreamTruncated {
 		t.Fatalf("gzip SSE marked truncated")
 	}
@@ -336,14 +336,14 @@ func TestControlClientSendsBearerToken(t *testing.T) {
 	}
 	control := httptest.NewServer(server.ControlHandler())
 	defer control.Close()
-	unauthorized, err := llmtestlab.NewClient(control.URL)
+	unauthorized, err := tracetest.NewClient(control.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := unauthorized.Calls(context.Background(), "s"); err == nil {
 		t.Fatalf("expected missing token to fail")
 	}
-	authorized, err := llmtestlab.NewClient(control.URL, llmtestlab.WithControlToken("secret"))
+	authorized, err := tracetest.NewClient(control.URL, tracetest.WithControlToken("secret"))
 	if err != nil {
 		t.Fatal(err)
 	}

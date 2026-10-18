@@ -40,17 +40,53 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
           go-version: "1.26.x"
           cache: true
+      - name: go build and vet
+        run: |
+          go build ./...
+          go vet ./...
+          (cd tests/proxy && go build ./... && go vet ./...)
+          (cd tests/e2e && go build ./... && go vet -tags=e2e ./...)
+      - name: go mod tidy is clean
+        run: |
+          go mod tidy
+          (cd tests/proxy && go mod tidy)
+          (cd tests/e2e && go mod tidy)
+          git diff --exit-code
       - run: go test ./...
-      - run: go test ./...
-        working-directory: pkg/llmtestlab
       - run: go test ./...
         working-directory: tests/proxy
-      - run: go test ./...
-        working-directory: examples/go
+      - name: GoReleaser snapshot
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --snapshot --clean
+      - name: List snapshot artifacts
+        run: find dist -type f | sort
+
+  docs-mermaid:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      MERMAID_CLI_VERSION: "11.12.0"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+      - name: Install mermaid-cli
+        run: npm install -g "@mermaid-js/mermaid-cli@${MERMAID_CLI_VERSION}"
+      - name: Check mermaid diagrams
+        timeout-minutes: 5
+        run: bash scripts/check-mermaid.sh --self-test
 
   e2e:
     runs-on: ubuntu-latest

@@ -12,8 +12,19 @@ The repository's own workflow is in `.github/workflows/ci.yml`:
 - `lint`: checkout, Go 1.26.x, `golangci/golangci-lint-action@v8`. Generated
   `internal/openaiapi/gen.go` is excluded in `.golangci.yml`.
 - `test`: checkout, Go 1.26.x, `go test ./...` in the root AGPL proxy module and
-  `go test ./...` in the nested MIT Go client module, proxy integration test module,
-  and Go example module.
+  `go test ./...` in the proxy integration test module, plus a GoReleaser snapshot
+  build (`goreleaser release --snapshot --clean`).
+- `docs-mermaid`: checkout (`actions/checkout` SHA-pinned at v4.4.0), Node 22
+  (`actions/setup-node` SHA-pinned at v4.4.0), and
+  `@mermaid-js/mermaid-cli@11.12.0` (`mmdc`). Runs
+  `bash scripts/check-mermaid.sh --self-test` with a 10-minute job timeout
+  (5-minute step timeout). The script extracts every `mermaid` fenced block from
+  tracked `*.md` files, excluding `testdata/mermaid/`, and renders each with
+  `mmdc`. A parse failure is reported as `FAIL <file>:<opening-fence-line>`.
+  `--self-test` then renders `testdata/mermaid/bad.md` (the original README
+  diagram from `main`, with unquoted `|llmtestlab.New(t)|`) and requires a
+  mermaid parse error. Run the same command locally after
+  `npm install -g @mermaid-js/mermaid-cli@11.12.0`.
 - `e2e`: runs once per change — on `pull_request` (non-fork) and on pushes to
   `main` only, not on both `push` and `pull_request` for PR branches. Requires
   `OPENAI_API_KEY` and runs `go test -v -tags=e2e ./...` in `tests/e2e`. The job
@@ -25,8 +36,9 @@ credentials are visible.
 
 ## Use the proxy in another Go project
 
-This example downloads a release binary, starts the proxy in the background, and runs Go
-tests that use `llmtestlab.New(t)`.
+This example downloads a release binary, starts the proxy in the background, and runs
+tests against the control API (for example via the
+[Go client](https://github.com/barzoj-co/llm-test-lab-go)).
 
 ```yaml
 name: LLM integration tests
@@ -83,10 +95,6 @@ jobs:
       - name: Run proxy/root tests
         run: go test ./...
 
-      - name: Run MIT Go client tests
-        run: go test ./...
-        working-directory: pkg/llmtestlab
-
       - name: Run proxy integration tests
         run: go test ./...
         working-directory: tests/proxy
@@ -125,9 +133,7 @@ The repository's e2e tests are behind the `e2e` build tag:
 
 ```bash
 go test ./...
-(cd pkg/llmtestlab && go test ./...)
 (cd tests/proxy && go test ./...)
-(cd examples/go && go test ./...)
 (cd tests/e2e && OPENAI_API_KEY=sk-... go test -v -tags=e2e ./...)
 ```
 
@@ -139,7 +145,7 @@ OPENAI_E2E_MODEL=gpt-4.1-mini OPENAI_API_KEY=sk-... go test -v -tags=e2e ./...
 ```
 
 The tests start an in-process proxy and control server with `httptest`, call OpenAI Chat
-Completions and Responses, then assert against the recorded session through the Go client.
+Completions and Responses, then assert against the recorded session.
 
 ## Fork safety
 
@@ -175,5 +181,5 @@ llmtestlab \
   --upstream openai=https://api.openai.com/v1
 ```
 
-Then configure tests with `LLMTESTLAB_CONTROL_TOKEN`, which the Go client reads by
-default.
+Then configure tests with `LLMTESTLAB_CONTROL_TOKEN`. The
+[Go client](https://github.com/barzoj-co/llm-test-lab-go) reads that variable by default.

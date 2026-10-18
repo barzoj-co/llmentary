@@ -97,8 +97,8 @@ Each call is stored in one session:
    - `x-test-session`
 3. If no tag is present, the call lands in the `default` session.
 
-The Go client's `llmtestlab.New(t)` creates a random session id and can inject
-`X-Test-Session` through `lab.HTTPClient()`.
+The Go client in [llm-test-lab-go](https://github.com/barzoj-co/llm-test-lab-go)
+creates a random session id and can inject `X-Test-Session` through `lab.HTTPClient()`.
 
 ## Header forwarding and stripping
 
