@@ -72,9 +72,14 @@ func parseRetryCount(header http.Header) *int {
 	return &n
 }
 
-func sessionFromRequest(r *http.Request) string {
+type sessionInfo struct {
+	ID     string
+	Source string
+}
+
+func sessionFromRequest(r *http.Request) sessionInfo {
 	if id := strings.TrimSpace(r.Header.Get(llmtestlab.SessionHeaderName)); id != "" {
-		return id
+		return sessionInfo{ID: id, Source: "header"}
 	}
 	for _, item := range strings.Split(r.Header.Get("baggage"), ",") {
 		key, value, ok := strings.Cut(strings.TrimSpace(item), "=")
@@ -82,13 +87,36 @@ func sessionFromRequest(r *http.Request) string {
 			continue
 		}
 		switch strings.ToLower(strings.TrimSpace(key)) {
-		case "llmtestlab.session", "test-session", "x-test-session":
+		case "llmtestlab.session.id", "llmtestlab.session", "test-session", "x-test-session":
 			if value = strings.TrimSpace(value); value != "" {
-				return value
+				return sessionInfo{ID: value, Source: "baggage"}
 			}
 		}
 	}
-	return llmtestlab.DefaultSessionID
+	return sessionInfo{ID: llmtestlab.DefaultSessionID, Source: "default"}
+}
+
+func stripLLMTestLabBaggage(header http.Header) {
+	baggage := header.Get("baggage")
+	if baggage == "" {
+		return
+	}
+	var kept []string
+	for _, item := range strings.Split(baggage, ",") {
+		item = strings.TrimSpace(item)
+		key, _, _ := strings.Cut(item, "=")
+		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(key)), "llmtestlab.") {
+			continue
+		}
+		if item != "" {
+			kept = append(kept, item)
+		}
+	}
+	if len(kept) == 0 {
+		header.Del("baggage")
+		return
+	}
+	header.Set("baggage", strings.Join(kept, ", "))
 }
 
 func sanitizeHeaders(h http.Header) map[string][]string {
@@ -163,7 +191,7 @@ func decompressIfNeeded(body []byte, headers map[string][]string) []byte {
 	if err != nil {
 		return body
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 	plain, err := io.ReadAll(reader)
 	if err != nil {
 		return body
@@ -461,7 +489,7 @@ func hasJSONKey(raw json.RawMessage, key string) bool {
 }
 
 func hasNestedJSONKey(raw json.RawMessage, keys ...string) bool {
-	var current json.RawMessage = raw
+	current := raw
 	for _, key := range keys {
 		var m map[string]json.RawMessage
 		if json.Unmarshal(current, &m) != nil {

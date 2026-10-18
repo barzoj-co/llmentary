@@ -13,13 +13,16 @@ import (
 	"time"
 
 	"github.com/barzoj-co/llm-test-lab/pkg/llmtestlab"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type Server struct {
-	cfg    Config
-	store  Store
-	parser Parser
-	client *http.Client
+	cfg     Config
+	store   Store
+	parser  Parser
+	tracing *TracingRuntime
+	client  *http.Client
 }
 
 func NewServer(cfg Config, store Store, parser Parser) (*Server, error) {
@@ -32,10 +35,15 @@ func NewServer(cfg Config, store Store, parser Parser) (*Server, error) {
 	if parser == nil {
 		parser = TolerantParser{}
 	}
+	tracing, err := NewTracingRuntime()
+	if err != nil {
+		return nil, err
+	}
 	return &Server{
-		cfg:    cfg,
-		store:  store,
-		parser: parser,
+		cfg:     cfg,
+		store:   store,
+		parser:  parser,
+		tracing: tracing,
 		client: &http.Client{Transport: &http.Transport{
 			Proxy:             http.ProxyFromEnvironment,
 			DialContext:       (&net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
@@ -99,7 +107,7 @@ func (s *Server) serveProxy(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
 	}
-	sessionID := sessionFromRequest(r)
+	session := sessionFromRequest(r)
 	rawReq, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -112,9 +120,10 @@ func (s *Server) serveProxy(w http.ResponseWriter, r *http.Request) {
 	apiVersion, deployment := extractAPIVersionAndDeployment(target)
 	startedAt := time.Now().UTC()
 	call := llmtestlab.Call{
-		StartedAt: startedAt,
-		Provider:  upstreamName,
-		APIFamily: detectAPIFamily(r.Method, target.Path),
+		StartedAt:     startedAt,
+		Provider:      upstreamName,
+		APIFamily:     detectAPIFamily(r.Method, target.Path),
+		SessionSource: session.Source,
 		Upstream: llmtestlab.Upstream{
 			Method:     r.Method,
 			URL:        sanitizeURL(target.String()),
@@ -126,28 +135,43 @@ func (s *Server) serveProxy(w http.ResponseWriter, r *http.Request) {
 		RawRequest: rawReq,
 		RetryCount: parseRetryCount(r.Header),
 	}
-	_, callID := s.store.Begin(sessionID, call)
+	seq, callID := s.store.Begin(session.ID, call)
+	call.ID = callID
+	call.Seq = seq
+	call.SessionID = session.ID
+	traceCtx := s.tracing.Propagator.Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+	traceCtx, span := s.tracing.Tracer.Start(
+		traceCtx,
+		"chat "+requestModel(call),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithTimestamp(startedAt),
+		trace.WithAttributes(startSpanAttributes(call)...),
+	)
 
-	req, err := http.NewRequestWithContext(r.Context(), r.Method, target.String(), bytes.NewReader(rawReq))
+	req, err := http.NewRequestWithContext(traceCtx, r.Method, target.String(), bytes.NewReader(rawReq))
 	if err != nil {
-		s.finishWithProxyError(sessionID, callID, startedAt, err, http.StatusBadGateway)
+		endedCall := s.finishWithProxyError(session.ID, callID, startedAt, err, http.StatusBadGateway)
+		finishSpan(span, endedCall, endedCall.EndedAt)
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
 	}
 	req.Header = cloneHeader(r.Header)
 	req.Header.Del(llmtestlab.SessionHeaderName)
+	s.tracing.Propagator.Inject(StripLLMTestLabBaggageFromContext(traceCtx), propagation.HeaderCarrier(req.Header))
+	stripLLMTestLabBaggage(req.Header)
 	req.Header.Set("Accept-Encoding", "identity")
 	req.Host = target.Host
 	removeHopByHopHeaders(req.Header)
 
 	resp, err := s.client.Do(req)
 	if err != nil {
-		s.finishWithProxyError(sessionID, callID, startedAt, err, http.StatusBadGateway)
+		endedCall := s.finishWithProxyError(session.ID, callID, startedAt, err, http.StatusBadGateway)
+		finishSpan(span, endedCall, endedCall.EndedAt)
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
 	}
-	defer resp.Body.Close()
-	firstByte := time.Now().UTC()
+	defer func() { _ = resp.Body.Close() }()
+	var firstByte *time.Time
 
 	for key, values := range resp.Header {
 		for _, value := range values {
@@ -165,6 +189,10 @@ func (s *Server) serveProxy(w http.ResponseWriter, r *http.Request) {
 		recorder = newSSERecorder(startedAt)
 	}
 	_, copyErr := copyAndFlush(w, resp.Body, func(chunk []byte) {
+		if firstByte == nil {
+			now := time.Now().UTC()
+			firstByte = &now
+		}
 		_, _ = rawResp.Write(chunk)
 		if recorder != nil {
 			recorder.Write(chunk)
@@ -182,8 +210,9 @@ func (s *Server) serveProxy(w http.ResponseWriter, r *http.Request) {
 	} else if stream {
 		events, complete, warnings = parseSSE(parseBody, startedAt)
 	}
-	s.store.Finish(sessionID, callID, func(call *llmtestlab.Call) {
-		call.FirstByteAt = &firstByte
+	var endedCall llmtestlab.Call
+	s.store.Finish(session.ID, callID, func(call *llmtestlab.Call) {
+		call.FirstByteAt = firstByte
 		call.EndedAt = endedAt
 		call.LatencyMS = endedAt.Sub(startedAt).Milliseconds()
 		call.Response = llmtestlab.Exchange{Headers: respHeaders}
@@ -202,7 +231,9 @@ func (s *Server) serveProxy(w http.ResponseWriter, r *http.Request) {
 		}
 		recordRequestIDs(call, resp.Header)
 		s.parser.Parse(call)
+		endedCall = *call
 	})
+	finishSpan(span, endedCall, endedAt)
 }
 
 func (s *Server) route(requestPath string) (string, string, *url.URL, error) {
@@ -240,9 +271,14 @@ func (s *Server) serveSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	wait := false
+	otlp := false
 	if strings.HasSuffix(rest, "/wait") {
 		wait = true
 		rest = strings.TrimSuffix(rest, "/wait")
+		rest = strings.TrimSuffix(rest, "/")
+	} else if strings.HasSuffix(rest, "/otlp") {
+		otlp = true
+		rest = strings.TrimSuffix(rest, "/otlp")
 		rest = strings.TrimSuffix(rest, "/")
 	}
 	sessionID, err := url.PathUnescape(rest)
@@ -252,6 +288,10 @@ func (s *Server) serveSession(w http.ResponseWriter, r *http.Request) {
 	}
 	switch r.Method {
 	case http.MethodGet:
+		if otlp {
+			writeJSON(w, s.tracing.Processor.OTLP(sessionID))
+			return
+		}
 		var session llmtestlab.Session
 		if wait {
 			quiet, _ := time.ParseDuration(defaultString(r.URL.Query().Get("quiet"), "500ms"))
@@ -266,11 +306,12 @@ func (s *Server) serveSession(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, session)
 	case http.MethodDelete:
-		if wait {
+		if wait || otlp {
 			http.NotFound(w, r)
 			return
 		}
 		s.store.Delete(sessionID)
+		s.tracing.Processor.Delete(sessionID)
 		w.WriteHeader(http.StatusNoContent)
 	default:
 		w.Header().Set("Allow", "GET, DELETE")
@@ -278,8 +319,9 @@ func (s *Server) serveSession(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) finishWithProxyError(sessionID, callID string, startedAt time.Time, err error, status int) {
+func (s *Server) finishWithProxyError(sessionID, callID string, startedAt time.Time, err error, status int) llmtestlab.Call {
 	endedAt := time.Now().UTC()
+	var endedCall llmtestlab.Call
 	s.store.Finish(sessionID, callID, func(call *llmtestlab.Call) {
 		call.EndedAt = endedAt
 		call.LatencyMS = endedAt.Sub(startedAt).Milliseconds()
@@ -287,7 +329,9 @@ func (s *Server) finishWithProxyError(sessionID, callID string, startedAt time.T
 		call.Normalized.Error = &llmtestlab.CallError{HTTPStatus: status, Message: err.Error(), Normalized: "network"}
 		call.Normalized.FinishReason = "error"
 		s.parser.Parse(call)
+		endedCall = *call
 	})
+	return endedCall
 }
 
 func copyAndFlush(w http.ResponseWriter, r io.Reader, onChunk func([]byte)) (int64, error) {
