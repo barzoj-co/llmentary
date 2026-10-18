@@ -87,7 +87,7 @@ func sessionFromRequest(r *http.Request) sessionInfo {
 			continue
 		}
 		switch strings.ToLower(strings.TrimSpace(key)) {
-		case "session.id", "session", "test-session", "x-test-session":
+		case "llmtestlab.session.id", "llmtestlab.session", "test-session", "x-test-session":
 			if value = strings.TrimSpace(value); value != "" {
 				return sessionInfo{ID: value, Source: "baggage"}
 			}
