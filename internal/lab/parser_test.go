@@ -54,6 +54,19 @@ func TestChatStreamCapturesMidStreamError(t *testing.T) {
 	}
 }
 
+func TestMidStreamErrorAcceptsNumericCode(t *testing.T) {
+	rawStream := []byte("data: {\"error\":{\"type\":\"rate_limit_error\",\"code\":429,\"message\":\"rate limited\"}}\n\n")
+	call := baseCall("openai.chat", []byte(`{"model":"x"}`), rawStream, true)
+	call.SSEEvents, _, _ = parseSSE(rawStream, call.StartedAt)
+	TolerantParser{}.Parse(&call)
+	if call.Normalized.Error == nil || !call.Normalized.Error.MidStream {
+		t.Fatalf("numeric-code mid-stream error not captured: %+v", call.Normalized.Error)
+	}
+	if call.Normalized.Error.Code != "429" || call.Normalized.Error.Message != "rate limited" {
+		t.Fatalf("error=%+v", call.Normalized.Error)
+	}
+}
+
 func TestResponsesStreamParsesFunctionCallFromCompletedEvent(t *testing.T) {
 	rawRequest := []byte(`{
 		"model":"gpt-test",

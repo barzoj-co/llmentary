@@ -549,13 +549,10 @@ func midStreamError(status int, raw json.RawMessage) *CallError {
 		return nil
 	}
 	err := &CallError{HTTPStatus: status, MidStream: true}
-	var nested openaiapi.Error
-	if json.Unmarshal(holder.Error, &nested) == nil && (nested.Message != "" || nested.Type != "") {
-		err.Type = nested.Type
-		if nested.Code != nil {
-			err.Code = *nested.Code
-		}
-		err.Message = nested.Message
+	if typ, code, message, ok := parseLooseError(holder.Error); ok {
+		err.Type = typ
+		err.Code = code
+		err.Message = message
 	} else {
 		var asString string
 		if json.Unmarshal(holder.Error, &asString) == nil {
@@ -566,6 +563,37 @@ func midStreamError(status int, raw json.RawMessage) *CallError {
 	}
 	err.Normalized = normalizeError(status, err.Code, err.Type)
 	return err
+}
+
+func parseLooseError(raw json.RawMessage) (typ, code, message string, ok bool) {
+	var fallback struct {
+		Type    string          `json:"type"`
+		Code    json.RawMessage `json:"code"`
+		Message string          `json:"message"`
+	}
+	if json.Unmarshal(raw, &fallback) != nil {
+		return "", "", "", false
+	}
+	if fallback.Message == "" && fallback.Type == "" {
+		return "", "", "", false
+	}
+	return fallback.Type, looseErrorCode(fallback.Code), fallback.Message, true
+}
+
+func looseErrorCode(raw json.RawMessage) string {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+		return ""
+	}
+	var s string
+	if json.Unmarshal(raw, &s) == nil {
+		return s
+	}
+	var n json.Number
+	if json.Unmarshal(raw, &n) == nil {
+		return n.String()
+	}
+	return string(raw)
 }
 
 func normalizeError(status int, code, typ string) string {
