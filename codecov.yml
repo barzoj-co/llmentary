@@ -1,0 +1,22 @@
+coverage:
+  status:
+    project:
+      default:
+        informational: true
+    patch:
+      default:
+        informational: true
+comment:
+  layout: "condensed_header, diff, flags, files"
+  behavior: default
+  require_changes: false
+flags:
+  unit:
+    carryforward: true
+  proxy:
+    carryforward: true
+ignore:
+  - "internal/openaiapi/gen.go"
+  - "tools/**"
+github_checks:
+  annotations: false

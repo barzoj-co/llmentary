@@ -1,5 +1,11 @@
 # llm-test-lab
 
+[![CI](https://github.com/barzoj-co/llm-test-lab/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/barzoj-co/llm-test-lab/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/barzoj-co/llm-test-lab/graph/badge.svg)](https://codecov.io/gh/barzoj-co/llm-test-lab)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/barzoj-co/llm-test-lab/badge)](https://scorecard.dev/viewer/?uri=github.com/barzoj-co/llm-test-lab)
+[![License: AGPL-3.0](https://img.shields.io/github/license/barzoj-co/llm-test-lab)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/barzoj-co/llm-test-lab?sort=semver)](https://github.com/barzoj-co/llm-test-lab/releases)
+
 Deterministic, trace-based integration testing for LLM apps, without an LLM judge.
 
 `llm-test-lab` is a Go reverse proxy. Put it between your app and an
@@ -74,6 +80,20 @@ Run your Go test (from a project that depends on the Go client):
 OPENAI_API_KEY=sk-... go test ./...
 ```
 
+Release archives are signed with cosign keyless and include SLSA provenance.
+After downloading `checksums.txt` and an archive:
+
+```bash
+cosign verify-blob \
+  --certificate checksums.txt.pem \
+  --signature checksums.txt.sig \
+  --certificate-identity-regexp '^https://github.com/barzoj-co/llm-test-lab/.github/workflows/' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  checksums.txt
+sha256sum -c checksums.txt
+gh attestation verify llm-test-lab_<version>_linux_amd64.tar.gz --repo barzoj-co/llm-test-lab
+```
+
 ## Clients
 
 This repository ships only the proxy. Use these client libraries against it:
@@ -81,6 +101,17 @@ This repository ships only the proxy. Use these client libraries against it:
 - [Go](https://github.com/barzoj-co/llm-test-lab-go)
 - [Python](https://github.com/barzoj-co/llm-test-lab-python)
 - [JS/TS](https://github.com/barzoj-co/llm-test-lab-js)
+
+<!-- ltl-repos:start -->
+## llm-test-lab repositories
+
+| Repository | What | License |
+|---|---|---|
+| [llm-test-lab](https://github.com/barzoj-co/llm-test-lab) | Recording proxy binary (Go) | AGPL-3.0 |
+| [llm-test-lab-go](https://github.com/barzoj-co/llm-test-lab-go) | Go client for `go test` | MIT |
+| [llm-test-lab-python](https://github.com/barzoj-co/llm-test-lab-python) | Python client and pytest plugin | MIT |
+| [llm-test-lab-js](https://github.com/barzoj-co/llm-test-lab-js) | TypeScript/JavaScript client for Vitest and Jest | MIT |
+<!-- ltl-repos:end -->
 
 ## How it works
 

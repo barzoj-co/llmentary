@@ -1,0 +1,37 @@
+name: Feature request
+description: Suggest a change to the llm-test-lab proxy
+title: "[feat] "
+labels: [enhancement, needs-triage]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is hard or missing today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposed
+    attributes:
+      label: Proposed behavior
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false
+  - type: dropdown
+    id: clients
+    attributes:
+      label: Which client(s) it affects
+      multiple: true
+      options:
+        - None / proxy only
+        - Go (llm-test-lab-go)
+        - Python (llm-test-lab-python)
+        - JS/TS (llm-test-lab-js)
+        - Unsure
+    validations:
+      required: true

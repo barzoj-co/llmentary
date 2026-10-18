@@ -1,0 +1,227 @@
+name: Hygiene
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  actionlint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Install actionlint
+        env:
+          # renovate: datasource=github-releases depName=rhysd/actionlint
+          ACTIONLINT_VERSION: v1.7.12
+        run: |
+          set -euo pipefail
+          ver="${ACTIONLINT_VERSION#v}"
+          archive="actionlint_${ver}_linux_amd64.tar.gz"
+          base="https://github.com/rhysd/actionlint/releases/download/${ACTIONLINT_VERSION}"
+          curl -fsSL "${base}/actionlint_${ver}_checksums.txt" -o /tmp/actionlint.sums
+          curl -fsSL "${base}/${archive}" -o "/tmp/${archive}"
+          (cd /tmp && grep -E " ${archive}$" actionlint.sums | sha256sum -c)
+          tar -xzf "/tmp/${archive}" -C /tmp actionlint
+          sudo mv /tmp/actionlint /usr/local/bin/actionlint
+          actionlint -version
+      - name: Run actionlint
+        run: actionlint -color -shellcheck="$(command -v shellcheck)"
+      - name: Install PyYAML
+        run: python3 -m pip install --user pyyaml
+      - name: Check workflow policy
+        run: bash scripts/check-workflow-policy.sh
+
+  pinned-actions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Check pinned actions
+        run: bash scripts/check-pinned-actions.sh
+      - name: Pinned-actions self-test
+        run: bash scripts/check-pinned-actions.sh --self-test
+      - name: Check README badges and cross-links
+        run: bash scripts/check-readme.sh
+
+  renovate-config:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # renovate: datasource=npm depName=renovate
+      RENOVATE_VERSION: "44.167.1"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+      - name: Validate renovate.json
+        run: npx --yes --package "renovate@${RENOVATE_VERSION}" renovate-config-validator --strict renovate.json
+
+  codecov-config:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Validate codecov.yml
+        run: curl --fail --data-binary @codecov.yml https://codecov.io/validate
+
+  labels-dry-run:
+    name: labels (dry run)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: crazy-max/ghaction-github-labeler@548a7c3603594ec17c819e1239f281a3b801ab4d # v6.0.0
+        with:
+          yaml-file: .github/labels.yml
+          skip-delete: true
+          dry-run: true
+
+  release-please-dry-run:
+    name: release-please (dry run)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # renovate: datasource=npm depName=release-please
+      RELEASE_PLEASE_VERSION: "17.11.2"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+      - name: Dry-run release-please
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          npx --yes --package "release-please@${RELEASE_PLEASE_VERSION}" release-please release-pr \
+            --dry-run \
+            --repo-url=barzoj-co/llm-test-lab \
+            --target-branch="${{ github.head_ref || github.ref_name }}" \
+            --config-file=release-please-config.json \
+            --manifest-file=.release-please-manifest.json \
+            --token="${GITHUB_TOKEN}"
+
+  license-detect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version: "1.26.x"
+          cache: true
+          cache-dependency-path: tools/licensecheck/go.mod
+      - name: Detect LICENSE
+        run: go run .
+        working-directory: tools/licensecheck
+
+  goreleaser-snapshot:
+    name: goreleaser (snapshot)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version: "1.26.x"
+          cache: true
+      - uses: anchore/sbom-action/download-syft@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          # renovate: datasource=github-releases depName=anchore/syft
+          syft-version: v1.54.1
+      - uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6.4.0
+        with:
+          distribution: goreleaser
+          # renovate: datasource=github-releases depName=goreleaser/goreleaser
+          version: v2.18.3
+          args: check
+      - uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6.4.0
+        with:
+          distribution: goreleaser
+          # renovate: datasource=github-releases depName=goreleaser/goreleaser
+          version: v2.18.3
+          args: release --snapshot --clean --skip=sign,publish
+      - name: Assert snapshot artifacts
+        run: |
+          set -euo pipefail
+          expect_one() {
+            local pattern="$1"
+            local count
+            count="$(find dist -maxdepth 1 -type f -name "$pattern" | wc -l)"
+            if [[ "$count" -ne 1 ]]; then
+              echo "expected exactly one archive matching ${pattern}, found ${count}" >&2
+              find dist -type f | sort >&2
+              exit 1
+            fi
+          }
+          expect_one 'llm-test-lab_*_linux_amd64.tar.gz'
+          expect_one 'llm-test-lab_*_linux_arm64.tar.gz'
+          expect_one 'llm-test-lab_*_darwin_amd64.tar.gz'
+          expect_one 'llm-test-lab_*_darwin_arm64.tar.gz'
+          expect_one 'llm-test-lab_*_windows_amd64.zip'
+          expect_one 'llm-test-lab_*_windows_arm64.zip'
+          test -f dist/checksums.txt
+          (cd dist && sha256sum -c checksums.txt)
+          while IFS= read -r -d '' archive; do
+            sbom="${archive}.sbom.json"
+            if [[ ! -f "$sbom" ]]; then
+              echo "missing SBOM ${sbom}" >&2
+              find dist -type f | sort >&2
+              exit 1
+            fi
+            python3 -c 'import json,sys; p=sys.argv[1]; d=json.load(open(p,encoding="utf-8")); assert "llmtestlab" in json.dumps(d), p+" does not mention llmtestlab"; print("SBOM ok:", p)' "$sbom"
+            tmp=$(mktemp -d)
+            case "$archive" in
+              *.tar.gz)
+                tar -tzf "$archive" | sed 's#^\./##' | sort >"${tmp}/list"
+                grep -qx 'LICENSE' "${tmp}/list"
+                grep -qx 'README.md' "${tmp}/list"
+                grep -qx 'llmtestlab' "${tmp}/list"
+                ;;
+              *.zip)
+                unzip -Z1 "$archive" | sed 's#^\./##' | sort >"${tmp}/list"
+                grep -qx 'LICENSE' "${tmp}/list"
+                grep -qx 'README.md' "${tmp}/list"
+                grep -qx 'llmtestlab.exe' "${tmp}/list"
+                ;;
+            esac
+            echo "archive contents ok: ${archive}"
+            rm -rf "$tmp"
+          done < <(find dist -maxdepth 1 -type f \( -name 'llm-test-lab_*.tar.gz' -o -name 'llm-test-lab_*.zip' \) -print0)
+          echo "goreleaser snapshot assertions passed"
+          find dist -type f | sort
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: goreleaser-snapshot
+          path: dist/

@@ -1,0 +1,88 @@
+name: Bug report
+description: Report a problem with the llm-test-lab proxy
+title: "[bug] "
+labels: [bug, needs-triage]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Proxy version
+      description: Output of `llmtestlab --version`, or the GitHub release tag.
+      placeholder: v0.1.0
+    validations:
+      required: true
+  - type: input
+    id: os_arch
+    attributes:
+      label: OS / architecture
+      placeholder: linux/amd64
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: Install method
+      options:
+        - Release archive
+        - go install
+        - Client-bundled
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Provider
+      options:
+        - OpenAI
+        - Azure OpenAI
+        - OpenRouter
+        - Other OpenAI-compatible
+    validations:
+      required: true
+  - type: dropdown
+    id: api
+    attributes:
+      label: API
+      options:
+        - Chat Completions
+        - Responses
+        - Both / other
+    validations:
+      required: true
+  - type: dropdown
+    id: streaming
+    attributes:
+      label: Streaming
+      options:
+        - "Yes"
+        - "No"
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: Steps, flags, and a small request that shows the bug.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected vs actual
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Trace / log excerpt
+      description: Redacted control-API or proxy logs. Do not include secret values.
+    validations:
+      required: false
+  - type: checkboxes
+    id: no_secrets
+    attributes:
+      label: Secrets
+      options:
+        - label: I removed API keys, `Authorization`/`api-key` headers and private prompts from everything above
+          required: true

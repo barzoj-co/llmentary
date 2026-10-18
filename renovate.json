@@ -1,0 +1,68 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "helpers:pinGitHubActionDigests",
+    ":semanticCommits"
+  ],
+  "timezone": "Europe/Amsterdam",
+  "schedule": ["before 7am on monday"],
+  "labels": ["dependencies"],
+  "prConcurrentLimit": 5,
+  "platformAutomerge": true,
+  "osvVulnerabilityAlerts": true,
+  "vulnerabilityAlerts": {
+    "labels": ["dependencies", "security"],
+    "schedule": ["at any time"]
+  },
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 7am on monday"],
+    "automerge": true
+  },
+  "postUpdateOptions": ["gomodTidy"],
+  "ignorePaths": ["api/**"],
+  "packageRules": [
+    {
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "all non-major dependencies",
+      "groupSlug": "all-minor-patch"
+    },
+    {
+      "matchUpdateTypes": ["patch", "pin", "digest"],
+      "automerge": true
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
+      "groupName": "github actions",
+      "automerge": true
+    },
+    {
+      "matchDepNames": ["github.com/oapi-codegen/oapi-codegen/v2"],
+      "automerge": false,
+      "groupName": null,
+      "prBodyNotes": [
+        "Generated code must be refreshed: run `make gen` and commit `internal/openaiapi/gen.go`, otherwise `codegen-check` fails."
+      ]
+    },
+    {
+      "matchDatasources": ["golang-version"],
+      "rangeStrategy": "bump",
+      "automerge": false
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Pinned tool versions annotated with # renovate:",
+      "fileMatch": [
+        "(^|/)\\.github/workflows/[^/]+\\.ya?ml$",
+        "(^|/)scripts/[^/]+\\.sh$"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: extractVersion=(?<extractVersion>\\S+))?(?: versioning=(?<versioning>\\S+))?\\s+\\S+?:\\s*[\"']?(?<currentValue>[^\"'\\s]+)[\"']?"
+      ]
+    }
+  ]
+}

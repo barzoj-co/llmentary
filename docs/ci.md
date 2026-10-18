@@ -1,6 +1,8 @@
 # GitHub Actions and CI
 
-The repository's own workflow is in `.github/workflows/ci.yml`:
+The repository's own workflow is in `.github/workflows/ci.yml`.
+Triggers are `push` to `main`, `pull_request`, and `workflow_dispatch`.
+`workflow_dispatch` does not run live e2e unless the ref is `main`.
 
 - `codegen-check`: checkout, Go 1.26.x, `make codegen-check` (`spec-verify`,
   `make gen && git diff --exit-code`, `go mod tidy && git diff --exit-code`,
@@ -9,21 +11,27 @@ The repository's own workflow is in `.github/workflows/ci.yml`:
   A5 is a temp worktree that adds `createEmbedding` to `operations.txt`, runs
   `make gen`, and expects `go build` to fail with a missing `CreateEmbedding`
   method (no hand-injection into `gen.go`).
-- `lint`: checkout, Go 1.26.x, `golangci/golangci-lint-action@v8`. Generated
-  `internal/openaiapi/gen.go` is excluded in `.golangci.yml`.
-- `test`: checkout, Go 1.26.x, `go test ./...` in the root AGPL proxy module and
-  `go test ./...` in the proxy integration test module, plus a GoReleaser snapshot
-  build (`goreleaser release --snapshot --clean`).
+- `lint`: checkout, Go 1.26.x, SHA-pinned `golangci/golangci-lint-action` with
+  a pinned `golangci-lint` version. Generated `internal/openaiapi/gen.go` is
+  excluded in `.golangci.yml`.
+- `test`: checkout, Go 1.26.x, `go test` in the root module and
+  `tests/proxy` with atomic coverage profiles uploaded to Codecov (OIDC,
+  informational). GoReleaser snapshots live in the Hygiene workflow.
 - `docs-mermaid`: checkout (`actions/checkout` SHA-pinned at v4.4.0), Node 22
   (`actions/setup-node` SHA-pinned at v4.4.0), and
   `@mermaid-js/mermaid-cli@11.12.0` (`mmdc`). Runs
   `bash scripts/check-mermaid.sh --self-test` with a 10-minute job timeout
-  (5-minute step timeout). The script extracts every `mermaid` fenced block from
-  tracked `*.md` files, excluding `testdata/mermaid/`, and renders each with
-  `mmdc`. A parse failure is reported as `FAIL <file>:<opening-fence-line>`.
-  `--self-test` then renders `testdata/mermaid/bad.md` (the original README
-  diagram from `main`, with unquoted `|llmtestlab.New(t)|`) and requires a
-  mermaid parse error. Run the same command locally after
+  (5-minute step timeout). The script requires `python3`, `node`, `npx`, and
+  the pinned `mmdc`, extracts CommonMark mermaid fences (backtick or tilde,
+  3+ characters, indent up to 3 spaces) from tracked `*.md` files, excluding
+  `testdata/mermaid/`, and renders each with `mmdc`. A parse failure is
+  reported as `FAIL <file>:<opening-fence-line>`. Extraction or missing-tool
+  errors fail the job. Zero extracted blocks while `README.md` still has a
+  mermaid fence also fails. `--self-test` then proves a missing `python3`
+  exits non-zero, that `testdata/mermaid/fences.md` (tilde and 4-backtick
+  fences) parses, and that `testdata/mermaid/bad.md` (the original README
+  diagram from `main`, with unquoted `|llmtestlab.New(t)|`) is rejected.
+  Run the same command locally after
   `npm install -g @mermaid-js/mermaid-cli@11.12.0`.
 - `e2e`: runs once per change — on `pull_request` (non-fork) and on pushes to
   `main` only, not on both `push` and `pull_request` for PR branches. Requires
@@ -105,8 +113,8 @@ jobs:
 ```
 
 Replace `VERSION` with a published release tag. Release archives are built by
-`.github/workflows/release.yml` for Linux, macOS, and Windows on amd64/arm64 when a `v*`
-tag is pushed.
+the reusable GoReleaser workflow for Linux, macOS, and Windows on amd64/arm64
+when release-please tags `main`, or when a `v*` tag is pushed.
 
 ## Use `go install` instead of a release binary
 

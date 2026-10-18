@@ -165,3 +165,58 @@ Keep changes focused. For docs, cross-link the relevant reference pages:
 - `docs/troubleshooting.md`
 
 Never merge your own PR unless the repository maintainers explicitly ask you to.
+
+PR titles should use [Conventional Commits](https://www.conventionalcommits.org/)
+(`feat:`, `fix:`, `docs:`, `ci:`, `chore:`, …). release-please reads the squash-merge
+commit title to choose the next version.
+
+## Code of Conduct and security
+
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Security policy](SECURITY.md)
+
+## Coverage
+
+CI uploads unit and proxy fixture coverage to Codecov. Statuses are
+informational and do not fail the PR.
+
+## Renovate
+
+Renovate opens weekly dependency PRs (`dependencies` label). Patch and digest
+updates automerge after required checks pass. `oapi-codegen` updates do not
+automerge: run `make gen` and commit `internal/openaiapi/gen.go`. The vendored
+OpenAI spec under `api/` is ignored by Renovate; update it with
+`make spec-update`.
+
+## Workflow lint
+
+From the repo root:
+
+```bash
+# pin + version-comment check (also --self-test)
+bash scripts/check-pinned-actions.sh
+bash scripts/check-pinned-actions.sh --self-test
+
+# permissions, concurrency, timeouts (requires PyYAML)
+python3 -m pip install pyyaml
+bash scripts/check-workflow-policy.sh
+
+# README badges and cross-link block
+bash scripts/check-readme.sh
+
+# mermaid diagrams (needs @mermaid-js/mermaid-cli@11.12.0)
+bash scripts/check-mermaid.sh --self-test
+```
+
+CI runs [actionlint](https://github.com/rhysd/actionlint) with shellcheck on
+every workflow file.
+
+## Releasing
+
+Merging the release-please PR tags the next version and publishes GitHub
+Release notes. GoReleaser then attaches signed archives, checksums, and SBOMs
+to that existing release.
+
+In an emergency, push an annotated tag `vX.Y.Z` to `main`'s commit. The
+`Release` workflow calls the same reusable GoReleaser job. Do not create a
+second changelog on the GitHub Release.

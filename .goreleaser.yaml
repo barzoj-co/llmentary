@@ -50,8 +50,27 @@ snapshot:
   version_template: "{{ incpatch .Version }}-next"
 
 changelog:
-  sort: asc
-  filters:
-    exclude:
-      - "^docs:"
-      - "^test:"
+  disable: true
+
+release:
+  mode: keep-existing
+
+sboms:
+  - id: archive-sbom
+    artifacts: archive
+    cmd: syft
+    args: ["$artifact", "-o", "spdx-json=$document"]
+    documents:
+      - "{{ .ArtifactName }}.sbom.json"
+
+signs:
+  - cmd: cosign
+    artifacts: checksum
+    signature: "${artifact}.sig"
+    certificate: "${artifact}.pem"
+    args:
+      - sign-blob
+      - "--yes"
+      - "--output-signature=${signature}"
+      - "--output-certificate=${certificate}"
+      - "${artifact}"
