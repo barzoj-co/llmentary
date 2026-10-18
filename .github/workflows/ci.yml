@@ -23,6 +23,8 @@ jobs:
         run: bash scripts/prove-a2.sh
       - name: A5 proof — missing StrictServerInterface method fails the build
         run: bash scripts/prove-a5.sh
+      - name: A6 proof — stale relax-overlay embed is detected
+        run: bash scripts/prove-a6.sh
 
   lint:
     runs-on: ubuntu-latest
@@ -111,3 +113,19 @@ jobs:
       - name: Run e2e tests
         run: go test -v -tags=e2e ./...
         working-directory: tests/e2e
+
+  perf:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.x"
+          cache: true
+      - name: Spec validation perf budgets
+        working-directory: tests/proxy
+        env:
+          GOMAXPROCS: "2"
+        run: go test -count=1 -timeout 15m -tags=perf -v -run 'TestI2|TestI3|TestI4|TestI5|TestG4' .

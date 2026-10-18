@@ -11,8 +11,12 @@ import (
 )
 
 func parseResponses(call *Call) {
+	reqBody, reqWarn := normalizeJSONBody(call.RawRequest)
+	if reqWarn != "" {
+		call.Normalized.ParserWarnings = append(call.Normalized.ParserWarnings, reqWarn)
+	}
 	var req openaiapi.CreateResponse
-	if err := json.Unmarshal(call.RawRequest, &req); err == nil {
+	if err := json.Unmarshal(reqBody, &req); err == nil {
 		if req.Model != nil {
 			call.Normalized.Model.Requested = unionString(*req.Model)
 		}
@@ -39,7 +43,11 @@ func parseResponses(call *Call) {
 	if call.Stream {
 		parseResponsesStream(call)
 	} else {
-		parseResponsesObject(call, call.RawResponse, "body")
+		body, warn := normalizeJSONBody(call.RawResponse)
+		if warn != "" {
+			call.Normalized.ParserWarnings = append(call.Normalized.ParserWarnings, warn)
+		}
+		parseResponsesObject(call, body, "body")
 	}
 	if call.Normalized.Error == nil {
 		call.Normalized.Error = errorFromHTTP(call.HTTPStatus, call.RawResponse)
@@ -57,6 +65,11 @@ func parseResponsesStream(call *Call) {
 		if event.Comment != "" || len(bytes.TrimSpace(event.Data)) == 0 {
 			continue
 		}
+		data, dataWarn := normalizeJSONBody(event.Data)
+		if dataWarn != "" {
+			call.Normalized.ParserWarnings = append(call.Normalized.ParserWarnings, dataWarn)
+		}
+		event.Data = data
 		var streamEvent openaiapi.ResponseStreamEvent
 		// Mid-stream errors arrive as type=error. The official spec uses
 		// top-level code/message (ResponseErrorEvent); some live payloads nest

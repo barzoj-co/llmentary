@@ -5,6 +5,9 @@ package lab
 import (
 	"encoding/json"
 	"time"
+
+	"github.com/barzoj-co/llm-test-lab/internal/schemalint"
+	"github.com/barzoj-co/llm-test-lab/internal/specvalidate"
 )
 
 const (
@@ -18,28 +21,29 @@ type Session struct {
 }
 
 type Call struct {
-	ID            string            `json:"id"`
-	SessionID     string            `json:"session_id"`
-	SessionSource string            `json:"session_source,omitempty"`
-	Seq           int               `json:"seq"`
-	StartedAt     time.Time         `json:"started_at"`
-	FirstByteAt   *time.Time        `json:"first_byte_at,omitempty"`
-	EndedAt       time.Time         `json:"ended_at"`
-	LatencyMS     int64             `json:"latency_ms"`
-	Provider      string            `json:"provider"`
-	APIFamily     string            `json:"api_family"`
-	Upstream      Upstream          `json:"upstream"`
-	Request       Exchange          `json:"request"`
-	Response      Exchange          `json:"response"`
-	RequestIDs    map[string]string `json:"request_ids,omitempty"`
-	RawRequest    []byte            `json:"raw_request,omitempty"`
-	RawResponse   []byte            `json:"raw_response,omitempty"`
-	SSEEvents     []SSEEvent        `json:"sse_events,omitempty"`
-	Stream        bool              `json:"stream"`
-	HTTPStatus    int               `json:"http_status"`
-	RetryCount    *int              `json:"retry_count,omitempty"`
-	RetryAfter    string            `json:"retry_after,omitempty"`
-	Normalized    Normalized        `json:"normalized"`
+	ID             string            `json:"id"`
+	SessionID      string            `json:"session_id"`
+	SessionSource  string            `json:"session_source,omitempty"`
+	Seq            int               `json:"seq"`
+	StartedAt      time.Time         `json:"started_at"`
+	FirstByteAt    *time.Time        `json:"first_byte_at,omitempty"`
+	EndedAt        time.Time         `json:"ended_at"`
+	LatencyMS      int64             `json:"latency_ms"`
+	Provider       string            `json:"provider"`
+	APIFamily      string            `json:"api_family"`
+	Upstream       Upstream          `json:"upstream"`
+	Request        Exchange          `json:"request"`
+	Response       Exchange          `json:"response"`
+	RequestIDs     map[string]string `json:"request_ids,omitempty"`
+	RawRequest     []byte            `json:"raw_request,omitempty"`
+	RawResponse    []byte            `json:"raw_response,omitempty"`
+	SSEEvents      []SSEEvent        `json:"sse_events,omitempty"`
+	Stream         bool              `json:"stream"`
+	HTTPStatus     int               `json:"http_status"`
+	RetryCount     *int              `json:"retry_count,omitempty"`
+	RetryAfter     string            `json:"retry_after,omitempty"`
+	UpstreamCalled bool              `json:"upstream_called"`
+	Normalized     Normalized        `json:"normalized"`
 }
 
 type Upstream struct {
@@ -61,30 +65,45 @@ type SSEEvent struct {
 }
 
 type Normalized struct {
-	DerivedVersion     int             `json:"derived_version"`
-	Model              Model           `json:"model"`
-	ServedBy           string          `json:"served_by,omitempty"`
-	SystemPromptHash   string          `json:"system_prompt_hash,omitempty"`
-	SystemPrompt       string          `json:"system_prompt,omitempty"`
-	MessagesCount      int             `json:"messages_count,omitempty"`
-	PromptChars        int             `json:"prompt_chars,omitempty"`
-	ContextServerSide  bool            `json:"context_server_side,omitempty"`
-	PreviousResponseID string          `json:"previous_response_id,omitempty"`
-	ToolsDeclared      []ToolDecl      `json:"tools_declared,omitempty"`
-	ToolCalls          []ToolCall      `json:"tool_calls,omitempty"`
-	ToolResultsIn      []ToolResult    `json:"tool_results_in,omitempty"`
-	OutputText         string          `json:"output_text,omitempty"`
-	Refusal            string          `json:"refusal,omitempty"`
-	Reasoning          *Reasoning      `json:"reasoning,omitempty"`
-	FinishReason       string          `json:"finish_reason,omitempty"`
-	NativeFinishReason string          `json:"native_finish_reason,omitempty"`
-	Usage              *Usage          `json:"usage,omitempty"`
-	ContentFilter      *ContentFilter  `json:"content_filter,omitempty"`
-	Error              *CallError      `json:"error,omitempty"`
-	StreamTruncated    bool            `json:"stream_truncated,omitempty"`
-	ClientAborted      bool            `json:"client_aborted,omitempty"`
-	ParserWarnings     []string        `json:"parser_warnings,omitempty"`
-	Raw                json.RawMessage `json:"raw,omitempty"`
+	DerivedVersion     int                       `json:"derived_version"`
+	Model              Model                     `json:"model"`
+	ServedBy           string                    `json:"served_by,omitempty"`
+	SystemPromptHash   string                    `json:"system_prompt_hash,omitempty"`
+	SystemPrompt       string                    `json:"system_prompt,omitempty"`
+	MessagesCount      int                       `json:"messages_count,omitempty"`
+	PromptChars        int                       `json:"prompt_chars,omitempty"`
+	ContextServerSide  bool                      `json:"context_server_side,omitempty"`
+	PreviousResponseID string                    `json:"previous_response_id,omitempty"`
+	ToolsDeclared      []ToolDecl                `json:"tools_declared,omitempty"`
+	ToolCalls          []ToolCall                `json:"tool_calls,omitempty"`
+	ToolResultsIn      []ToolResult              `json:"tool_results_in,omitempty"`
+	OutputText         string                    `json:"output_text,omitempty"`
+	Refusal            string                    `json:"refusal,omitempty"`
+	Reasoning          *Reasoning                `json:"reasoning,omitempty"`
+	FinishReason       string                    `json:"finish_reason,omitempty"`
+	NativeFinishReason string                    `json:"native_finish_reason,omitempty"`
+	Usage              *Usage                    `json:"usage,omitempty"`
+	ContentFilter      *ContentFilter            `json:"content_filter,omitempty"`
+	Error              *CallError                `json:"error,omitempty"`
+	StreamTruncated    bool                      `json:"stream_truncated,omitempty"`
+	ClientAborted      bool                      `json:"client_aborted,omitempty"`
+	ParserWarnings     []string                  `json:"parser_warnings,omitempty"`
+	Raw                json.RawMessage           `json:"raw,omitempty"`
+	Validation         *ValidationInfo           `json:"validation,omitempty"`
+	SpecViolations     *[]specvalidate.Violation `json:"spec_violations,omitempty"`
+	IgnoredFields      *[]schemalint.Finding     `json:"ignored_fields,omitempty"`
+}
+
+type ValidationInfo struct {
+	Mode                  string  `json:"mode"`
+	Profile               string  `json:"profile"`
+	SpecSHA               string  `json:"spec_sha"`
+	SchemaSubsetRetrieved string  `json:"schema_subset_retrieved"`
+	RequestChecked        bool    `json:"request_checked"`
+	ResponseChecked       bool    `json:"response_checked"`
+	SkippedReason         *string `json:"skipped_reason"`
+	DurationUS            int64   `json:"duration_us"`
+	Truncated             bool    `json:"truncated,omitempty"`
 }
 
 type Model struct {
@@ -158,4 +177,6 @@ type CallError struct {
 	Message    string `json:"message,omitempty"`
 	Normalized string `json:"normalized,omitempty"`
 	MidStream  bool   `json:"mid_stream,omitempty"`
+	Source     string `json:"source,omitempty"`
+	RetryAfter string `json:"retry_after,omitempty"`
 }

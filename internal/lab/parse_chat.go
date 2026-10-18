@@ -13,8 +13,12 @@ import (
 )
 
 func parseChat(call *Call) {
+	reqBody, reqWarn := normalizeJSONBody(call.RawRequest)
+	if reqWarn != "" {
+		call.Normalized.ParserWarnings = append(call.Normalized.ParserWarnings, reqWarn)
+	}
 	var req openaiapi.CreateChatCompletionRequest
-	if err := json.Unmarshal(call.RawRequest, &req); err == nil {
+	if err := json.Unmarshal(reqBody, &req); err == nil {
 		call.Normalized.Model.Requested = unionString(req.Model)
 		call.Normalized.MessagesCount = len(req.Messages)
 		call.Normalized.SystemPrompt = chatSystemPrompt(req.Messages)
@@ -38,20 +42,24 @@ func parseChat(call *Call) {
 }
 
 func parseChatBody(call *Call) {
+	body, warn := normalizeJSONBody(call.RawResponse)
+	if warn != "" {
+		call.Normalized.ParserWarnings = append(call.Normalized.ParserWarnings, warn)
+	}
 	var resp openaiapi.CreateChatCompletionResponse
-	if err := json.Unmarshal(call.RawResponse, &resp); err != nil {
-		applyChatFallback(call, call.RawResponse, warnStrictDecodeFailed+": "+err.Error())
-		applyChatExtensions(call, call.RawResponse, nil)
+	if err := json.Unmarshal(body, &resp); err != nil {
+		applyChatFallback(call, body, warnStrictDecodeFailed+": "+err.Error())
+		applyChatExtensions(call, body, nil)
 		return
 	}
 	if call.HTTPStatus < 400 {
-		noteMissingRequired(call, call.RawResponse, "id", "choices")
+		noteMissingRequired(call, body, "id", "choices")
 	}
 	if resp.Id != "" {
 		call.RequestIDs["body.id"] = resp.Id
 	}
 	call.Normalized.Model.Returned = resp.Model
-	if raw := jsonField(call.RawResponse, "usage"); len(raw) > 0 {
+	if raw := jsonField(body, "usage"); len(raw) > 0 {
 		call.Normalized.Usage = usageFromChat(raw, "body")
 	}
 	var calls []ToolCall
@@ -76,7 +84,7 @@ func parseChatBody(call *Call) {
 		_ = i
 	}
 	call.Normalized.ToolCalls = calls
-	applyChatExtensions(call, call.RawResponse, nil)
+	applyChatExtensions(call, body, nil)
 }
 
 func parseChatStream(call *Call) {
@@ -96,6 +104,11 @@ func parseChatStream(call *Call) {
 		if event.Comment != "" || len(bytes.TrimSpace(event.Data)) == 0 {
 			continue
 		}
+		data, dataWarn := normalizeJSONBody(event.Data)
+		if dataWarn != "" {
+			call.Normalized.ParserWarnings = append(call.Normalized.ParserWarnings, dataWarn)
+		}
+		event.Data = data
 		if bytes.Equal(bytes.TrimSpace(event.Data), []byte("[DONE]")) {
 			complete = true
 			continue

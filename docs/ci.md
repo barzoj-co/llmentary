@@ -29,6 +29,10 @@ The repository's own workflow is in `.github/workflows/ci.yml`:
   `main` only, not on both `push` and `pull_request` for PR branches. Requires
   `OPENAI_API_KEY` and runs `go test -v -tags=e2e ./...` in `tests/e2e`. The job
   is not optional: missing `OPENAI_API_KEY` fails the workflow.
+- `perf`: dedicated job, `GOMAXPROCS=2`, runs `go test -tags=perf` in
+  `tests/proxy` for validation/lint p99 budgets (I2–I5).
+- `codegen-check` also runs `scripts/prove-a6.sh` (editing `relax-overlay.yaml`
+  without regenerating the embed must fail).
 
 The e2e tests call the real OpenAI API and skip locally when `OPENAI_API_KEY` is unset.
 The CI workflow intentionally fails non-fork e2e runs without the secret so missing
