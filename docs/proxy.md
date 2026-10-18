@@ -126,7 +126,10 @@ For recording:
 - If the SSE response is not gzip-encoded, events are recorded incrementally as chunks
   arrive.
 - If the upstream still returns gzip, the client receives the gzip bytes unchanged, while
-  the recorded tee copy is decompressed for parsing.
+  the recorded tee copy is decompressed for parsing. Gzip is stored decompressed
+  because `raw_response` is the parse input (and the E6 hash subject), not a
+  wire-capture of the HTTP envelope. See `docs/data-model.md` § Gzip and
+  raw-byte hashes.
 - A Chat Completions stream is considered complete when a `data: [DONE]` event is seen.
 - A Responses stream is considered complete when a terminal `response.completed` event is
   parsed.

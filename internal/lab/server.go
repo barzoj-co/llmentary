@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -42,6 +43,9 @@ func NewServer(cfg Config, store Store, parser Parser) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
+	}
 	s := &Server{
 		cfg:     cfg,
 		store:   store,
@@ -62,6 +66,13 @@ func NewServer(cfg Config, store Store, parser Parser) (*Server, error) {
 	})
 	s.specHandler = openaiapi.HandlerWithOptions(strict, openaiapi.StdHTTPServerOptions{})
 	return s, nil
+}
+
+func (s *Server) logger() *slog.Logger {
+	if s != nil && s.cfg.Logger != nil {
+		return s.cfg.Logger
+	}
+	return slog.Default()
 }
 
 func (s *Server) ProxyHandler() http.Handler {
@@ -148,6 +159,13 @@ func (s *Server) serveProxy(w http.ResponseWriter, r *http.Request) {
 	call.ID = callID
 	call.Seq = seq
 	call.SessionID = session.ID
+	s.logger().Info("proxy request",
+		"method", r.Method,
+		"path", r.URL.Path,
+		"session", session.ID,
+		"call_id", callID,
+		"upstream", call.Upstream.URL,
+	)
 	traceCtx := s.tracing.Propagator.Extract(r.Context(), propagation.HeaderCarrier(r.Header))
 	traceCtx, span := s.tracing.Tracer.Start(
 		traceCtx,

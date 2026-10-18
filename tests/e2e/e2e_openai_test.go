@@ -78,6 +78,7 @@ func TestE2EChatCompletionsToolFlow(t *testing.T) {
 	chat.TTFTBelow(10 * time.Second)
 	chat.LatencyBelow(20 * time.Second)
 	chat.NoRetries()
+	assertNoParserWarnings(t, assert.Trace().Calls)
 }
 
 func TestE2EResponsesToolFlow(t *testing.T) {
@@ -149,6 +150,7 @@ func TestE2EResponsesToolFlow(t *testing.T) {
 	responses.TTFTBelow(10 * time.Second)
 	responses.LatencyBelow(20 * time.Second)
 	responses.NoRetries()
+	assertNoParserWarnings(t, assert.Trace().Calls)
 }
 
 func TestE2EChatCompletionsNonStreaming(t *testing.T) {
@@ -200,6 +202,7 @@ func TestE2EChatCompletionsNonStreaming(t *testing.T) {
 	chat.FinishReason("stop")
 	chat.ResponseContains("Paris")
 	assert.NoErrors()
+	assertNoParserWarnings(t, assert.Trace().Calls)
 }
 
 func postOpenAI(t *testing.T, apiKey string, lab *llmtestlab.Lab, path string, body []byte) []byte {
@@ -281,6 +284,7 @@ func TestE2EChatNonStreamAndStreamText(t *testing.T) {
 			t.Fatalf("expected usage on chat call #%d: %+v", call.Seq, call.Normalized.Usage)
 		}
 	}
+	assertNoParserWarnings(t, assert.Trace().Calls)
 }
 
 func TestE2EChatParallelToolCalls(t *testing.T) {
@@ -289,21 +293,24 @@ func TestE2EChatParallelToolCalls(t *testing.T) {
 	testLab := newE2ELab(t)
 	body := []byte(`{
 		"model":` + strconv.Quote(model) + `,
-		"messages":[{"role":"user","content":"Call echo_city twice in parallel: once with city Paris and once with city Lyon. Do not answer in text."}],
+		"messages":[{"role":"user","content":"You must call BOTH tools in this turn: echo_city with city Paris AND echo_country with country France. Do not answer in text."}],
 		"temperature":0,
 		"parallel_tool_calls":true,
-		"tools":[` + echoCityChatToolJSON() + `]
+		"tool_choice":"required",
+		"tools":[` + echoCityChatToolJSON() + `,` + echoCountryChatToolJSON() + `]
 	}`)
-	_ = postOpenAI(t, apiKey, testLab, "/chat/completions", body)
+	_ = postOpenAIRetryNetwork(t, apiKey, testLab, "/chat/completions", body)
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	assert := testLab.Expect(ctx)
 	chat := assert.Trace().Query().APIType("chat").Expect(t)
 	chat.CallCount(1)
-	chat.ToolCalled("echo_city")
-	if len(chat.Trace().Calls[0].Normalized.ToolCalls) < 2 {
-		t.Fatalf("expected parallel tool calls, got:\n%s", chat.Trace().Summary())
+	if n := len(chat.Trace().Calls[0].Normalized.ToolCalls); n < 2 {
+		t.Fatalf("expected two parallel tool calls (echo_city + echo_country), got %d:\n%s", n, chat.Trace().Summary())
 	}
+	chat.ToolCalled("echo_city")
+	chat.ToolCalled("echo_country")
+	assertNoParserWarnings(t, assert.Trace().Calls)
 }
 
 func TestE2EChatStructuredOutput(t *testing.T) {
@@ -331,6 +338,7 @@ func TestE2EChatStructuredOutput(t *testing.T) {
 		},
 	})
 	chat.NoErrors()
+	assertNoParserWarnings(t, assert.Trace().Calls)
 }
 
 func TestE2EResponsesNonStreamAndStructured(t *testing.T) {
@@ -355,7 +363,20 @@ func TestE2EResponsesNonStreamAndStructured(t *testing.T) {
 	responses := assert.Trace().Query().APIType("responses").Expect(t)
 	responses.CallCount(2)
 	responses.ResponseContains("pong")
+	responses.ResponseJSONSchemaValid(map[string]any{
+		"type":     "object",
+		"required": []string{"answer"},
+		"properties": map[string]any{
+			"answer": map[string]any{"type": "string"},
+		},
+	})
 	responses.NoErrors()
+	for _, call := range responses.Trace().Calls {
+		if call.Normalized.Usage == nil || call.Normalized.Usage.TotalTokens == nil {
+			t.Fatalf("expected usage on responses call #%d: %+v", call.Seq, call.Normalized.Usage)
+		}
+	}
+	assertNoParserWarnings(t, assert.Trace().Calls)
 }
 
 func TestE2EInvalidParameter400(t *testing.T) {
@@ -376,6 +397,7 @@ func TestE2EInvalidParameter400(t *testing.T) {
 		t.Fatalf("error=%+v status=%d", call.Normalized.Error, call.HTTPStatus)
 	}
 	t.Logf("live OpenAI 400 body shape: %s", resp)
+	assertNoParserWarnings(t, assert.Trace().Calls)
 }
 
 func TestE2EUnauthorized401(t *testing.T) {
@@ -396,6 +418,29 @@ func TestE2EUnauthorized401(t *testing.T) {
 		t.Fatalf("error=%+v status=%d", call.Normalized.Error, call.HTTPStatus)
 	}
 	t.Logf("live OpenAI 401 body shape: %s", resp)
+	assertNoParserWarnings(t, assert.Trace().Calls)
+}
+
+func TestE2EResponsesStreamErrorShape(t *testing.T) {
+	apiKey := requireAPIKey(t)
+	model := e2eModel()
+	testLab := newE2ELab(t)
+	// A mid-stream Responses `event: error` is not cheaply injectable. Probe a
+	// streamed call that OpenAI rejects and record the live shape.
+	body := []byte(`{"model":` + strconv.Quote(model) + `,"stream":true,"previous_response_id":"resp_does_not_exist","input":"hi"}`)
+	status, resp := postOpenAIStatus(t, apiKey, testLab, "/responses", body)
+	t.Logf("live Responses stream-error probe status=%d body=%s", status, resp)
+	if status == http.StatusOK && bytes.Contains(resp, []byte("event: error")) {
+		t.Logf("live Responses mid-stream error event was triggerable")
+	} else {
+		t.Logf("live Responses mid-stream error event was not cheaply triggerable; recorded HTTP %d instead", status)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	assert := testLab.Expect(ctx)
+	if len(assert.Trace().Calls) == 0 {
+		t.Fatal("expected a recorded call")
+	}
 }
 
 func requireAPIKey(t *testing.T) string {
@@ -427,6 +472,62 @@ func postOpenAIStatus(t *testing.T, apiKey string, lab *llmtestlab.Lab, path str
 		t.Fatal(err)
 	}
 	return resp.StatusCode, raw
+}
+
+func assertNoParserWarnings(t *testing.T, calls []llmtestlab.Call) {
+	t.Helper()
+	for _, call := range calls {
+		if len(call.Normalized.ParserWarnings) != 0 {
+			t.Fatalf("parser_warnings must be empty for live OpenAI call #%d: %v", call.Seq, call.Normalized.ParserWarnings)
+		}
+	}
+}
+
+func postOpenAIRetryNetwork(t *testing.T, apiKey string, lab *llmtestlab.Lab, path string, body []byte) []byte {
+	t.Helper()
+	var lastErr error
+	for attempt := 1; attempt <= 3; attempt++ {
+		req, err := http.NewRequest(http.MethodPost, lab.OpenAIBaseURL("openai")+path, bytes.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+		req.Header.Set("Content-Type", "application/json")
+		key, value := lab.Header()
+		req.Header.Set(key, value)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			lastErr = err
+			t.Logf("network error on attempt %d/3: %v", attempt, err)
+			time.Sleep(time.Duration(attempt) * 400 * time.Millisecond)
+			continue
+		}
+		raw, readErr := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if readErr != nil {
+			lastErr = readErr
+			t.Logf("read error on attempt %d/3: %v", attempt, readErr)
+			time.Sleep(time.Duration(attempt) * 400 * time.Millisecond)
+			continue
+		}
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("openai status=%d body=%s", resp.StatusCode, string(raw))
+		}
+		return raw
+	}
+	t.Fatalf("network retries exhausted: %v", lastErr)
+	return nil
+}
+
+func echoCountryChatToolJSON() string {
+	return `{
+		"type":"function",
+		"function":{
+			"name":"echo_country",
+			"description":"Echo a country name.",
+			"parameters":{"type":"object","properties":{"country":{"type":"string"}},"required":["country"],"additionalProperties":false}
+		}
+	}`
 }
 
 func echoCityChatToolJSON() string {

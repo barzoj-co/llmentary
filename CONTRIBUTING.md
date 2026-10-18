@@ -17,11 +17,14 @@ OpenAI OpenAPI spec.
   `info.version`, and sha256 of that file.
 - `api/openai/operations.txt` lists the `operationId`s we generate.
 - `api/openai/overlay.yaml` is an OpenAPI Overlay 1.0 used only for codegen
-  fixes (name collisions, discriminator mapping). Every action has a "why"
-  comment.
+  name collisions (for example `CreateChatCompletionResponseObject` vs the
+  `object` enum, and the same for embeddings). Every action has a "why"
+  comment. Discriminator mapping for `ResponseStreamEvent` is **not** an
+  overlay action: `tools/specfilter` injects it via
+  `ensureDiscriminatorMappings`.
 - `make gen` filters the spec (`tools/specfilter`) and runs pinned
   `oapi-codegen` v2.8.0 (`go tool oapi-codegen`, never `@latest`).
-- CI job `codegen-check` runs `make gen && git diff --exit-code`.
+- CI job `codegen-check` runs `make gen`, `go mod tidy`, and `git diff --exit-code`.
 
 Update the vendored spec only through an explicit PR:
 

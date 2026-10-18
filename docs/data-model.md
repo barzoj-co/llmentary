@@ -75,13 +75,30 @@ JSON shape and normalization rules.
 | `response.headers` | object | Recorded response headers with secret headers hashed. |
 | `request_ids` | object | Response IDs from selected headers/body fields. |
 | `raw_request` | base64 string | Raw request body bytes. |
-| `raw_response` | base64 string | Raw response bytes used for parsing. Gzip upstream responses are decompressed in the recorded copy. |
+| `raw_response` | base64 string | Raw response bytes used for parsing. **Gzip responses are stored decompressed** (see below). |
 | `sse_events` | array | Parsed SSE events for streaming responses. |
 | `stream` | boolean | Whether the response was detected as SSE. |
 | `http_status` | number | Upstream HTTP status, or proxy error status. |
 | `retry_count` | number, optional | Integer parsed from `x-stainless-retry-count`. |
 | `retry_after` | string, optional | `retry-after-ms` or `retry-after` response header. |
 | `normalized` | object | Cross-provider view used by test assertions. |
+
+### Gzip and raw-byte hashes (E6)
+
+`raw_request` is the exact bytes the proxy forwarded upstream. `raw_response` is the
+bytes used for parsing, **not** always the bytes delivered to the client:
+
+- The client always receives the upstream envelope unchanged, including
+  `Content-Encoding: gzip`.
+- When the upstream body is gzip, the recorded `raw_response` is the
+  **decompressed** payload. Parsing (and therefore normalization) cannot run on
+  the compressed envelope, and a later test that hashes `raw_response` would
+  otherwise fail to match the JSON the provider actually produced.
+
+`TestE6GoldenRawHashes` therefore asserts `sha256(raw_request) == sha256(upstream request body)`
+and `sha256(raw_response) == sha256(decompressed upstream body)` for every fixture,
+including the gzip case. `TestE6GzipRawBytes` additionally checks that the client
+body still hashes to the gzip envelope.
 
 ## Upstream
 

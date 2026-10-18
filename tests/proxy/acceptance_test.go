@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -45,6 +46,11 @@ type proxyRoundtrip struct {
 
 func startAcceptance(t *testing.T, upstream http.HandlerFunc) (string, string, *capturedUpstream) {
 	t.Helper()
+	return startAcceptanceLog(t, upstream, nil)
+}
+
+func startAcceptanceLog(t *testing.T, upstream http.HandlerFunc, logger *slog.Logger) (string, string, *capturedUpstream) {
+	t.Helper()
 	got := &capturedUpstream{}
 	fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		got.method = r.Method
@@ -56,7 +62,7 @@ func startAcceptance(t *testing.T, upstream http.HandlerFunc) (string, string, *
 		upstream(w, r)
 	}))
 	t.Cleanup(fake.Close)
-	cfg := lab.Config{ListenAddr: ":0", ControlAddr: "127.0.0.1:0"}
+	cfg := lab.Config{ListenAddr: ":0", ControlAddr: "127.0.0.1:0", Logger: logger}
 	if err := cfg.AddUpstream("default=" + fake.URL); err != nil {
 		t.Fatal(err)
 	}
@@ -231,17 +237,40 @@ func TestB4ChatStreamTextAndKeepAlive(t *testing.T) {
 
 func TestB5ChatStreamSplitToolArgs(t *testing.T) {
 	req := []byte(`{"model":"gpt-fixture","stream":true}`)
-	stream := "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_1\",\"type\":\"function\",\"function\":{\"name\":\"lookup\",\"arguments\":\"{\\\"city\\\"\"}}]}}]}\n\n" +
-		"data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\":\\\"Pari\\\\u00e9\\\"}\"}}]},\"finish_reason\":\"tool_calls\"}]}\n\n" +
-		"data: [DONE]\n\n"
-	proxy, control, _ := startAcceptance(t, func(w http.ResponseWriter, _ *http.Request) { writeSSE(w, stream) })
-	rt := doProxy(t, http.MethodPost, proxy, control, "/v1/chat/completions", nil, req)
-	if len(rt.call.Normalized.ToolCalls) != 1 {
-		t.Fatalf("calls=%d", len(rt.call.Normalized.ToolCalls))
+	cases := []struct {
+		name   string
+		stream string
+		want   string
+	}{
+		{
+			name: "mid_unicode_escape",
+			// Split `\u00e9` after the `\u` so the first chunk is not valid JSON
+			// by itself; concatenation must still decode to é.
+			stream: "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_1\",\"type\":\"function\",\"function\":{\"name\":\"lookup\",\"arguments\":\"{\\\"city\\\":\\\"Pari\\\\u\"}}]}}]}\n\n" +
+				"data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"00e9\\\"}\"}}]},\"finish_reason\":\"tool_calls\"}]}\n\n" +
+				"data: [DONE]\n\n",
+			want: `{"city":"Parié"}`,
+		},
+		{
+			name: "mid_json_string",
+			stream: "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_1\",\"type\":\"function\",\"function\":{\"name\":\"lookup\",\"arguments\":\"{\\\"city\\\":\\\"Par\"}}]}}]}\n\n" +
+				"data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"is\\\"}\"}}]},\"finish_reason\":\"tool_calls\"}]}\n\n" +
+				"data: [DONE]\n\n",
+			want: `{"city":"Paris"}`,
+		},
 	}
-	tc := rt.call.Normalized.ToolCalls[0]
-	if tc.ID != "call_1" || tc.Name != "lookup" || string(tc.Arguments) != `{"city":"Parié"}` {
-		t.Fatalf("tool=%+v args=%s", tc, string(tc.Arguments))
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			proxy, control, _ := startAcceptance(t, func(w http.ResponseWriter, _ *http.Request) { writeSSE(w, tc.stream) })
+			rt := doProxy(t, http.MethodPost, proxy, control, "/v1/chat/completions", nil, req)
+			if len(rt.call.Normalized.ToolCalls) != 1 {
+				t.Fatalf("calls=%d", len(rt.call.Normalized.ToolCalls))
+			}
+			got := rt.call.Normalized.ToolCalls[0]
+			if got.ID != "call_1" || got.Name != "lookup" || string(got.Arguments) != tc.want {
+				t.Fatalf("tool=%+v args=%s", got, string(got.Arguments))
+			}
+		})
 	}
 }
 
@@ -288,8 +317,12 @@ func TestB8ChatStreamIncludeUsage(t *testing.T) {
 		"data: [DONE]\n\n"
 	proxy, control, _ := startAcceptance(t, func(w http.ResponseWriter, _ *http.Request) { writeSSE(w, stream) })
 	rt := doProxy(t, http.MethodPost, proxy, control, "/v1/chat/completions", nil, req)
-	if rt.call.Normalized.Usage == nil || rt.call.Normalized.Usage.Source != "final_chunk" {
-		t.Fatalf("usage=%+v", rt.call.Normalized.Usage)
+	u := rt.call.Normalized.Usage
+	if u == nil || u.Source != "final_chunk" {
+		t.Fatalf("usage=%+v", u)
+	}
+	if deref(u.InputTokens) != 4 || deref(u.OutputTokens) != 1 || deref(u.TotalTokens) != 5 {
+		t.Fatalf("token values=%+v", u)
 	}
 }
 
@@ -338,19 +371,38 @@ func TestB10ChatRefusal(t *testing.T) {
 
 func TestB11ChatUsageDetailsNilVsZero(t *testing.T) {
 	req := []byte(`{"model":"gpt-fixture","messages":[{"role":"user","content":"x"}]}`)
-	upstreamBody := `{"id":"c","model":"gpt-fixture","choices":[{"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":4,"total_tokens":14,"prompt_tokens_details":{"cached_tokens":2,"audio_tokens":1},"completion_tokens_details":{"reasoning_tokens":3,"accepted_prediction_tokens":0,"rejected_prediction_tokens":5}}}`
-	proxy, control, _ := startAcceptance(t, func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, 200, upstreamBody, nil) })
-	rt := doProxy(t, http.MethodPost, proxy, control, "/v1/chat/completions", nil, req)
-	u := rt.call.Normalized.Usage
-	if u == nil || deref(u.CachedInputTokens) != 2 || deref(u.AudioTokens) != 1 || deref(u.ReasoningTokens) != 3 || deref(u.AcceptedPredictionTokens) != 0 || deref(u.RejectedPredictionTokens) != 5 {
-		t.Fatalf("usage=%+v", u)
-	}
-	missing := `{"id":"c","model":"gpt-fixture","choices":[{"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`
-	proxy2, control2, _ := startAcceptance(t, func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, 200, missing, nil) })
-	rt2 := doProxy(t, http.MethodPost, proxy2, control2, "/v1/chat/completions", nil, req)
-	if rt2.call.Normalized.Usage.CachedInputTokens != nil || rt2.call.Normalized.Usage.AudioTokens != nil || rt2.call.Normalized.Usage.AcceptedPredictionTokens != nil {
-		t.Fatalf("missing keys should be nil: %+v", rt2.call.Normalized.Usage)
-	}
+	t.Run("explicit_values_including_zero", func(t *testing.T) {
+		upstreamBody := `{"id":"c","model":"gpt-fixture","choices":[{"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":4,"total_tokens":14,"prompt_tokens_details":{"cached_tokens":2,"audio_tokens":1},"completion_tokens_details":{"reasoning_tokens":3,"accepted_prediction_tokens":0,"rejected_prediction_tokens":5}}}`
+		proxy, control, _ := startAcceptance(t, func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, 200, upstreamBody, nil) })
+		rt := doProxy(t, http.MethodPost, proxy, control, "/v1/chat/completions", nil, req)
+		u := rt.call.Normalized.Usage
+		if u == nil || deref(u.CachedInputTokens) != 2 || deref(u.AudioTokens) != 1 || deref(u.ReasoningTokens) != 3 || deref(u.AcceptedPredictionTokens) != 0 || deref(u.RejectedPredictionTokens) != 5 {
+			t.Fatalf("usage=%+v", u)
+		}
+	})
+	t.Run("explicit_zeros", func(t *testing.T) {
+		body := `{"id":"c","model":"gpt-fixture","choices":[{"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2,"prompt_tokens_details":{"cached_tokens":0,"audio_tokens":0},"completion_tokens_details":{"reasoning_tokens":0,"accepted_prediction_tokens":0,"rejected_prediction_tokens":0}}}`
+		proxy, control, _ := startAcceptance(t, func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, 200, body, nil) })
+		rt := doProxy(t, http.MethodPost, proxy, control, "/v1/chat/completions", nil, req)
+		u := rt.call.Normalized.Usage
+		if u == nil || u.CachedInputTokens == nil || *u.CachedInputTokens != 0 ||
+			u.AudioTokens == nil || *u.AudioTokens != 0 ||
+			u.ReasoningTokens == nil || *u.ReasoningTokens != 0 ||
+			u.AcceptedPredictionTokens == nil || *u.AcceptedPredictionTokens != 0 ||
+			u.RejectedPredictionTokens == nil || *u.RejectedPredictionTokens != 0 {
+			t.Fatalf("explicit zeros must not be nil: %+v", u)
+		}
+	})
+	t.Run("missing_details", func(t *testing.T) {
+		missing := `{"id":"c","model":"gpt-fixture","choices":[{"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`
+		proxy, control, _ := startAcceptance(t, func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, 200, missing, nil) })
+		rt := doProxy(t, http.MethodPost, proxy, control, "/v1/chat/completions", nil, req)
+		u := rt.call.Normalized.Usage
+		if u.CachedInputTokens != nil || u.AudioTokens != nil || u.ReasoningTokens != nil ||
+			u.AcceptedPredictionTokens != nil || u.RejectedPredictionTokens != nil {
+			t.Fatalf("missing keys should be nil: %+v", u)
+		}
+	})
 }
 
 func TestB12ChatStreamTruncated(t *testing.T) {
@@ -435,15 +487,34 @@ func TestC5ResponsesStreamFunctionCall(t *testing.T) {
 		"event: response.function_call_arguments.delta\ndata: {\"type\":\"response.function_call_arguments.delta\",\"item_id\":\"fc_1\",\"output_index\":0,\"delta\":\":\\\"Paris\\\"}\",\"sequence_number\":2}\n\n" +
 		"event: response.function_call_arguments.done\ndata: {\"type\":\"response.function_call_arguments.done\",\"item_id\":\"fc_1\",\"output_index\":0,\"arguments\":\"{\\\"city\\\":\\\"Paris\\\"}\",\"sequence_number\":3}\n\n" +
 		"event: response.output_item.done\ndata: {\"type\":\"response.output_item.done\",\"output_index\":0,\"item\":{\"id\":\"fc_1\",\"type\":\"function_call\",\"call_id\":\"call_1\",\"name\":\"lookup\",\"arguments\":\"{\\\"city\\\":\\\"Paris\\\"}\"},\"sequence_number\":4}\n\n" +
-		"event: response.output_item.done\ndata: {\"type\":\"response.output_item.done\",\"output_index\":1,\"item\":{\"id\":\"fc_2\",\"type\":\"function_call\",\"call_id\":\"call_2\",\"name\":\"other\",\"arguments\":\"{\\\"n\\\":1}\"},\"sequence_number\":5}\n\n" +
-		"event: response.completed\ndata: {\"type\":\"response.completed\",\"sequence_number\":6,\"response\":{\"id\":\"resp_1\",\"created_at\":1,\"model\":\"gpt-fixture\",\"object\":\"response\",\"status\":\"completed\",\"output\":[{\"id\":\"fc_1\",\"type\":\"function_call\",\"call_id\":\"call_1\",\"name\":\"lookup\",\"arguments\":\"{\\\"city\\\":\\\"Paris\\\"}\"},{\"id\":\"fc_2\",\"type\":\"function_call\",\"call_id\":\"call_2\",\"name\":\"other\",\"arguments\":\"{\\\"n\\\":1}\"}],\"parallel_tool_calls\":true,\"tool_choice\":\"auto\",\"tools\":[]}}\n\n"
+		"event: response.output_item.added\ndata: {\"type\":\"response.output_item.added\",\"output_index\":1,\"item\":{\"id\":\"fc_2\",\"type\":\"function_call\",\"call_id\":\"call_2\",\"name\":\"other\",\"arguments\":\"\"},\"sequence_number\":5}\n\n" +
+		"event: response.function_call_arguments.delta\ndata: {\"type\":\"response.function_call_arguments.delta\",\"item_id\":\"fc_2\",\"output_index\":1,\"delta\":\"{\\\"n\\\"\",\"sequence_number\":6}\n\n" +
+		"event: response.function_call_arguments.delta\ndata: {\"type\":\"response.function_call_arguments.delta\",\"item_id\":\"fc_2\",\"output_index\":1,\"delta\":\":1}\",\"sequence_number\":7}\n\n" +
+		"event: response.function_call_arguments.done\ndata: {\"type\":\"response.function_call_arguments.done\",\"item_id\":\"fc_2\",\"output_index\":1,\"arguments\":\"{\\\"n\\\":1}\",\"sequence_number\":8}\n\n" +
+		"event: response.output_item.done\ndata: {\"type\":\"response.output_item.done\",\"output_index\":1,\"item\":{\"id\":\"fc_2\",\"type\":\"function_call\",\"call_id\":\"call_2\",\"name\":\"other\",\"arguments\":\"{\\\"n\\\":1}\"},\"sequence_number\":9}\n\n" +
+		"event: response.completed\ndata: {\"type\":\"response.completed\",\"sequence_number\":10,\"response\":{\"id\":\"resp_1\",\"created_at\":1,\"model\":\"gpt-fixture\",\"object\":\"response\",\"status\":\"completed\",\"output\":[{\"id\":\"fc_1\",\"type\":\"function_call\",\"call_id\":\"call_1\",\"name\":\"lookup\",\"arguments\":\"{\\\"city\\\":\\\"Paris\\\"}\"},{\"id\":\"fc_2\",\"type\":\"function_call\",\"call_id\":\"call_2\",\"name\":\"other\",\"arguments\":\"{\\\"n\\\":1}\"}],\"parallel_tool_calls\":true,\"tool_choice\":\"auto\",\"tools\":[]}}\n\n"
 	proxy, control, _ := startAcceptance(t, func(w http.ResponseWriter, _ *http.Request) { writeSSE(w, stream) })
 	rt := doProxy(t, http.MethodPost, proxy, control, "/v1/responses", nil, req)
 	if len(rt.call.Normalized.ToolCalls) != 2 {
 		t.Fatalf("calls=%+v", rt.call.Normalized.ToolCalls)
 	}
-	if rt.call.Normalized.ToolCalls[0].ArgumentsRaw != `{"city":"Paris"}` || rt.call.Normalized.ToolCalls[1].Name != "other" {
+	if rt.call.Normalized.ToolCalls[0].ArgumentsRaw != `{"city":"Paris"}` || rt.call.Normalized.ToolCalls[1].Name != "other" || rt.call.Normalized.ToolCalls[1].ArgumentsRaw != `{"n":1}` {
 		t.Fatalf("tools=%+v", rt.call.Normalized.ToolCalls)
+	}
+	var sawFirst, sawSecond int
+	for _, ev := range rt.call.SSEEvents {
+		if ev.Event != "response.function_call_arguments.delta" {
+			continue
+		}
+		if bytes.Contains(ev.Data, []byte(`"item_id":"fc_1"`)) {
+			sawFirst++
+		}
+		if bytes.Contains(ev.Data, []byte(`"item_id":"fc_2"`)) {
+			sawSecond++
+		}
+	}
+	if sawFirst < 2 || sawSecond < 2 {
+		t.Fatalf("expected both items to stream their own deltas; fc_1=%d fc_2=%d", sawFirst, sawSecond)
 	}
 }
 
@@ -499,14 +570,18 @@ func TestC8ResponsesRefusal(t *testing.T) {
 			t.Fatalf("refusal=%q", rt.call.Normalized.Refusal)
 		}
 	})
-	t.Run("stream", func(t *testing.T) {
+	t.Run("stream_completed_without_refusal", func(t *testing.T) {
+		// response.completed must NOT carry the refusal; delta/done are the only source.
 		stream := "event: response.refusal.delta\ndata: {\"type\":\"response.refusal.delta\",\"delta\":\"no\",\"content_index\":0,\"item_id\":\"m\",\"output_index\":0,\"sequence_number\":1}\n\n" +
 			"event: response.refusal.done\ndata: {\"type\":\"response.refusal.done\",\"refusal\":\"nope\",\"content_index\":0,\"item_id\":\"m\",\"output_index\":0,\"sequence_number\":2}\n\n" +
-			"event: response.completed\ndata: {\"type\":\"response.completed\",\"sequence_number\":3,\"response\":{\"id\":\"r\",\"created_at\":1,\"model\":\"gpt-fixture\",\"object\":\"response\",\"status\":\"completed\",\"output\":[{\"id\":\"m\",\"type\":\"message\",\"role\":\"assistant\",\"status\":\"completed\",\"content\":[{\"type\":\"refusal\",\"refusal\":\"nope\"}]}],\"parallel_tool_calls\":true,\"tool_choice\":\"auto\",\"tools\":[]}}\n\n"
+			"event: response.completed\ndata: {\"type\":\"response.completed\",\"sequence_number\":3,\"response\":{\"id\":\"r\",\"created_at\":1,\"model\":\"gpt-fixture\",\"object\":\"response\",\"status\":\"completed\",\"output\":[{\"id\":\"m\",\"type\":\"message\",\"role\":\"assistant\",\"status\":\"completed\",\"content\":[{\"type\":\"output_text\",\"text\":\"\",\"annotations\":[],\"logprobs\":[]}]}],\"parallel_tool_calls\":true,\"tool_choice\":\"auto\",\"tools\":[]}}\n\n"
+		if strings.Contains(stream, `"type":"refusal"`) {
+			t.Fatal("fixture must not put refusal on response.completed")
+		}
 		proxy, control, _ := startAcceptance(t, func(w http.ResponseWriter, _ *http.Request) { writeSSE(w, stream) })
 		rt := doProxy(t, http.MethodPost, proxy, control, "/v1/responses", nil, []byte(`{"model":"gpt-fixture","stream":true}`))
 		if rt.call.Normalized.Refusal != "nope" {
-			t.Fatalf("refusal=%q", rt.call.Normalized.Refusal)
+			t.Fatalf("refusal=%q (must come from refusal.delta/done)", rt.call.Normalized.Refusal)
 		}
 	})
 }
@@ -525,13 +600,26 @@ func TestC9ResponsesUsageAndReasoning(t *testing.T) {
 }
 
 func TestC10ResponsesPreviousResponseID(t *testing.T) {
-	req := []byte(`{"model":"gpt-fixture","previous_response_id":"resp_prev","conversation":"conv_1","input":"hi"}`)
 	body := `{"id":"r","status":"completed","output":[]}`
-	proxy, control, _ := startAcceptance(t, func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, 200, body, nil) })
-	rt := doProxy(t, http.MethodPost, proxy, control, "/v1/responses", nil, req)
-	if !rt.call.Normalized.ContextServerSide || rt.call.Normalized.PreviousResponseID != "resp_prev" {
-		t.Fatalf("ctx=%v prev=%q", rt.call.Normalized.ContextServerSide, rt.call.Normalized.PreviousResponseID)
-	}
+	t.Run("previous_response_id_and_conversation", func(t *testing.T) {
+		req := []byte(`{"model":"gpt-fixture","previous_response_id":"resp_prev","conversation":"conv_1","input":"hi"}`)
+		proxy, control, _ := startAcceptance(t, func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, 200, body, nil) })
+		rt := doProxy(t, http.MethodPost, proxy, control, "/v1/responses", nil, req)
+		if !rt.call.Normalized.ContextServerSide || rt.call.Normalized.PreviousResponseID != "resp_prev" {
+			t.Fatalf("ctx=%v prev=%q", rt.call.Normalized.ContextServerSide, rt.call.Normalized.PreviousResponseID)
+		}
+	})
+	t.Run("conversation_only", func(t *testing.T) {
+		req := []byte(`{"model":"gpt-fixture","conversation":"conv_solo","input":"hi"}`)
+		proxy, control, _ := startAcceptance(t, func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, 200, body, nil) })
+		rt := doProxy(t, http.MethodPost, proxy, control, "/v1/responses", nil, req)
+		if !rt.call.Normalized.ContextServerSide {
+			t.Fatalf("conversation alone must set context_server_side; prev=%q", rt.call.Normalized.PreviousResponseID)
+		}
+		if rt.call.Normalized.PreviousResponseID != "" {
+			t.Fatalf("previous_response_id should be empty: %q", rt.call.Normalized.PreviousResponseID)
+		}
+	})
 }
 
 func TestC11ResponsesUnknownEvent(t *testing.T) {
@@ -569,14 +657,16 @@ func TestD1ErrorStatuses(t *testing.T) {
 		headers    map[string]string
 		normalized string
 		code       string
+		typ        string
+		message    string
 	}{
-		{400, `{"error":{"type":"invalid_request_error","code":"bad","message":"nope"}}`, nil, "bad_request", "bad"},
-		{401, `{"error":{"type":"auth_error","code":null,"message":"key"}}`, nil, "auth", ""},
-		{403, `{"error":{"type":"permission","code":"forbidden","message":"no"}}`, nil, "auth", "forbidden"},
-		{404, `{"error":{"type":"not_found","code":"missing","message":"gone"}}`, nil, "bad_request", "missing"},
-		{429, `{"error":{"type":"rate_limit_error","code":"rate_limit_exceeded","message":"slow"}}`, map[string]string{"Retry-After": "2"}, "rate_limit", "rate_limit_exceeded"},
-		{500, `{"error":{"type":"server_error","code":"internal","message":"boom"}}`, nil, "server", "internal"},
-		{503, `{"error":{"type":"server_error","code":"overloaded","message":"later"}}`, nil, "server", "overloaded"},
+		{400, `{"error":{"type":"invalid_request_error","code":"bad","message":"nope"}}`, nil, "bad_request", "bad", "invalid_request_error", "nope"},
+		{401, `{"error":{"type":"auth_error","code":null,"message":"key"}}`, nil, "auth", "", "auth_error", "key"},
+		{403, `{"error":{"type":"permission","code":"forbidden","message":"no"}}`, nil, "auth", "forbidden", "permission", "no"},
+		{404, `{"error":{"type":"not_found","code":"missing","message":"gone"}}`, nil, "bad_request", "missing", "not_found", "gone"},
+		{429, `{"error":{"type":"rate_limit_error","code":"rate_limit_exceeded","message":"slow"}}`, map[string]string{"Retry-After": "2", "X-Upstream-Trace": "trace-429"}, "rate_limit", "rate_limit_exceeded", "rate_limit_error", "slow"},
+		{500, `{"error":{"type":"server_error","code":"internal","message":"boom"}}`, nil, "server", "internal", "server_error", "boom"},
+		{503, `{"error":{"type":"server_error","code":"overloaded","message":"later"}}`, nil, "server", "overloaded", "server_error", "later"},
 	}
 	for _, tc := range cases {
 		for _, path := range []string{"/v1/chat/completions", "/v1/responses"} {
@@ -590,22 +680,36 @@ func TestD1ErrorStatuses(t *testing.T) {
 					if stream {
 						req = []byte(strings.TrimSuffix(string(req), "}") + `,"stream":true}`)
 					}
+					clientHeaders := map[string]string{"Authorization": "Bearer fixture-token", "X-Client-Trace": "client-d1"}
 					var cap capturedUpstream
 					proxy, control, got := startAcceptance(t, func(w http.ResponseWriter, _ *http.Request) {
 						writeJSON(w, tc.status, tc.body, tc.headers)
 					})
-					rt := doProxy(t, http.MethodPost, proxy, control, path, nil, req)
+					rt := doProxy(t, http.MethodPost, proxy, control, path, clientHeaders, req)
 					cap = *got
 					if rt.status != tc.status {
 						t.Fatalf("status=%d", rt.status)
 					}
 					assertByteEqual(t, rt.body, []byte(tc.body))
 					assertByteEqual(t, cap.body, req)
-					if rt.call.Normalized.Error == nil || rt.call.Normalized.Error.Normalized != tc.normalized || rt.call.Normalized.Error.Code != tc.code {
-						t.Fatalf("error=%+v", rt.call.Normalized.Error)
+					if cap.headers.Get("Authorization") != "Bearer fixture-token" {
+						t.Fatalf("upstream Authorization not forwarded byte-for-byte: %q", cap.headers.Get("Authorization"))
+					}
+					if cap.headers.Get("X-Client-Trace") != "client-d1" {
+						t.Fatalf("upstream X-Client-Trace=%q", cap.headers.Get("X-Client-Trace"))
+					}
+					if rt.call.Normalized.Error == nil ||
+						rt.call.Normalized.Error.Normalized != tc.normalized ||
+						rt.call.Normalized.Error.Code != tc.code ||
+						rt.call.Normalized.Error.Type != tc.typ ||
+						rt.call.Normalized.Error.Message != tc.message {
+						t.Fatalf("error=%+v want type=%q message=%q", rt.call.Normalized.Error, tc.typ, tc.message)
 					}
 					if tc.headers["Retry-After"] != "" && rt.call.RetryAfter != "2" {
 						t.Fatalf("retry_after=%q", rt.call.RetryAfter)
+					}
+					if want := tc.headers["X-Upstream-Trace"]; want != "" && rt.headers.Get("X-Upstream-Trace") != want {
+						t.Fatalf("client X-Upstream-Trace=%q want %q", rt.headers.Get("X-Upstream-Trace"), want)
 					}
 				})
 			}
@@ -661,6 +765,12 @@ func TestD4ResponsesStreamErrorShapes(t *testing.T) {
 		rt := doProxy(t, http.MethodPost, proxy, control, "/v1/responses", nil, req)
 		if rt.call.Normalized.Error == nil || !rt.call.Normalized.Error.MidStream {
 			t.Fatalf("err=%+v", rt.call.Normalized.Error)
+		}
+		if rt.call.Normalized.FinishReason != "error" {
+			t.Fatalf("finish_reason=%q want error for nested shape", rt.call.Normalized.FinishReason)
+		}
+		if rt.call.Normalized.Error.Type != "server_error" || rt.call.Normalized.Error.Code != "nested" || rt.call.Normalized.Error.Message != "nested boom" {
+			t.Fatalf("nested error fields=%+v", rt.call.Normalized.Error)
 		}
 	})
 }
@@ -726,17 +836,24 @@ func TestD6UpstreamUnreachable(t *testing.T) {
 
 func TestE1AzureClassic(t *testing.T) {
 	req := []byte(`{"model":"ignored","messages":[{"role":"user","content":"hi"}]}`)
+	var logBuf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	var cap capturedUpstream
-	proxy, control, got := startAcceptance(t, func(w http.ResponseWriter, _ *http.Request) {
+	proxy, control, got := startAcceptanceLog(t, func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, 200, `{"id":"c","model":"dep","choices":[{"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}]}`, nil)
-	})
-	rt := doProxy(t, http.MethodPost, proxy, control, "/openai/deployments/my-dep/chat/completions?api-version=2024-10-21", map[string]string{"api-key": "super-secret"}, req)
+	}, logger)
+	secretKey := "super-secret-api-key-value"
+	secretAuth := "Bearer secret-authorization-token"
+	rt := doProxy(t, http.MethodPost, proxy, control, "/openai/deployments/my-dep/chat/completions?api-version=2024-10-21", map[string]string{"api-key": secretKey, "Authorization": secretAuth}, req)
 	cap = *got
 	if cap.path != "/openai/deployments/my-dep/chat/completions" || cap.query != "api-version=2024-10-21" {
 		t.Fatalf("path=%q query=%q", cap.path, cap.query)
 	}
-	if cap.headers.Get("api-key") != "super-secret" {
+	if cap.headers.Get("api-key") != secretKey {
 		t.Fatalf("api-key not forwarded")
+	}
+	if cap.headers.Get("Authorization") != secretAuth {
+		t.Fatalf("Authorization not forwarded")
 	}
 	if rt.call.Upstream.Deployment != "my-dep" || rt.call.Upstream.APIVersion != "2024-10-21" {
 		t.Fatalf("upstream=%+v", rt.call.Upstream)
@@ -745,8 +862,30 @@ func TestE1AzureClassic(t *testing.T) {
 	if len(auth) == 0 {
 		auth = rt.call.Request.Headers["api-key"]
 	}
-	if len(auth) == 0 || auth[0] == "super-secret" || !strings.HasPrefix(auth[0], "sha256:") {
+	if len(auth) == 0 || auth[0] == secretKey || !strings.HasPrefix(auth[0], "sha256:") {
 		t.Fatalf("api-key not hashed: %v", rt.call.Request.Headers)
+	}
+	sessionJSON, err := json.Marshal(rt.session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	otlp := fetchOTLP(t, rt.controlURL, rt.lab.SessionID())
+	for _, blob := range []struct {
+		name string
+		raw  []byte
+	}{
+		{"logger", logBuf.Bytes()},
+		{"session", sessionJSON},
+		{"otlp", otlp},
+		{"trace_headers", mustJSON(rt.call.Request.Headers)},
+	} {
+		if bytes.Contains(blob.raw, []byte(secretKey)) || bytes.Contains(blob.raw, []byte(secretAuth)) ||
+			bytes.Contains(blob.raw, []byte("super-secret")) || bytes.Contains(blob.raw, []byte("secret-authorization")) {
+			t.Fatalf("%s leaked a secret:\n%s", blob.name, blob.raw)
+		}
+	}
+	if !bytes.Contains(logBuf.Bytes(), []byte("proxy request")) || !bytes.Contains(logBuf.Bytes(), []byte("proxy response")) {
+		t.Fatalf("expected proxy logs, got %s", logBuf.Bytes())
 	}
 }
 
@@ -755,13 +894,33 @@ func TestE2AzureV1(t *testing.T) {
 	proxy, control, got := startAcceptance(t, func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, 200, `{"id":"c","model":"gpt-fixture","choices":[{"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}]}`, nil)
 	})
-	_ = doProxy(t, http.MethodPost, proxy, control, "/openai/v1/chat/completions", map[string]string{"Authorization": "Bearer azure-token"}, req)
+	rtChat := doProxy(t, http.MethodPost, proxy, control, "/openai/v1/chat/completions", map[string]string{"Authorization": "Bearer azure-token"}, req)
 	if got.path != "/openai/v1/chat/completions" || got.headers.Get("Authorization") != "Bearer azure-token" {
 		t.Fatalf("path=%q auth=%q", got.path, got.headers.Get("Authorization"))
 	}
-	_ = doProxy(t, http.MethodPost, proxy, control, "/openai/v1/responses?api-version=2025-01-01", map[string]string{"Authorization": "Bearer azure-token"}, []byte(`{"model":"gpt-fixture","input":"hi"}`))
-	if !strings.HasSuffix(got.path, "/responses") {
-		t.Fatalf("responses path=%q", got.path)
+	if rtChat.call.Upstream.Method != http.MethodPost || !strings.Contains(rtChat.call.Upstream.URL, "/openai/v1/chat/completions") {
+		t.Fatalf("chat upstream=%+v", rtChat.call.Upstream)
+	}
+	respBody := `{"id":"r","status":"completed","output":[{"id":"m","type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"ok","annotations":[],"logprobs":[]}]}]}`
+	proxy2, control2, got2 := startAcceptance(t, func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, 200, respBody, nil) })
+	rt := doProxy(t, http.MethodPost, proxy2, control2, "/openai/v1/responses?api-version=2025-01-01", map[string]string{"Authorization": "Bearer azure-token"}, []byte(`{"model":"gpt-fixture","input":"hi"}`))
+	if got2.path != "/openai/v1/responses" || got2.query != "api-version=2025-01-01" {
+		t.Fatalf("responses path=%q query=%q", got2.path, got2.query)
+	}
+	if rt.call.Upstream.Method != http.MethodPost {
+		t.Fatalf("upstream.method=%q", rt.call.Upstream.Method)
+	}
+	if !strings.Contains(rt.call.Upstream.URL, "/openai/v1/responses") {
+		t.Fatalf("upstream.url=%q", rt.call.Upstream.URL)
+	}
+	if !strings.Contains(rt.call.Upstream.URL, "api-version=2025-01-01") {
+		t.Fatalf("upstream.url missing query: %q", rt.call.Upstream.URL)
+	}
+	if rt.call.Upstream.APIVersion != "2025-01-01" {
+		t.Fatalf("upstream.api_version=%q", rt.call.Upstream.APIVersion)
+	}
+	if rt.call.Normalized.OutputText != "ok" {
+		t.Fatalf("text=%q", rt.call.Normalized.OutputText)
 	}
 }
 
@@ -822,16 +981,116 @@ func TestE4OpenRouter(t *testing.T) {
 }
 
 func TestE5ForwardCompatUnknownFields(t *testing.T) {
-	req := []byte(`{"model":"gpt-fixture","messages":[{"role":"user","content":"hi"}],"future_root":true}`)
-	upstreamBody := `{"id":"c","model":"gpt-fixture","future_root":1,"choices":[{"future_choice":true,"message":{"role":"assistant","content":"ok","future_delta":false},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2,"future_usage":true}}`
-	var cap capturedUpstream
-	proxy, control, got := startAcceptance(t, func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, 200, upstreamBody, nil) })
-	rt := doProxy(t, http.MethodPost, proxy, control, "/v1/chat/completions", nil, req)
-	cap = *got
-	assertByteEqual(t, cap.body, req)
-	assertByteEqual(t, rt.body, []byte(upstreamBody))
-	if rt.call.Normalized.OutputText != "ok" {
-		t.Fatalf("text=%q", rt.call.Normalized.OutputText)
+	t.Run("chat_body", func(t *testing.T) {
+		req := []byte(`{"model":"gpt-fixture","messages":[{"role":"user","content":"hi"}],"future_root":true}`)
+		upstreamBody := `{"id":"c","model":"gpt-fixture","future_root":1,"choices":[{"future_choice":true,"message":{"role":"assistant","content":"ok","future_delta":false},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2,"future_usage":true}}`
+		var cap capturedUpstream
+		proxy, control, got := startAcceptance(t, func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, 200, upstreamBody, nil) })
+		rt := doProxy(t, http.MethodPost, proxy, control, "/v1/chat/completions", nil, req)
+		cap = *got
+		assertByteEqual(t, cap.body, req)
+		assertByteEqual(t, rt.body, []byte(upstreamBody))
+		assertByteEqual(t, rt.call.RawResponse, []byte(upstreamBody))
+		if rt.call.Normalized.OutputText != "ok" {
+			t.Fatalf("text=%q", rt.call.Normalized.OutputText)
+		}
+	})
+	t.Run("chat_stream_chunk_delta_tool_call", func(t *testing.T) {
+		req := []byte(`{"model":"gpt-fixture","stream":true}`)
+		stream := "data: {\"id\":\"c\",\"future_chunk\":true,\"choices\":[{\"future_choice\":1,\"delta\":{\"content\":\"hel\",\"future_delta\":true,\"tool_calls\":[{\"index\":0,\"id\":\"call_1\",\"type\":\"function\",\"future_tool\":true,\"function\":{\"name\":\"lookup\",\"arguments\":\"{\\\"n\\\":1}\",\"future_fn\":true}}]}}]}\n\n" +
+			"data: {\"choices\":[{\"delta\":{\"content\":\"lo\"},\"finish_reason\":\"tool_calls\"}]}\n\n" +
+			"data: [DONE]\n\n"
+		var cap capturedUpstream
+		proxy, control, got := startAcceptance(t, func(w http.ResponseWriter, _ *http.Request) { writeSSE(w, stream) })
+		rt := doProxy(t, http.MethodPost, proxy, control, "/v1/chat/completions", nil, req)
+		cap = *got
+		assertByteEqual(t, cap.body, req)
+		assertByteEqual(t, rt.body, []byte(stream))
+		assertByteEqual(t, rt.call.RawResponse, []byte(stream))
+		if rt.call.Normalized.OutputText != "hello" {
+			t.Fatalf("text=%q", rt.call.Normalized.OutputText)
+		}
+		if len(rt.call.Normalized.ToolCalls) != 1 || rt.call.Normalized.ToolCalls[0].Name != "lookup" {
+			t.Fatalf("tools=%+v", rt.call.Normalized.ToolCalls)
+		}
+	})
+	t.Run("responses_object_output_item_stream_event", func(t *testing.T) {
+		req := []byte(`{"model":"gpt-fixture","stream":true,"future_req":true}`)
+		delta := `{"type":"response.output_text.delta","delta":"hi","content_index":0,"item_id":"m","output_index":0,"sequence_number":1,"logprobs":[],"future_event":true}`
+		completed := `{"type":"response.completed","sequence_number":2,"future_event":true,"response":{"id":"resp_1","created_at":1,"model":"gpt-fixture","object":"response","future_response":true,"output":[{"id":"m","type":"message","role":"assistant","status":"completed","future_item":true,"content":[{"type":"output_text","text":"hi","annotations":[],"logprobs":[],"future_part":true}]}],"parallel_tool_calls":true,"status":"completed","tool_choice":"auto","tools":[]}}`
+		stream := "event: response.output_text.delta\ndata: " + delta + "\n\n" +
+			"event: response.completed\ndata: " + completed + "\n\n"
+		var cap capturedUpstream
+		proxy, control, got := startAcceptance(t, func(w http.ResponseWriter, _ *http.Request) { writeSSE(w, stream) })
+		rt := doProxy(t, http.MethodPost, proxy, control, "/v1/responses", nil, req)
+		cap = *got
+		assertByteEqual(t, cap.body, req)
+		assertByteEqual(t, rt.body, []byte(stream))
+		assertByteEqual(t, rt.call.RawResponse, []byte(stream))
+		if rt.call.Normalized.OutputText != "hi" {
+			t.Fatalf("text=%q", rt.call.Normalized.OutputText)
+		}
+	})
+}
+
+func TestE6GoldenRawHashes(t *testing.T) {
+	// For every fixture, sha256(raw_request/raw_response) equals the upstream
+	// bytes the proxy recorded. Gzip is stored decompressed (see TestE6GzipRawBytes
+	// and docs/data-model.md): the client still gets the gzip envelope, but
+	// raw_response is the parse input so hashes compare against the decompressed
+	// payload.
+	type fixture struct {
+		name    string
+		path    string
+		req     []byte
+		status  int
+		resp    []byte
+		gzip    bool
+		sse     bool
+		headers map[string]string
+	}
+	plain := []byte(`{"id":"c","model":"gpt-fixture","choices":[{"message":{"role":"assistant","content":"gz"},"finish_reason":"stop"}]}`)
+	var gz bytes.Buffer
+	zw := gzip.NewWriter(&gz)
+	_, _ = zw.Write(plain)
+	_ = zw.Close()
+	fixtures := []fixture{
+		{"b1_chat", "/v1/chat/completions", []byte(`{"model":"gpt-fixture","messages":[{"role":"user","content":"hi"}]}`), 200, []byte(`{"id":"chatcmpl_b1","model":"gpt-fixture","choices":[{"index":0,"message":{"role":"assistant","content":"hello world"},"finish_reason":"stop"}],"usage":{"prompt_tokens":3,"completion_tokens":2,"total_tokens":5}}`), false, false, nil},
+		{"c1_responses", "/v1/responses", []byte(`{"model":"gpt-fixture","input":"hi"}`), 200, []byte(`{"id":"resp_1","model":"gpt-fixture","status":"completed","output":[{"id":"msg","type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"hello from responses","annotations":[],"logprobs":[]}]}]}`), false, false, nil},
+		{"d1_error", "/v1/chat/completions", []byte(`{"model":"gpt-fixture","messages":[{"role":"user","content":"x"}]}`), 400, []byte(`{"error":{"type":"invalid_request_error","code":"bad","message":"nope"}}`), false, false, nil},
+		{"b4_sse", "/v1/chat/completions", []byte(`{"model":"gpt-fixture","stream":true}`), 200, []byte("data: {\"choices\":[{\"delta\":{\"content\":\"ok\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n"), false, true, nil},
+		{"e6_gzip", "/v1/chat/completions", []byte(`{"model":"gpt-fixture","messages":[{"role":"user","content":"x"}]}`), 200, gz.Bytes(), true, false, nil},
+	}
+	for _, fx := range fixtures {
+		t.Run(fx.name, func(t *testing.T) {
+			var cap capturedUpstream
+			proxy, control, got := startAcceptance(t, func(w http.ResponseWriter, _ *http.Request) {
+				if fx.gzip {
+					w.Header().Set("Content-Type", "application/json")
+					w.Header().Set("Content-Encoding", "gzip")
+					w.WriteHeader(fx.status)
+					_, _ = w.Write(fx.resp)
+					return
+				}
+				if fx.sse {
+					writeSSE(w, string(fx.resp))
+					return
+				}
+				writeJSON(w, fx.status, string(fx.resp), fx.headers)
+			})
+			rt := doProxy(t, http.MethodPost, proxy, control, fx.path, nil, fx.req)
+			cap = *got
+			if sha256Hex(rt.call.RawRequest) != sha256Hex(cap.body) {
+				t.Fatalf("raw_request hash %s != upstream body %s", sha256Hex(rt.call.RawRequest), sha256Hex(cap.body))
+			}
+			wantResp := fx.resp
+			if fx.gzip {
+				wantResp = plain
+			}
+			if sha256Hex(rt.call.RawResponse) != sha256Hex(wantResp) {
+				t.Fatalf("raw_response hash %s != recorded upstream %s", sha256Hex(rt.call.RawResponse), sha256Hex(wantResp))
+			}
+		})
 	}
 }
 
@@ -880,6 +1139,64 @@ func TestE7PassthroughNonSpecPaths(t *testing.T) {
 		}
 		assertByteEqual(t, rt.body, []byte(`{"ok":true}`))
 	}
+}
+
+func TestE8OffSpecCompatibleProvider(t *testing.T) {
+	req := []byte(`{"model":"gpt-fixture","messages":[{"role":"user","content":"hi"}]}`)
+	t.Run("number_as_string", func(t *testing.T) {
+		body := `{"id":"c","object":"chat.completion","model":"vllm-llama","choices":[{"index":0,"message":{"role":"assistant","content":"ok from vllm"},"finish_reason":"stop"}],"usage":{"prompt_tokens":"12","completion_tokens":"3","total_tokens":"15"}}`
+		proxy, control, _ := startAcceptance(t, func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, 200, body, nil) })
+		rt := doProxy(t, http.MethodPost, proxy, control, "/v1/chat/completions", nil, req)
+		if !containsWarning(rt.call.Normalized.ParserWarnings, "strict decode failed") {
+			t.Fatalf("warnings=%v", rt.call.Normalized.ParserWarnings)
+		}
+		if rt.call.Normalized.OutputText != "ok from vllm" {
+			t.Fatalf("text=%q", rt.call.Normalized.OutputText)
+		}
+		u := rt.call.Normalized.Usage
+		if u == nil || deref(u.InputTokens) != 12 || deref(u.OutputTokens) != 3 || deref(u.TotalTokens) != 15 {
+			t.Fatalf("usage=%+v", u)
+		}
+		assertByteEqual(t, rt.body, []byte(body))
+	})
+	t.Run("extra_enum_value", func(t *testing.T) {
+		body := `{"id":"c","object":"chat.completion","model":"ollama-qwen","choices":[{"index":0,"message":{"role":"assistant","content":"done"},"finish_reason":"eos"}]}`
+		proxy, control, _ := startAcceptance(t, func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, 200, body, nil) })
+		rt := doProxy(t, http.MethodPost, proxy, control, "/v1/chat/completions", nil, req)
+		if !containsWarning(rt.call.Normalized.ParserWarnings, "unknown finish_reason") {
+			t.Fatalf("warnings=%v", rt.call.Normalized.ParserWarnings)
+		}
+		if rt.call.Normalized.FinishReason != "eos" || rt.call.Normalized.OutputText != "done" {
+			t.Fatalf("finish=%q text=%q", rt.call.Normalized.FinishReason, rt.call.Normalized.OutputText)
+		}
+	})
+	t.Run("missing_required_field", func(t *testing.T) {
+		body := `{"object":"chat.completion","model":"vllm-llama","choices":[{"index":0,"message":{"role":"assistant","content":"still parsed"},"finish_reason":"stop"}]}`
+		proxy, control, _ := startAcceptance(t, func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, 200, body, nil) })
+		rt := doProxy(t, http.MethodPost, proxy, control, "/v1/chat/completions", nil, req)
+		if !containsWarning(rt.call.Normalized.ParserWarnings, "missing required field: id") {
+			t.Fatalf("warnings=%v", rt.call.Normalized.ParserWarnings)
+		}
+		if rt.call.Normalized.OutputText != "still parsed" || rt.call.Normalized.FinishReason != "stop" {
+			t.Fatalf("text=%q finish=%q", rt.call.Normalized.OutputText, rt.call.Normalized.FinishReason)
+		}
+	})
+	t.Run("stream_chunk_number_as_string", func(t *testing.T) {
+		req := []byte(`{"model":"gpt-fixture","stream":true}`)
+		stream := "data: {\"id\":\"c\",\"choices\":[{\"index\":\"0\",\"delta\":{\"content\":\"hi\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":\"2\",\"completion_tokens\":\"1\",\"total_tokens\":\"3\"}}\n\n" +
+			"data: [DONE]\n\n"
+		proxy, control, _ := startAcceptance(t, func(w http.ResponseWriter, _ *http.Request) { writeSSE(w, stream) })
+		rt := doProxy(t, http.MethodPost, proxy, control, "/v1/chat/completions", nil, req)
+		if !containsWarning(rt.call.Normalized.ParserWarnings, "strict decode failed") {
+			t.Fatalf("warnings=%v", rt.call.Normalized.ParserWarnings)
+		}
+		if rt.call.Normalized.OutputText != "hi" {
+			t.Fatalf("text=%q", rt.call.Normalized.OutputText)
+		}
+		if rt.call.Normalized.Usage == nil || deref(rt.call.Normalized.Usage.TotalTokens) != 3 {
+			t.Fatalf("usage=%+v", rt.call.Normalized.Usage)
+		}
+	})
 }
 
 func TestA7NoHandwrittenChoicesTags(t *testing.T) {
@@ -943,4 +1260,26 @@ func assertByteEqual(t *testing.T, got, want []byte) {
 
 func testdataRead(name string) ([]byte, error) {
 	return os.ReadFile(filepath.Join("testdata", name))
+}
+
+func fetchOTLP(t *testing.T, controlURL, sessionID string) []byte {
+	t.Helper()
+	resp, err := http.Get(controlURL + "/sessions/" + sessionID + "/otlp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return raw
+}
+
+func mustJSON(v any) []byte {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return nil
+	}
+	return b
 }

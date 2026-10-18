@@ -18,9 +18,11 @@ spec-update:
 spec-verify:
 	go run ./tools/specverify
 
-# CI entrypoint: spec pin, regenerate, fail on drift.
+# CI entrypoint: spec pin, regenerate, fail on drift (including go.mod/go.sum).
 codegen-check: spec-verify
 	$(MAKE) gen
+	git diff --exit-code
+	go mod tidy
 	git diff --exit-code
 	$(MAKE) gen
 	git diff --exit-code

@@ -78,6 +78,16 @@ func TestA5CompileTimeAssertionPresent(t *testing.T) {
 	if !bytes.Contains(ops, []byte("createChatCompletion")) || !bytes.Contains(ops, []byte("createResponse")) {
 		t.Fatal("operations.txt must list createChatCompletion and createResponse")
 	}
+	overlay, err := os.ReadFile(filepath.Join(repoRoot(t), "api", "openai", "overlay.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(overlay, []byte("EmbeddingObjectType")) {
+		t.Fatal("overlay must rename CreateEmbeddingResponse.object so adding createEmbedding generates a clean missing-method error")
+	}
+	if bytes.Contains(overlay, []byte("no-op marker")) {
+		t.Fatal("overlay must not keep the ResponseStreamEvent no-op marker; mapping comes from specfilter")
+	}
 }
 
 func TestA7NoHandwrittenChoicesTags(t *testing.T) {

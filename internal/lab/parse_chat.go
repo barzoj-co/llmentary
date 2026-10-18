@@ -40,10 +40,11 @@ func parseChat(call *Call) {
 func parseChatBody(call *Call) {
 	var resp openaiapi.CreateChatCompletionResponse
 	if err := json.Unmarshal(call.RawResponse, &resp); err != nil {
-		call.Normalized.ParserWarnings = append(call.Normalized.ParserWarnings, "chat response parse error: "+err.Error())
+		applyChatFallback(call, call.RawResponse, warnStrictDecodeFailed+": "+err.Error())
 		applyChatExtensions(call, call.RawResponse, nil)
 		return
 	}
+	noteMissingRequired(call, call.RawResponse, "id", "choices")
 	if resp.Id != "" {
 		call.RequestIDs["body.id"] = resp.Id
 	}
@@ -55,6 +56,7 @@ func parseChatBody(call *Call) {
 	for i, choice := range resp.Choices {
 		if choice.FinishReason != "" {
 			call.Normalized.FinishReason = string(choice.FinishReason)
+			warnUnknownFinishReason(call, string(choice.FinishReason), choice.FinishReason.Valid())
 		}
 		if choice.Message.Content != nil {
 			call.Normalized.OutputText += *choice.Message.Content
@@ -102,7 +104,43 @@ func parseChatStream(call *Call) {
 		}
 		var chunk openaiapi.CreateChatCompletionStreamResponse
 		if err := json.Unmarshal(event.Data, &chunk); err != nil {
-			call.Normalized.ParserWarnings = append(call.Normalized.ParserWarnings, "chat stream chunk parse error: "+err.Error())
+			call.Normalized.ParserWarnings = append(call.Normalized.ParserWarnings, warnStrictDecodeFailed+": "+err.Error())
+			loose := extractLooseChatChunk(event.Data)
+			if loose.model != "" {
+				call.Normalized.Model.Returned = loose.model
+			}
+			if loose.id != "" {
+				call.RequestIDs["body.id"] = loose.id
+			}
+			call.Normalized.OutputText += loose.content
+			call.Normalized.Refusal += loose.refusal
+			if loose.finish != "" {
+				call.Normalized.FinishReason = loose.finish
+			}
+			if len(loose.usage) > 0 {
+				if u := usageFromLoose(loose.usage, "final_chunk"); u != nil {
+					call.Normalized.Usage = u
+				}
+			}
+			for _, delta := range loose.toolDeltas {
+				item := accs[delta.index]
+				if item == nil {
+					item = &acc{index: delta.index, kind: coalesce(delta.kind, "function")}
+					accs[delta.index] = item
+				}
+				if delta.id != "" {
+					item.id = delta.id
+				}
+				if delta.kind != "" {
+					item.kind = delta.kind
+				}
+				if delta.name != "" {
+					item.name = delta.name
+				}
+				if delta.args != "" {
+					item.args.WriteString(delta.args)
+				}
+			}
 			applyChatExtensions(call, event.Data, nil)
 			continue
 		}
@@ -118,6 +156,7 @@ func parseChatStream(call *Call) {
 		for _, choice := range chunk.Choices {
 			if choice.FinishReason != nil && *choice.FinishReason != "" {
 				call.Normalized.FinishReason = string(*choice.FinishReason)
+				warnUnknownFinishReason(call, string(*choice.FinishReason), choice.FinishReason.Valid())
 			}
 			if choice.Delta.Content != nil {
 				call.Normalized.OutputText += *choice.Delta.Content

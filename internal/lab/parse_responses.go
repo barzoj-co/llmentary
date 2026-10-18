@@ -67,7 +67,7 @@ func parseResponsesStream(call *Call) {
 			call.Normalized.FinishReason = "error"
 		}
 		if err := json.Unmarshal(event.Data, &streamEvent); err != nil {
-			call.Normalized.ParserWarnings = append(call.Normalized.ParserWarnings, "responses stream event parse error: "+err.Error())
+			call.Normalized.ParserWarnings = append(call.Normalized.ParserWarnings, warnStrictDecodeFailed+": "+err.Error())
 			continue
 		}
 		typed, err := streamEvent.ValueByDiscriminator()
@@ -146,9 +146,10 @@ func parseResponsesStream(call *Call) {
 func parseResponsesObject(call *Call, raw []byte, usageSource string) {
 	var resp openaiapi.Response
 	if err := json.Unmarshal(raw, &resp); err != nil {
-		call.Normalized.ParserWarnings = append(call.Normalized.ParserWarnings, "responses parse error: "+err.Error())
+		applyResponsesFallback(call, raw, warnStrictDecodeFailed+": "+err.Error(), usageSource)
 		return
 	}
+	noteMissingRequired(call, raw, "id")
 	if resp.Id != "" {
 		call.RequestIDs["body.id"] = resp.Id
 	}

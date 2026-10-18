@@ -3,13 +3,19 @@
 The repository's own workflow is in `.github/workflows/ci.yml`:
 
 - `codegen-check`: checkout, Go 1.26.x, `make codegen-check` (`spec-verify`,
-  `make gen && git diff --exit-code` twice) plus A2/A5 proof scripts.
+  `make gen && git diff --exit-code`, `go mod tidy && git diff --exit-code`,
+  then `make gen && git diff --exit-code` again). A2 is a temp worktree that
+  commits a hand-edit of `gen.go` and expects `make codegen-check` to fail.
+  A5 is a temp worktree that adds `createEmbedding` to `operations.txt`, runs
+  `make gen`, and expects `go build` to fail with a missing `CreateEmbedding`
+  method (no hand-injection into `gen.go`).
 - `lint`: checkout, Go 1.26.x, `golangci/golangci-lint-action@v8`. Generated
   `internal/openaiapi/gen.go` is excluded in `.golangci.yml`.
 - `test`: checkout, Go 1.26.x, `go test ./...` in the root AGPL proxy module and
   `go test ./...` in the nested MIT Go client module, proxy integration test module,
   and Go example module.
-- `e2e`: skipped for fork pull requests; for pushes and non-fork PRs it requires
+- `e2e`: runs once per change — on `pull_request` (non-fork) and on pushes to
+  `main` only, not on both `push` and `pull_request` for PR branches. Requires
   `OPENAI_API_KEY` and runs `go test -v -tags=e2e ./...` in `tests/e2e`. The job
   is not optional: missing `OPENAI_API_KEY` fails the workflow.
 

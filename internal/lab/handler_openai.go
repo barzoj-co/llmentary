@@ -220,6 +220,12 @@ func (ex *proxyExchange) finishCall(resp *http.Response, rawBody []byte, firstBy
 		ex.s.parser.Parse(call)
 		endedCall = *call
 	})
+	ex.s.logger().Info("proxy response",
+		"status", resp.StatusCode,
+		"call_id", ex.callID,
+		"session", ex.session.ID,
+		"api_family", endedCall.APIFamily,
+	)
 	if ex.span != nil {
 		finishSpan(ex.span, endedCall, endedAt)
 	}

@@ -13,13 +13,15 @@ actions:
     update:
       x-go-type-name: ChatCompletionObjectType
 
-  # why: ResponseStreamEvent is an anyOf of 59 events with discriminator
-  # propertyName=type but no mapping. Without mapping, ValueByDiscriminator()
-  # keys off generated schema names (ResponseAudioDeltaEvent) instead of wire
-  # values (response.audio.delta). specfilter injects the mapping from each
-  # variant's type enum/const; this overlay action is a no-op marker so the
-  # fix stays visible next to the other codegen edits. The mapping itself is
-  # generated deterministically by tools/specfilter (see ensureDiscriminatorMappings).
-  - target: $.components.schemas.ResponseStreamEvent.discriminator
+  # why: same object-enum vs strict-server response interface collision as
+  # CreateChatCompletionResponse. The embeddings operation is not generated
+  # today, but adding createEmbedding to operations.txt must produce a clean
+  # compile error for the missing StrictServerInterface method — not a type
+  # redeclaration. Rename the enum only.
+  - target: $.components.schemas.CreateEmbeddingResponse.properties.object
     update:
-      propertyName: type
+      x-go-type-name: EmbeddingObjectType
+
+  # Discriminator mapping for ResponseStreamEvent (propertyName=type → wire
+  # values such as response.output_text.delta) is injected by tools/specfilter
+  # via ensureDiscriminatorMappings. It is not an overlay action.
