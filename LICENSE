@@ -1,18 +1,3 @@
-Licensing
-=========
-
-Only the Go proxy binary is AGPL-3.0. pkg/llmtestlab and the separate Python/JS
-client repos are MIT.
-
-- Go proxy binary (cmd/llmtestlab and the proxy/server implementation it ships):
-  GNU Affero General Public License v3.0, the text of which follows.
-- Go client library (pkg/llmtestlab): MIT. See pkg/llmtestlab/LICENSE.
-- Separate Python and JS client repositories (llm-test-lab-python,
-  llm-test-lab-js): MIT.
-
-Using the proxy in your test pipeline does not affect your application's
-license. See LICENSING.md and the README Licensing section.
-
                     GNU AFFERO GENERAL PUBLIC LICENSE
                        Version 3, 19 November 2007
 
@@ -648,8 +633,8 @@ the "copyright" line and a pointer to where the full notice is found.
     Copyright (C) <year>  <name of author>
 
     This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU Affero General Public License as published
-    by the Free Software Foundation, either version 3 of the License, or
+    it under the terms of the GNU Affero General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,

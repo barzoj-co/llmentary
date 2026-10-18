@@ -2,12 +2,12 @@
 
 Deterministic, trace-based integration testing for LLM apps, without an LLM judge.
 
-`llm-test-lab` is an AGPL-3.0 Go reverse proxy. Put it between your app and an
+`llm-test-lab` is a Go reverse proxy. Put it between your app and an
 OpenAI-compatible provider, run the real SDK call, then assert on the recorded
 trace: tool names, tool arguments, tool order, request parameters, finish
 reasons, token usage, retries, latency, TTFT, and provider errors.
 
-Clients live in separate MIT repositories and download or run this proxy binary.
+Clients live in separate repositories and download or run this proxy binary.
 
 ## 60-second quickstart
 
@@ -76,7 +76,7 @@ OPENAI_API_KEY=sk-... go test ./...
 
 ## Clients
 
-This repository ships only the proxy. Use these MIT client libraries against it:
+This repository ships only the proxy. Use these client libraries against it:
 
 - [Go](https://github.com/barzoj-co/llm-test-lab-go)
 - [Python](https://github.com/barzoj-co/llm-test-lab-python)
@@ -131,24 +131,14 @@ OpenAI-wire calls when it can, and leaves everything else as raw passthrough.
 - [Troubleshooting](docs/troubleshooting.md)
 - [Contributing](CONTRIBUTING.md)
 
-## Licensing
+## License
 
-This repository is AGPL-3.0 only (the Go proxy). All clients are MIT in their own
-repositories.
-
-- Go proxy binary (`cmd/llmtestlab` and the proxy/server implementation it ships):
-  AGPL-3.0, covered by the root [LICENSE](LICENSE).
-- Go client: MIT, [`llm-test-lab-go`](https://github.com/barzoj-co/llm-test-lab-go).
-- Python client: MIT, [`llm-test-lab-python`](https://github.com/barzoj-co/llm-test-lab-python).
-- JS/TS client: MIT, [`llm-test-lab-js`](https://github.com/barzoj-co/llm-test-lab-js).
-
-Using the proxy in your test pipeline does not affect your application's license.
-See [LICENSING.md](LICENSING.md).
+Licensed under [AGPL-3.0](LICENSE).
 
 ## Status and roadmap
 
-This repo contains the AGPL-3.0 Go proxy only. The session store and OTLP span store are
-in memory. Clients are MIT in their own repos (see [Clients](#clients)).
+This repo contains the Go proxy only. The session store and OTLP span store are
+in memory. Clients live in their own repos (see [Clients](#clients)).
 
 Planned in later versions of the proxy:
 
@@ -157,7 +147,3 @@ Planned in later versions of the proxy:
 - Record/replay cassettes, fault injection, packaging polish, and local TLS.
 
 The current `--tls` flag is parsed by the CLI but is not wired to any TLS listener.
-
-## Repository licenses
-
-See [Licensing](#licensing) and [LICENSING.md](LICENSING.md).

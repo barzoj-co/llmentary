@@ -88,8 +88,6 @@ CI also runs `golangci-lint-action@v8`.
 
 Document only behavior implemented in the current code. In particular:
 
-- Only the Go proxy binary is AGPL-3.0. The Go, Python, and JS clients are MIT in
-  separate repositories. See [LICENSING.md](LICENSING.md).
 - The proxy test modules carry their own local `replace` directives for the root
   proxy module. Versioned
   `go install github.com/barzoj-co/llm-test-lab/cmd/llmtestlab@latest` ignores local
@@ -102,7 +100,7 @@ Document only behavior implemented in the current code. In particular:
 - Chat Completions parsing is in `internal/lab/parse_chat.go`.
 - Responses parsing is in `internal/lab/parse_responses.go`.
 - OTel attributes are in `internal/lab/otel.go` and `internal/semconv/genai`.
-- Public client APIs live in the separate MIT client repositories.
+- Public client APIs live in the separate client repositories.
 
 Avoid documenting planned flags, endpoints, or APIs as if they already exist.
 

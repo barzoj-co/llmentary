@@ -200,7 +200,7 @@ Use `X-Test-Session` for the clearest session tagging. W3C baggage with
 ### `openai-go`
 
 ```go
-// MIT Go client: github.com/barzoj-co/llm-test-lab-go
+// Go client: github.com/barzoj-co/llm-test-lab-go
 lab := llmtestlab.New(t)
 
 client := openai.NewClient(
