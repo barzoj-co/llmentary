@@ -3,6 +3,8 @@ package llmtestlab
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 )
@@ -101,6 +103,93 @@ func TestSchemaIntegerType(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("integer-valued number should satisfy schema: %v", err)
 	}
+}
+
+func TestAssertionFailureMessagesIncludeTraceSummary(t *testing.T) {
+	trace := fixtureTrace()
+	trace.Calls = append(trace.Calls, Call{
+		ID:         "call_error",
+		SessionID:  trace.SessionID,
+		Seq:        3,
+		Provider:   "openai",
+		APIFamily:  "openai.chat",
+		HTTPStatus: 200,
+		Normalized: Normalized{
+			FinishReason: "error",
+			Error: &CallError{
+				Type:      "rate_limit_error",
+				Code:      "rate_limit_exceeded",
+				Message:   "slow down",
+				MidStream: true,
+			},
+		},
+	})
+
+	nonFatal := &fakeTB{}
+	check := &Assertions{t: nonFatal, trace: trace}
+	check.ToolCalled("missing_tool")
+	check.FinishReason("length")
+	trace.Query().APIType("responses").Check(nonFatal).CallCount(1)
+
+	joined := strings.Join(nonFatal.messages, "\n")
+	for _, want := range []string{
+		`expected tool "missing_tool" to be called`,
+		`expected finish reason "length"`,
+		`LLM call count mismatch`,
+		`Trace summary:`,
+		trace.SessionID,
+		`get_weather args={"city":"Paris","unit":"celsius"}`,
+		`finish=tool_calls`,
+		`error type=rate_limit_error code=rate_limit_exceeded message=slow down mid_stream=true`,
+	} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("failure output missing %q:\n%s", want, joined)
+		}
+	}
+	if !nonFatal.failed || nonFatal.fatal {
+		t.Fatalf("non-fatal assertions should record errors without fatal: %+v", nonFatal)
+	}
+
+	fatal := &fakeTB{}
+	require := &Assertions{t: fatal, trace: trace, fatal: true}
+	require.ToolCalled("missing_tool")
+	if !fatal.fatal || !fatal.failed {
+		t.Fatalf("fatal assertion did not record fatal failure: %+v", fatal)
+	}
+	if got := strings.Join(fatal.messages, "\n"); !strings.Contains(got, `expected tool "missing_tool" to be called`) || !strings.Contains(got, "Trace summary:") {
+		t.Fatalf("fatal output missing assertion/summary:\n%s", got)
+	}
+}
+
+type fakeTB struct {
+	testing.TB
+	messages []string
+	failed   bool
+	fatal    bool
+}
+
+func (f *fakeTB) Helper() {}
+
+func (f *fakeTB) Error(args ...any) {
+	f.failed = true
+	f.messages = append(f.messages, fmt.Sprint(args...))
+}
+
+func (f *fakeTB) Errorf(format string, args ...any) {
+	f.failed = true
+	f.messages = append(f.messages, fmt.Sprintf(format, args...))
+}
+
+func (f *fakeTB) Fatal(args ...any) {
+	f.failed = true
+	f.fatal = true
+	f.messages = append(f.messages, fmt.Sprint(args...))
+}
+
+func (f *fakeTB) Fatalf(format string, args ...any) {
+	f.failed = true
+	f.fatal = true
+	f.messages = append(f.messages, fmt.Sprintf(format, args...))
 }
 
 func fixtureTrace() Trace {
