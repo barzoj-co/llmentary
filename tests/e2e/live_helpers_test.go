@@ -43,6 +43,8 @@ type liveProxy struct {
 func startLiveProxy(t *testing.T, mode, profile string) liveProxy {
 	t.Helper()
 	cfg := lab.Config{
+		ListenAddr:     ":0",
+		ControlAddr:    "127.0.0.1:0",
 		SpecValidation: mode,
 		SpecProfile:    profile,
 	}
