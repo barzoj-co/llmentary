@@ -1,0 +1,245 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+//go:build perf
+
+package proxy_test
+
+import (
+	"encoding/json"
+	"fmt"
+	"runtime"
+	"testing"
+	"time"
+
+	"github.com/barzoj-co/llm-test-lab/internal/schemalint"
+	"github.com/barzoj-co/llm-test-lab/internal/specvalidate"
+)
+
+func compileEngine(t testing.TB) (*specvalidate.Engine, *schemalint.Linter) {
+	t.Helper()
+	eng, err := specvalidate.CompileEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	subset, err := schemalint.LoadSubset(specvalidate.EmbeddedSchemaSubset)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return eng, schemalint.New(subset)
+}
+
+func typicalChatBody() []byte {
+	msgs := make([]any, 0, 10)
+	for i := 0; i < 10; i++ {
+		role := "user"
+		if i%2 == 1 {
+			role = "assistant"
+		}
+		msgs = append(msgs, map[string]any{"role": role, "content": fmt.Sprintf("message %d about weather in city %d", i, i)})
+	}
+	tools := make([]any, 0, 5)
+	for i := 0; i < 5; i++ {
+		tools = append(tools, map[string]any{
+			"type": "function",
+			"function": map[string]any{
+				"name": fmt.Sprintf("tool_%d", i),
+				"parameters": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"q":    map[string]any{"type": "string"},
+						"n":    map[string]any{"type": "integer"},
+						"flag": map[string]any{"type": "boolean"},
+					},
+					"required":             []any{"q"},
+					"additionalProperties": false,
+				},
+			},
+		})
+	}
+	body, _ := json.Marshal(map[string]any{"model": "m", "messages": msgs, "tools": tools})
+	return body
+}
+
+func largeToolsBody(tools, props int) []byte {
+	list := make([]any, 0, tools)
+	for i := 0; i < tools; i++ {
+		p := make(map[string]any, props)
+		req := make([]any, 0, props)
+		for j := 0; j < props; j++ {
+			name := fmt.Sprintf("f%d", j)
+			p[name] = map[string]any{"type": "string"}
+			req = append(req, name)
+		}
+		list = append(list, map[string]any{
+			"type": "function",
+			"function": map[string]any{
+				"name": fmt.Sprintf("t%d", i),
+				"parameters": map[string]any{
+					"type": "object", "properties": p, "required": req, "additionalProperties": false,
+				},
+			},
+		})
+	}
+	body, _ := json.Marshal(map[string]any{
+		"model":    "m",
+		"messages": []any{map[string]any{"role": "user", "content": "hi"}},
+		"tools":    list,
+	})
+	return body
+}
+
+func deepWideSchemaBody() []byte {
+	schema := measuredNesting(10)
+	props, _ := schema["properties"].(map[string]any)
+	if props == nil {
+		props = map[string]any{}
+		schema["properties"] = props
+	}
+	req, _ := schema["required"].([]any)
+	for i := 0; i < 5000; i++ {
+		name := fmt.Sprintf("w%d", i)
+		props[name] = map[string]any{"type": "string"}
+		req = append(req, name)
+	}
+	schema["required"] = req
+	return strictToolBody(schema)
+}
+
+func p99Micros(samples []time.Duration) time.Duration {
+	cp := append([]time.Duration(nil), samples...)
+	for i := 0; i < len(cp); i++ {
+		for j := i + 1; j < len(cp); j++ {
+			if cp[j] < cp[i] {
+				cp[i], cp[j] = cp[j], cp[i]
+			}
+		}
+	}
+	idx := int(float64(len(cp)-1) * 0.99)
+	if idx < 0 {
+		idx = 0
+	}
+	return cp[idx]
+}
+
+func timeValidate(eng *specvalidate.Engine, lint *schemalint.Linter, body []byte, n int) []time.Duration {
+	out := make([]time.Duration, n)
+	for i := 0; i < n; i++ {
+		start := time.Now()
+		_ = eng.ValidateRequest(specvalidate.ProfileRelaxed, "openai.chat", body, 0)
+		_ = lint.LintRequest("openai.chat", body)
+		out[i] = time.Since(start)
+	}
+	return out
+}
+
+func TestI2TypicalP99(t *testing.T) {
+	eng, lint := compileEngine(t)
+	body := typicalChatBody()
+	_ = timeValidate(eng, lint, body, 50)
+	samples := timeValidate(eng, lint, body, 2000)
+	p99 := p99Micros(samples)
+	if p99 > 5*time.Millisecond {
+		t.Fatalf("typical p99=%s want <5ms", p99)
+	}
+}
+
+func BenchmarkTypicalValidation(b *testing.B) {
+	eng, lint := compileEngine(b)
+	body := typicalChatBody()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = eng.ValidateRequest(specvalidate.ProfileRelaxed, "openai.chat", body, 0)
+		_ = lint.LintRequest("openai.chat", body)
+	}
+}
+
+func TestI3LargeSchema(t *testing.T) {
+	eng, lint := compileEngine(t)
+	wide := largeToolsBody(20, 100)
+	_ = timeValidate(eng, lint, wide, 20)
+	wideSamples := timeValidate(eng, lint, wide, 400)
+	if p99 := p99Micros(wideSamples); p99 > 25*time.Millisecond {
+		t.Fatalf("20x100 p99=%s want <25ms", p99)
+	}
+	deep := deepWideSchemaBody()
+	_ = timeValidate(eng, lint, deep, 10)
+	deepSamples := timeValidate(eng, lint, deep, 80)
+	if p99 := p99Micros(deepSamples); p99 > 100*time.Millisecond {
+		t.Fatalf("5000-property depth-10 p99=%s want <100ms", p99)
+	}
+}
+
+func BenchmarkLargeSchema(b *testing.B) {
+	eng, lint := compileEngine(b)
+	body := largeToolsBody(20, 100)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = eng.ValidateRequest(specvalidate.ProfileRelaxed, "openai.chat", body, 0)
+		_ = lint.LintRequest("openai.chat", body)
+	}
+}
+
+func TestI4Overhead(t *testing.T) {
+	start := time.Now()
+	if _, err := specvalidate.CompileEmbedded(); err != nil {
+		t.Fatal(err)
+	}
+	if took := time.Since(start); took > 2*time.Second {
+		t.Fatalf("CompileEmbedded=%s want <2s", took)
+	}
+	body := typicalChatBody()
+	pWarn := startSpecProxy(t, "warn", "relaxed", chatOK())
+	pOff := startSpecProxy(t, "off", "relaxed", chatOK())
+	measure := func(p proxyProc, n int) []time.Duration {
+		out := make([]time.Duration, 0, n)
+		for i := 0; i < n; i++ {
+			sid := newSession()
+			st := time.Now()
+			_, _, _, _ = postRaw(t, p, "/v1/chat/completions", sid, nil, body)
+			out = append(out, time.Since(st))
+		}
+		return out
+	}
+	_ = measure(pWarn, 20)
+	_ = measure(pOff, 20)
+	warn := measure(pWarn, 80)
+	off := measure(pOff, 80)
+	delta := p99Micros(warn) - p99Micros(off)
+	if delta < 0 {
+		delta = -delta
+	}
+	if delta > 5*time.Millisecond {
+		t.Fatalf("e2e p99 delta warn-off=%s (warn=%s off=%s)", delta, p99Micros(warn), p99Micros(off))
+	}
+}
+
+func TestI5Memory(t *testing.T) {
+	p := startSpecProxy(t, "warn", "relaxed", chatOK())
+	body := typicalChatBody()
+	heap := func() uint64 {
+		runtime.GC()
+		runtime.GC()
+		var ms runtime.MemStats
+		runtime.ReadMemStats(&ms)
+		return ms.HeapAlloc
+	}
+	const n = 2000
+	var mid uint64
+	for i := 0; i < n; i++ {
+		sid := newSession()
+		_, _, _, _ = postRaw(t, p, "/v1/chat/completions", sid, nil, body)
+		if i+1 == 1000 {
+			mid = heap()
+		}
+	}
+	end := heap()
+	if mid == 0 {
+		t.Fatal("mid heap unset")
+	}
+	limit := mid + mid/10
+	if end > limit+64*1024 {
+		t.Fatalf("heap after 2000=%d mark@1000=%d (10%% band=%d)", end, mid, limit)
+	}
+}
