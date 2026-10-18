@@ -118,6 +118,8 @@ func TestBMatrix(t *testing.T) {
 		strictV, relaxedV string
 		ignoredKind       string
 		jsonPath, pointer string
+		// Optional relaxed-profile location. Empty means same as jsonPath/pointer.
+		relaxedPath, relaxedPointer string
 	}
 	chat := []byte(`{"model":"m","messages":[{"role":"user","content":"hi"}],"foo":1}`)
 	chatMsg := []byte(`{"model":"m","messages":[{"role":"user","content":"hi","foo":1}]}`)
@@ -139,25 +141,25 @@ func TestBMatrix(t *testing.T) {
 	trailResp := []byte(`{"model":"m","input":"hi"} xyz`)
 
 	rows := []row{
-		{"B1_chat", "/v1/chat/completions", chat, "unevaluatedProperties", "unevaluatedProperties", "", "foo", "/foo"},
-		{"B1_resp", "/v1/responses", respFoo, "unevaluatedProperties", "unevaluatedProperties", "", "foo", "/foo"},
-		{"B2_chat_msg", "/v1/chat/completions", chatMsg, "unevaluatedProperties", "", "unknown_request_field", "messages[0].foo", "/messages/0/foo"},
-		{"B3_resp_input", "/v1/responses", respIn, "unevaluatedProperties", "unevaluatedProperties", "", "input[0].foo", "/input/0/foo"},
-		{"B4_chat_tool", "/v1/chat/completions", chatTool, "unevaluatedProperties", "", "unknown_request_field", "tools[0].function.foo", "/tools/0/function/foo"},
-		{"B4_resp_tool", "/v1/responses", respTool, "unevaluatedProperties", "", "unknown_request_field", "tools[0].foo", "/tools/0/foo"},
-		{"B5_resp_no_strict", "/v1/responses", respNoStrict, "required", "", "strict_fallback_predicted", "tools[0]", "/tools/0"},
-		{"B6_chat_enum", "/v1/chat/completions", badEnumChat, "enum", "enum", "", "tool_choice", "/tool_choice"},
-		{"B6_resp_enum", "/v1/responses", badEnumResp, "enum", "enum", "", "tool_choice", "/tool_choice"},
-		{"B7_chat_missing", "/v1/chat/completions", missingChat, "required", "required", "", "messages", ""},
-		{"B7_resp_missing", "/v1/responses", missingResp, "required", "required", "", "model", ""},
-		{"B7_empty_chat", "/v1/chat/completions", empty, "required", "required", "", "messages", ""},
-		{"B7_empty_resp", "/v1/responses", empty, "required", "required", "", "model", ""},
-		{"B8_type_chat", "/v1/chat/completions", wrongType, "type", "type", "", "temperature", "/temperature"},
-		{"B8_type_resp", "/v1/responses", wrongTypeResp, "type", "type", "", "temperature", "/temperature"},
-		{"B9_trail", "/v1/chat/completions", trail, "trailingData", "trailingData", "", "", ""},
-		{"B9_two", "/v1/chat/completions", two, "trailingData", "trailingData", "", "", ""},
-		{"B9_two_space", "/v1/chat/completions", twoSpace, "trailingData", "trailingData", "", "", ""},
-		{"B9_trail_resp", "/v1/responses", trailResp, "trailingData", "trailingData", "", "", ""},
+		{"B1_chat", "/v1/chat/completions", chat, "unevaluatedProperties", "unevaluatedProperties", "", "foo", "/foo", "", ""},
+		{"B1_resp", "/v1/responses", respFoo, "unevaluatedProperties", "unevaluatedProperties", "", "foo", "/foo", "", ""},
+		{"B2_chat_msg", "/v1/chat/completions", chatMsg, "unevaluatedProperties", "", "unknown_request_field", "messages[0].foo", "/messages/0/foo", "", ""},
+		{"B3_resp_input", "/v1/responses", respIn, "unevaluatedProperties", "unevaluatedProperties", "", "input[0].foo", "/input/0/foo", "", ""},
+		{"B4_chat_tool", "/v1/chat/completions", chatTool, "unevaluatedProperties", "", "unknown_request_field", "tools[0].function.foo", "/tools/0/function/foo", "", ""},
+		{"B4_resp_tool", "/v1/responses", respTool, "unevaluatedProperties", "", "unknown_request_field", "tools[0].foo", "/tools/0/foo", "", ""},
+		{"B5_resp_no_strict", "/v1/responses", respNoStrict, "required", "", "strict_fallback_predicted", "tools[0]", "/tools/0", "tools[0].parameters", "/tools/0/parameters"},
+		{"B6_chat_enum", "/v1/chat/completions", badEnumChat, "enum", "enum", "", "tool_choice", "/tool_choice", "", ""},
+		{"B6_resp_enum", "/v1/responses", badEnumResp, "enum", "enum", "", "tool_choice", "/tool_choice", "", ""},
+		{"B7_chat_missing", "/v1/chat/completions", missingChat, "required", "required", "", "", "/", "", ""},
+		{"B7_resp_missing", "/v1/responses", missingResp, "required", "required", "", "", "/", "", ""},
+		{"B7_empty_chat", "/v1/chat/completions", empty, "required", "required", "", "", "/", "", ""},
+		{"B7_empty_resp", "/v1/responses", empty, "required", "required", "", "", "/", "", ""},
+		{"B8_type_chat", "/v1/chat/completions", wrongType, "type", "type", "", "temperature", "/temperature", "", ""},
+		{"B8_type_resp", "/v1/responses", wrongTypeResp, "type", "type", "", "temperature", "/temperature", "", ""},
+		{"B9_trail", "/v1/chat/completions", trail, "trailingData", "trailingData", "", "", "", "", ""},
+		{"B9_two", "/v1/chat/completions", two, "trailingData", "trailingData", "", "", "", "", ""},
+		{"B9_two_space", "/v1/chat/completions", twoSpace, "trailingData", "trailingData", "", "", "", "", ""},
+		{"B9_trail_resp", "/v1/responses", trailResp, "trailingData", "trailingData", "", "", "", "", ""},
 	}
 
 	for _, r := range rows {
@@ -179,6 +181,10 @@ func TestBMatrix(t *testing.T) {
 					hasViolation := wantKeyword != ""
 					hasIgnored := r.ignoredKind != ""
 					shouldReject := mode == "enforce" && (hasViolation || hasIgnored)
+					locPath, locPtr := r.jsonPath, r.pointer
+					if profile == "relaxed" && r.relaxedPath != "" {
+						locPath, locPtr = r.relaxedPath, r.relaxedPointer
+					}
 					switch mode {
 					case "off":
 						if p.upstream.Count() != 1 {
@@ -198,7 +204,7 @@ func TestBMatrix(t *testing.T) {
 						n := normalized(call)
 						assertKeyword(t, n, wantKeyword)
 						assertIgnoredKind(t, n, r.ignoredKind)
-						assertBMatrixLocation(t, n, r.jsonPath, r.pointer, wantKeyword, r.ignoredKind, r.body)
+						assertBMatrixLocation(t, n, locPath, locPtr, wantKeyword, r.ignoredKind, r.body)
 					case "enforce":
 						if shouldReject {
 							if status != 400 {
@@ -218,7 +224,7 @@ func TestBMatrix(t *testing.T) {
 							if errObj["source"] != "proxy" {
 								t.Fatalf("error=%v", errObj)
 							}
-							assertBMatrixLocation(t, n, r.jsonPath, r.pointer, wantKeyword, r.ignoredKind, r.body)
+							assertBMatrixLocation(t, n, locPath, locPtr, wantKeyword, r.ignoredKind, r.body)
 							assertEnforceError(t, body, profile, hasViolation, n)
 						} else if p.upstream.Count() != 1 {
 							t.Fatalf("expected forward, count=%d", p.upstream.Count())
@@ -245,25 +251,13 @@ func assertBMatrixLocation(t *testing.T, n map[string]any, jsonPath, pointer, ke
 			match = m
 			break
 		}
-		if match == nil && pointer != "" {
-			for _, v := range asAnySlice(n["spec_violations"]) {
-				m, _ := v.(map[string]any)
-				if m["side"] == "response" || m["keyword"] != keyword {
-					continue
-				}
-				if m["pointer"] == pointer || strings.HasSuffix(fmt.Sprint(m["pointer"]), pointer) {
-					match = m
-					break
-				}
-			}
-		}
 		if match == nil {
 			t.Fatalf("missing keyword %s pointer %s in %v", keyword, pointer, n["spec_violations"])
 		}
 		if pointer != "" && match["pointer"] != pointer {
 			t.Fatalf("violation pointer=%v want %s (%v)", match["pointer"], pointer, match)
 		}
-		if jsonPath != "" && match["path"] != jsonPath && !strings.Contains(fmt.Sprint(match["path"]), jsonPath) && !strings.Contains(fmt.Sprint(match["message"]), jsonPath) {
+		if jsonPath != "" && match["path"] != jsonPath {
 			t.Fatalf("violation path=%v want %s (%v)", match["path"], jsonPath, match)
 		}
 		if keyword == "trailingData" {
@@ -281,14 +275,11 @@ func assertBMatrixLocation(t *testing.T, n map[string]any, jsonPath, pointer, ke
 			if m["kind"] != ignoredKind {
 				continue
 			}
-			if pointer != "" && m["pointer"] != pointer && !strings.Contains(fmt.Sprint(m["pointer"]), pointer) {
+			if pointer != "" && m["pointer"] != pointer {
 				continue
 			}
 			found = true
-			if pointer != "" && m["pointer"] != pointer && !strings.Contains(fmt.Sprint(m["pointer"]), pointer) {
-				t.Fatalf("ignored pointer=%v want %s", m["pointer"], pointer)
-			}
-			if m["path"] != jsonPath && !strings.Contains(fmt.Sprint(m["path"]), jsonPath) {
+			if m["path"] != jsonPath {
 				t.Fatalf("ignored path=%v want %s", m["path"], jsonPath)
 			}
 			break

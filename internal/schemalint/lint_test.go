@@ -231,6 +231,30 @@ func TestC4OverlayEvidence(t *testing.T) {
 	}
 }
 
+func TestResponsesContentPartAllowlist(t *testing.T) {
+	for _, key := range []string{"file_data", "file_url", "filename", "annotations", "logprobs", "refusal"} {
+		if _, ok := responsesContentPartKeys[key]; !ok {
+			t.Fatalf("documented Responses content-part key %s missing from allowlist", key)
+		}
+	}
+	l := testLinter(t)
+	unknown := []byte(`{"model":"m","input":[{"role":"user","content":[{"type":"input_text","text":"hi","foo":1}]}]}`)
+	got := l.LintRequest("openai.responses", unknown)
+	for _, f := range got.Ignored {
+		if f.Key == "foo" {
+			t.Fatalf("unknown Responses content-part field must not be ignored_fields: %+v", f)
+		}
+	}
+	documented := []byte(`{"model":"m","input":[{"role":"user","content":[{"type":"input_text","text":"hi","annotations":[],"logprobs":[]},{"type":"input_file","file_data":"aGVsbG8=","file_url":"https://example.com/n.txt","filename":"n.txt"},{"type":"refusal","refusal":"nope"}]}]}`)
+	got = l.LintRequest("openai.responses", documented)
+	for _, f := range got.Ignored {
+		switch f.Key {
+		case "file_data", "file_url", "filename", "annotations", "logprobs", "refusal":
+			t.Fatalf("documented field %s flagged: %+v", f.Key, f)
+		}
+	}
+}
+
 func readE2ESources(t *testing.T) string {
 	t.Helper()
 	root := filepath.Join("..", "..", "tests", "e2e")

@@ -164,21 +164,6 @@ func (l *Linter) lintResponses(body map[string]any, fineTuned bool) Result {
 			}
 		}
 	}
-	if input, ok := body["input"].([]any); ok {
-		for i, item := range input {
-			obj, _ := item.(map[string]any)
-			if obj == nil {
-				continue
-			}
-			base := fmt.Sprintf("/input/%d", i)
-			if content, ok := obj["content"].([]any); ok {
-				for j, part := range content {
-					p, _ := part.(map[string]any)
-					res.Ignored = append(res.Ignored, unknownKeys(p, responsesContentPartKeys, base+"/content/"+strconv.Itoa(j), ContextResponsesTools, l)...)
-				}
-			}
-		}
-	}
 	return res
 }
 
