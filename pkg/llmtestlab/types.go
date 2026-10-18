@@ -18,27 +18,28 @@ type Session struct {
 }
 
 type Call struct {
-	ID          string            `json:"id"`
-	SessionID   string            `json:"session_id"`
-	Seq         int               `json:"seq"`
-	StartedAt   time.Time         `json:"started_at"`
-	FirstByteAt *time.Time        `json:"first_byte_at,omitempty"`
-	EndedAt     time.Time         `json:"ended_at"`
-	LatencyMS   int64             `json:"latency_ms"`
-	Provider    string            `json:"provider"`
-	APIFamily   string            `json:"api_family"`
-	Upstream    Upstream          `json:"upstream"`
-	Request     Exchange          `json:"request"`
-	Response    Exchange          `json:"response"`
-	RequestIDs  map[string]string `json:"request_ids,omitempty"`
-	RawRequest  []byte            `json:"raw_request,omitempty"`
-	RawResponse []byte            `json:"raw_response,omitempty"`
-	SSEEvents   []SSEEvent        `json:"sse_events,omitempty"`
-	Stream      bool              `json:"stream"`
-	HTTPStatus  int               `json:"http_status"`
-	RetryCount  *int              `json:"retry_count,omitempty"`
-	RetryAfter  string            `json:"retry_after,omitempty"`
-	Normalized  Normalized        `json:"normalized"`
+	ID            string            `json:"id"`
+	SessionID     string            `json:"session_id"`
+	SessionSource string            `json:"session_source,omitempty"`
+	Seq           int               `json:"seq"`
+	StartedAt     time.Time         `json:"started_at"`
+	FirstByteAt   *time.Time        `json:"first_byte_at,omitempty"`
+	EndedAt       time.Time         `json:"ended_at"`
+	LatencyMS     int64             `json:"latency_ms"`
+	Provider      string            `json:"provider"`
+	APIFamily     string            `json:"api_family"`
+	Upstream      Upstream          `json:"upstream"`
+	Request       Exchange          `json:"request"`
+	Response      Exchange          `json:"response"`
+	RequestIDs    map[string]string `json:"request_ids,omitempty"`
+	RawRequest    []byte            `json:"raw_request,omitempty"`
+	RawResponse   []byte            `json:"raw_response,omitempty"`
+	SSEEvents     []SSEEvent        `json:"sse_events,omitempty"`
+	Stream        bool              `json:"stream"`
+	HTTPStatus    int               `json:"http_status"`
+	RetryCount    *int              `json:"retry_count,omitempty"`
+	RetryAfter    string            `json:"retry_after,omitempty"`
+	Normalized    Normalized        `json:"normalized"`
 }
 
 type Upstream struct {

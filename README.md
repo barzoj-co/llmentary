@@ -87,6 +87,7 @@ Control endpoints live on the control listener:
 curl http://localhost:7778/healthz
 curl http://localhost:7778/sessions/my-test
 curl 'http://localhost:7778/sessions/my-test/wait?quiet=500ms&timeout=30s'
+curl http://localhost:7778/sessions/my-test/otlp
 curl -X DELETE http://localhost:7778/sessions/my-test
 ```
 
@@ -94,6 +95,9 @@ Each recorded call includes raw request/response bytes (base64 in JSON), raw SSE
 status, latency, retry count (`x-stainless-retry-count`), upstream request ids, and a
 normalized view with model, system prompt hash, declared tools, tool calls, finish reason,
 usage, errors, and parser warnings.
+
+`/sessions/{id}/otlp` returns one OTel GenAI CLIENT span per recorded call in OTLP/JSON.
+See [`docs/otel.md`](docs/otel.md) for the semantic-conventions mapping.
 
 ## Go test client
 
@@ -142,10 +146,15 @@ llmtestlab.TokensBelow(t, calls, 1000)
 
 ## Development
 
+Requires Go 1.26.x.
+
 ```bash
 go test ./...
 go test -tags=e2e ./...   # skips unless OPENAI_API_KEY is set
 ```
+
+In CI, the e2e job only runs when `OPENAI_E2E_ENABLED=true`; when enabled, it fails loudly
+if `OPENAI_API_KEY` is empty.
 
 The e2e test starts a local proxy, calls the real OpenAI Chat Completions API with a tiny
 streaming tool-call request, then dogfoods the Go client assertions against the session API.

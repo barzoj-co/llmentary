@@ -83,6 +83,14 @@ func (c *Client) Wait(ctx context.Context, sessionID string, quiet, timeout time
 	return session.Calls, nil
 }
 
+func (c *Client) OTLP(ctx context.Context, sessionID string) (json.RawMessage, error) {
+	var raw json.RawMessage
+	if err := c.getJSON(ctx, "/sessions/"+url.PathEscape(sessionID)+"/otlp", nil, &raw); err != nil {
+		return nil, err
+	}
+	return raw, nil
+}
+
 func (c *Client) Delete(ctx context.Context, sessionID string) error {
 	u := c.resolve("/sessions/" + url.PathEscape(sessionID))
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, u.String(), nil)
@@ -94,7 +102,7 @@ func (c *Client) Delete(ctx context.Context, sessionID string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		return fmt.Errorf("llmtestlab delete failed: status=%d body=%s", resp.StatusCode, string(body))
@@ -114,7 +122,7 @@ func (c *Client) getJSON(ctx context.Context, path string, q url.Values, out any
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		return fmt.Errorf("llmtestlab get failed: status=%d body=%s", resp.StatusCode, string(body))
