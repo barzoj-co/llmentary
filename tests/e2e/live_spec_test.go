@@ -162,6 +162,10 @@ func TestLiveEnforce_RejectsWithoutUpstream(t *testing.T) {
 	if call["upstream_called"] != false {
 		t.Fatalf("upstream_called=%v", call["upstream_called"])
 	}
+	errObj, _ := liveNormalized(call)["error"].(map[string]any)
+	if errObj["source"] != "proxy" {
+		t.Fatalf("C5 normalized.error.source=%v want proxy", errObj["source"])
+	}
 	p2 := startLiveProxy(t, "enforce", "relaxed")
 	sid2 := liveSession()
 	okBody := []byte(`{"model":` + quoteJSON(liveModel()) + `,"messages":[{"role":"user","content":"Reply with ok."}],"max_tokens":16}`)
@@ -172,15 +176,15 @@ func TestLiveEnforce_RejectsWithoutUpstream(t *testing.T) {
 }
 
 func TestLiveIgnored_EnumDescriptions_ChatTool(t *testing.T) {
-	runEnumDescriptionsLive(t, "/chat/completions", chatEnumDescBody(false))
+	runEnumDescriptionsLive(t, "/chat/completions", chatEnumDescBody(false), false, "chat.tools.function.parameters")
 }
 
 func TestLiveIgnored_EnumDescriptions_ChatToolStrict(t *testing.T) {
-	runEnumDescriptionsLive(t, "/chat/completions", chatEnumDescBody(true))
+	runEnumDescriptionsLive(t, "/chat/completions", chatEnumDescBody(true), true, "chat.tools.function.parameters")
 }
 
 func TestLiveIgnored_EnumDescriptions_ResponsesTool(t *testing.T) {
-	runEnumDescriptionsLive(t, "/responses", responsesEnumDescBody(boolPtr(false)))
+	runEnumDescriptionsLive(t, "/responses", responsesEnumDescBody(boolPtr(false)), false, "responses.tools.parameters")
 }
 
 func TestLiveIgnored_EnumDescriptions_ResponsesToolStrictOmitted(t *testing.T) {
@@ -192,16 +196,7 @@ func TestLiveIgnored_EnumDescriptions_ResponsesToolStrictOmitted(t *testing.T) {
 		t.Fatalf("status=%d body=%s", status, redactLiveBody(body))
 	}
 	n := liveNormalized(liveLastCall(t, session))
-	found := false
-	for _, v := range liveSlice(n["ignored_fields"]) {
-		m := v.(map[string]any)
-		if m["key"] == "enumDescriptions" {
-			found = true
-		}
-	}
-	if !found {
-		t.Fatalf("missing enumDescriptions ignored_fields: %v", n["ignored_fields"])
-	}
+	assertLiveEnumDescriptions(t, "responses.tools.parameters", n, false)
 	var env map[string]any
 	_ = json.Unmarshal(body, &env)
 	if tools, ok := env["tools"].([]any); ok && len(tools) > 0 {
@@ -224,13 +219,13 @@ func TestLiveIgnored_EnumDescriptions_ResponsesToolStrictOmitted(t *testing.T) {
 func TestLiveIgnored_EnumDescriptions_ChatResponseFormat(t *testing.T) {
 	model := liveModel()
 	body := []byte(`{"model":` + quoteJSON(model) + `,"messages":[{"role":"user","content":"Reply with ok."}],"max_tokens":16,"response_format":{"type":"json_schema","json_schema":{"name":"color","strict":true,"schema":{"type":"object","properties":{"color":{"type":"string","enum":["red"],"enumDescriptions":{"red":"warm"}}},"required":["color"],"additionalProperties":false}}}}`)
-	runEnumDescriptionsLive(t, "/chat/completions", func(string) []byte { return body })
+	runEnumDescriptionsLive(t, "/chat/completions", func(string) []byte { return body }, true, "chat.response_format.json_schema")
 }
 
 func TestLiveIgnored_EnumDescriptions_ResponsesTextFormat(t *testing.T) {
 	model := liveModel()
 	body := []byte(`{"model":` + quoteJSON(model) + `,"input":"Reply with ok.","max_output_tokens":16,"text":{"format":{"type":"json_schema","name":"color","strict":true,"schema":{"type":"object","properties":{"color":{"type":"string","enum":["red"],"enumDescriptions":{"red":"warm"}}},"required":["color"],"additionalProperties":false}}}}`)
-	runEnumDescriptionsLive(t, "/responses", func(string) []byte { return body })
+	runEnumDescriptionsLive(t, "/responses", func(string) []byte { return body }, true, "responses.text.format")
 }
 
 func runLiveRow(t *testing.T, rowID, path string, body func(model string) []byte) {
@@ -274,20 +269,10 @@ func runLiveRow(t *testing.T, rowID, path string, body func(model string) []byte
 }
 
 func runLiveProbe(t *testing.T, rowID, path string, body func(model string) []byte) {
-	t.Helper()
-	apiKey := requireAPIKey(t)
-	beh := loadLiveBehavior(t)
-	row, ok := beh.Rows[rowID]
-	if !ok {
-		t.Fatalf("missing live-behavior row %s", rowID)
-	}
-	p := startLiveProxy(t, "warn", "relaxed")
-	sid := liveSession()
-	status, _, resp, _ := postLive(t, apiKey, p, path, sid, body(liveModel()))
-	assertLiveError(t, row, status, resp)
+	runLiveRow(t, rowID, path, body)
 }
 
-func runEnumDescriptionsLive(t *testing.T, path string, bodyFn func(model string) []byte) {
+func runEnumDescriptionsLive(t *testing.T, path string, bodyFn func(model string) []byte, effectiveStrict bool, context string) {
 	t.Helper()
 	apiKey := requireAPIKey(t)
 	p := startLiveProxy(t, "warn", "relaxed")
@@ -297,16 +282,33 @@ func runEnumDescriptionsLive(t *testing.T, path string, bodyFn func(model string
 		t.Fatalf("status=%d body=%s", status, redactLiveBody(resp))
 	}
 	n := liveNormalized(liveLastCall(t, session))
-	found := false
-	for _, v := range liveSlice(n["ignored_fields"]) {
-		m := v.(map[string]any)
-		if m["key"] == "enumDescriptions" && m["kind"] == "unknown_schema_keyword" {
-			found = true
-		}
+	assertLiveEnumDescriptions(t, context, n, effectiveStrict)
+}
+
+func assertLiveEnumDescriptions(t *testing.T, context string, n map[string]any, effectiveStrict bool) {
+	t.Helper()
+	want := map[string]any{
+		"key": "enumDescriptions", "kind": "unknown_schema_keyword",
+		"context": context, "upstream_behavior": "silently_ignored",
+		"effective_strict":      effectiveStrict,
+		"hint":                  "OpenAI does not read `enumDescriptions`; the model never sees it. Move the per-value descriptions into this property's `description`.",
+		"suggested_description": "red: warm",
 	}
-	if !found {
-		t.Fatalf("missing enumDescriptions ignored_fields: %v", n["ignored_fields"])
+	switch context {
+	case "chat.tools.function.parameters":
+		want["path"] = "tools[0].function.parameters.properties.color.enumDescriptions"
+		want["pointer"] = "/tools/0/function/parameters/properties/color/enumDescriptions"
+	case "responses.tools.parameters":
+		want["path"] = "tools[0].parameters.properties.color.enumDescriptions"
+		want["pointer"] = "/tools/0/parameters/properties/color/enumDescriptions"
+	case "chat.response_format.json_schema":
+		want["path"] = "response_format.json_schema.schema.properties.color.enumDescriptions"
+		want["pointer"] = "/response_format/json_schema/schema/properties/color/enumDescriptions"
+	case "responses.text.format":
+		want["path"] = "text.format.schema.properties.color.enumDescriptions"
+		want["pointer"] = "/text/format/schema/properties/color/enumDescriptions"
 	}
+	assertIgnoredExact(t, n, want)
 }
 
 func chatEnumDescBody(strict bool) func(string) []byte {
@@ -335,6 +337,15 @@ func TestLiveCostGuardPresent(t *testing.T) {
 	_ = requireAPIKey(t)
 	if liveRequestCap != 120 {
 		t.Fatalf("cap=%d", liveRequestCap)
+	}
+	if msg := checkLiveCost(int64(liveRequestCap)+1, int64(liveRequestCap)); msg == "" {
+		t.Fatal("cost guard must trip when upstream calls exceed the cap")
+	}
+	if msg := checkLiveCost(int64(liveRequestCap), int64(liveRequestCap)); msg != "" {
+		t.Fatalf("cost guard must allow calls at the cap: %s", msg)
+	}
+	if msg := checkLiveCost(0, int64(liveRequestCap)); msg != "" {
+		t.Fatalf("cost guard must allow zero calls: %s", msg)
 	}
 }
 

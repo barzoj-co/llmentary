@@ -7,6 +7,7 @@ package llmtestlab_test
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -164,16 +165,13 @@ func runTokenDelta(t *testing.T, path, usageKey string, base, with, ctrl map[str
 		t.Fatalf("measurement method broken: control delta=%d (want ≥ %d and ≥ 50ε). field=%s", d3, tokenDeltaMinControl, field)
 	}
 	if expectIgnored {
-		if !hasIgnoredKey(n2) && field == "enumDescriptions" {
-			t.Fatalf("request 2 missing ignored_fields for %s: %v", field, n2["ignored_fields"])
-		}
-		if field != "enumDescriptions" && !hasIgnoredKind(n2, "unknown_request_field") {
-			t.Fatalf("request 2 missing unknown_request_field: %v", n2["ignored_fields"])
-		}
-		if hasIgnoredKey(n1) || hasIgnoredKey(n3) {
-			if field == "enumDescriptions" {
+		if field == "enumDescriptions" {
+			assertIgnoredExact(t, n2, tokenEnumWant(path, with))
+			if hasIgnoredKey(n1) || hasIgnoredKey(n3) {
 				t.Fatalf("requests 1/3 should have no enumDescriptions ignored_fields")
 			}
+		} else {
+			assertIgnoredExact(t, n2, tokenIgnoredWant(field))
 		}
 	}
 }
@@ -244,11 +242,102 @@ func enumDescriptionMap(T string) map[string]any {
 }
 
 func enumKeys(m map[string]any) []any {
-	keys := make([]any, 0, len(m))
+	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	return keys
+	sort.Strings(keys)
+	out := make([]any, len(keys))
+	for i, k := range keys {
+		out[i] = k
+	}
+	return out
+}
+
+func tokenEnumWant(path string, body map[string]any) map[string]any {
+	context := "responses.tools.parameters"
+	jsonPath := "tools[0].parameters.properties.color.enumDescriptions"
+	pointer := "/tools/0/parameters/properties/color/enumDescriptions"
+	if path == "/chat/completions" {
+		context = "chat.tools.function.parameters"
+		jsonPath = "tools[0].function.parameters.properties.color.enumDescriptions"
+		pointer = "/tools/0/function/parameters/properties/color/enumDescriptions"
+	}
+	return map[string]any{
+		"path": jsonPath, "pointer": pointer, "key": "enumDescriptions",
+		"kind": "unknown_schema_keyword", "context": context,
+		"effective_strict": tokenEnumStrict(body), "upstream_behavior": "silently_ignored",
+		"hint":                  "OpenAI does not read `enumDescriptions`; the model never sees it. Move the per-value descriptions into this property's `description`.",
+		"suggested_description": tokenEnumSuggested(body),
+	}
+}
+
+func tokenEnumSuggested(body map[string]any) string {
+	tools, _ := body["tools"].([]any)
+	if len(tools) == 0 {
+		return ""
+	}
+	tool, _ := tools[0].(map[string]any)
+	params, _ := tool["parameters"].(map[string]any)
+	if params == nil {
+		if fn, ok := tool["function"].(map[string]any); ok {
+			params, _ = fn["parameters"].(map[string]any)
+		}
+	}
+	props, _ := params["properties"].(map[string]any)
+	color, _ := props["color"].(map[string]any)
+	descs, _ := color["enumDescriptions"].(map[string]any)
+	base, _ := color["description"].(string)
+	var parts []string
+	for _, k := range enumKeys(descs) {
+		parts = append(parts, fmt.Sprintf("%s: %v", k, descs[fmt.Sprint(k)]))
+	}
+	joined := strings.Join(parts, "; ")
+	base = strings.TrimSpace(strings.TrimRight(base, "."))
+	if base == "" {
+		return joined
+	}
+	return base + ". " + joined
+}
+
+func tokenEnumStrict(body map[string]any) bool {
+	tools, _ := body["tools"].([]any)
+	if len(tools) == 0 {
+		return false
+	}
+	tool, _ := tools[0].(map[string]any)
+	if b, ok := tool["strict"].(bool); ok {
+		return b
+	}
+	fn, _ := tool["function"].(map[string]any)
+	if b, ok := fn["strict"].(bool); ok {
+		return b
+	}
+	return false
+}
+
+func tokenIgnoredWant(field string) map[string]any {
+	hint := "The live OpenAI API accepts this field and silently ignores it. Remove it, or it will never reach the model."
+	switch field {
+	case "messages[0].foo":
+		return map[string]any{
+			"path": "messages[0].foo", "pointer": "/messages/0/foo", "key": "foo",
+			"kind": "unknown_request_field", "context": "chat.message",
+			"effective_strict": false, "upstream_behavior": "silently_ignored", "hint": hint,
+		}
+	case "tools[0].function.foo":
+		return map[string]any{
+			"path": "tools[0].function.foo", "pointer": "/tools/0/function/foo", "key": "foo",
+			"kind": "unknown_request_field", "context": "chat.tools.function",
+			"effective_strict": false, "upstream_behavior": "silently_ignored", "hint": hint,
+		}
+	default:
+		return map[string]any{
+			"path": "tools[0].foo", "pointer": "/tools/0/foo", "key": "foo",
+			"kind": "unknown_request_field", "context": "responses.tools",
+			"effective_strict": false, "upstream_behavior": "silently_ignored", "hint": hint,
+		}
+	}
 }
 
 func cloneMap(in map[string]any) map[string]any {

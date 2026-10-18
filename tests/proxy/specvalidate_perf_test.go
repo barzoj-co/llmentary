@@ -64,6 +64,34 @@ func typicalChatBody() []byte {
 	return body
 }
 
+func typicalResponsesBody() []byte {
+	tools := make([]any, 0, 5)
+	for i := 0; i < 5; i++ {
+		tools = append(tools, map[string]any{
+			"type": "function",
+			"name": fmt.Sprintf("tool_%d", i),
+			"parameters": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"q":    map[string]any{"type": "string"},
+					"n":    map[string]any{"type": "integer"},
+					"flag": map[string]any{"type": "boolean"},
+				},
+				"required":             []any{"q"},
+				"additionalProperties": false,
+			},
+		})
+	}
+	body, _ := json.Marshal(map[string]any{
+		"model": "m",
+		"input": []any{
+			map[string]any{"role": "user", "content": "typical responses request about weather"},
+		},
+		"tools": tools,
+	})
+	return body
+}
+
 func largeToolsBody(tools, props int) []byte {
 	list := make([]any, 0, tools)
 	for i := 0; i < tools; i++ {
@@ -109,6 +137,10 @@ func deepWideSchemaBody() []byte {
 	return strictToolBody(schema)
 }
 
+func p50Micros(samples []time.Duration) time.Duration {
+	return percentileDuration(samples, 0.50)
+}
+
 func p99Micros(samples []time.Duration) time.Duration {
 	cp := append([]time.Duration(nil), samples...)
 	for i := 0; i < len(cp); i++ {
@@ -125,12 +157,12 @@ func p99Micros(samples []time.Duration) time.Duration {
 	return cp[idx]
 }
 
-func timeValidate(eng *specvalidate.Engine, lint *schemalint.Linter, body []byte, n int) []time.Duration {
+func timeValidate(eng *specvalidate.Engine, lint *schemalint.Linter, family string, body []byte, n int) []time.Duration {
 	out := make([]time.Duration, n)
 	for i := 0; i < n; i++ {
 		start := time.Now()
-		_ = eng.ValidateRequest(specvalidate.ProfileRelaxed, "openai.chat", body, 0)
-		_ = lint.LintRequest("openai.chat", body)
+		_ = eng.ValidateRequest(specvalidate.ProfileRelaxed, family, body, 0)
+		_ = lint.LintRequest(family, body)
 		out[i] = time.Since(start)
 	}
 	return out
@@ -138,12 +170,21 @@ func timeValidate(eng *specvalidate.Engine, lint *schemalint.Linter, body []byte
 
 func TestI2TypicalP99(t *testing.T) {
 	eng, lint := compileEngine(t)
-	body := typicalChatBody()
-	_ = timeValidate(eng, lint, body, 50)
-	samples := timeValidate(eng, lint, body, 2000)
-	p99 := p99Micros(samples)
-	if p99 > 5*time.Millisecond {
-		t.Fatalf("typical p99=%s want <5ms", p99)
+	for _, tc := range []struct {
+		name, family string
+		body         []byte
+	}{
+		{"chat", "openai.chat", typicalChatBody()},
+		{"responses", "openai.responses", typicalResponsesBody()},
+	} {
+		_ = timeValidate(eng, lint, tc.family, tc.body, 50)
+		samples := timeValidate(eng, lint, tc.family, tc.body, 2000)
+		p50 := p50Micros(samples)
+		p99 := p99Micros(samples)
+		t.Logf("I2 %s p50=%s p99=%s", tc.name, p50, p99)
+		if p99 > 5*time.Millisecond {
+			t.Fatalf("typical %s p99=%s want <5ms", tc.name, p99)
+		}
 	}
 }
 
@@ -162,13 +203,17 @@ func TestI3LargeSchema(t *testing.T) {
 	eng, lint := compileEngine(t)
 	wide := largeToolsBody(20, 100)
 	requireP99Under(t, "20x100", 25*time.Millisecond, func() time.Duration {
-		_ = timeValidate(eng, lint, wide, 80)
-		return p99Micros(timeValidate(eng, lint, wide, 400))
+		_ = timeValidate(eng, lint, "openai.chat", wide, 80)
+		samples := timeValidate(eng, lint, "openai.chat", wide, 400)
+		t.Logf("I3 20x100 p50=%s p99=%s", p50Micros(samples), p99Micros(samples))
+		return p99Micros(samples)
 	})
 	deep := deepWideSchemaBody()
 	requireP99Under(t, "5000-property depth-10", 100*time.Millisecond, func() time.Duration {
-		_ = timeValidate(eng, lint, deep, 20)
-		return p99Micros(timeValidate(eng, lint, deep, 80))
+		_ = timeValidate(eng, lint, "openai.chat", deep, 20)
+		samples := timeValidate(eng, lint, "openai.chat", deep, 80)
+		t.Logf("I3 5000-property depth-10 p50=%s p99=%s", p50Micros(samples), p99Micros(samples))
+		return p99Micros(samples)
 	})
 }
 
@@ -182,7 +227,7 @@ func requireP99Under(t *testing.T, name string, limit time.Duration, measure fun
 	if got > limit {
 		t.Fatalf("%s p99=%s want <%s", name, got, limit)
 	}
-	t.Logf("%s p99=%s", name, got)
+	t.Logf("I3 %s p50/p99 logged via p99=%s (budget <%s)", name, got, limit)
 }
 
 func BenchmarkLargeSchema(b *testing.B) {
@@ -201,8 +246,9 @@ func TestI4Overhead(t *testing.T) {
 	if _, err := specvalidate.CompileEmbedded(); err != nil {
 		t.Fatal(err)
 	}
-	if took := time.Since(start); took > 2*time.Second {
-		t.Fatalf("CompileEmbedded=%s want <2s", took)
+	compileTook := time.Since(start)
+	if compileTook > 2*time.Second {
+		t.Fatalf("CompileEmbedded=%s want <2s", compileTook)
 	}
 	body := typicalChatBody()
 	pWarn := startSpecProxy(t, "warn", "relaxed", chatOK())
@@ -221,6 +267,7 @@ func TestI4Overhead(t *testing.T) {
 	_ = measure(pOff, 20)
 	warn := measure(pWarn, 80)
 	off := measure(pOff, 80)
+	t.Logf("I4 compile=%s warn p50=%s p99=%s off p50=%s p99=%s", compileTook, p50Micros(warn), p99Micros(warn), p50Micros(off), p99Micros(off))
 	delta := p99Micros(warn) - p99Micros(off)
 	if delta < 0 {
 		delta = -delta
@@ -262,33 +309,48 @@ func TestI5Memory(t *testing.T) {
 	// Also drive 10,000 warn-mode proxy requests, deleting each session so
 	// the in-memory trace store is not part of the validator leak budget.
 	p := startSpecProxy(t, "warn", "relaxed", chatOK())
-	for i := 0; i < 10000; i++ {
-		sid := newSession()
-		req, err := http.NewRequest(http.MethodPost, p.proxyURL+"/v1/chat/completions", bytes.NewReader(body))
-		if err != nil {
-			t.Fatal(err)
+	drive := func(n int) {
+		t.Helper()
+		for i := 0; i < n; i++ {
+			sid := newSession()
+			req, err := http.NewRequest(http.MethodPost, p.proxyURL+"/v1/chat/completions", bytes.NewReader(body))
+			if err != nil {
+				t.Fatal(err)
+			}
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Test-Session", sid)
+			res, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, _ = io.Copy(io.Discard, res.Body)
+			_ = res.Body.Close()
+			if res.StatusCode != http.StatusOK {
+				t.Fatalf("status=%d", res.StatusCode)
+			}
+			del, err := http.NewRequest(http.MethodDelete, p.controlURL+"/sessions/"+sid, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			dres, err := http.DefaultClient.Do(del)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, _ = io.Copy(io.Discard, dres.Body)
+			_ = dres.Body.Close()
 		}
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("X-Test-Session", sid)
-		res, err := http.DefaultClient.Do(req)
-		if err != nil {
-			t.Fatal(err)
-		}
-		_, _ = io.Copy(io.Discard, res.Body)
-		_ = res.Body.Close()
-		if res.StatusCode != http.StatusOK {
-			t.Fatalf("status=%d", res.StatusCode)
-		}
-		del, err := http.NewRequest(http.MethodDelete, p.controlURL+"/sessions/"+sid, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		dres, err := http.DefaultClient.Do(del)
-		if err != nil {
-			t.Fatal(err)
-		}
-		_, _ = io.Copy(io.Discard, dres.Body)
-		_ = dres.Body.Close()
+	}
+	drive(1000)
+	proxyMid := heap()
+	drive(9000)
+	proxyEnd := heap()
+	if proxyMid == 0 {
+		t.Fatal("proxy mid heap unset")
+	}
+	proxyLimit := proxyMid + proxyMid/10
+	t.Logf("I5 proxy heap mark@1000=%d after10000=%d (10%% band=%d)", proxyMid, proxyEnd, proxyLimit)
+	if proxyEnd > proxyLimit+256*1024 {
+		t.Fatalf("proxy heap after 10000=%d mark@1000=%d (10%% band=%d)", proxyEnd, proxyMid, proxyLimit)
 	}
 }
 

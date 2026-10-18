@@ -181,21 +181,28 @@ func flattenSchemaError(err error) []schemaErr {
 
 func dropInputTypeIfNested(in []schemaErr) []schemaErr {
 	// InputParam is oneOf[string, array]. The losing branch emits a type
-	// error at /input. Drop that leaf only when another error is nested
-	// under /input/, so a real type mismatch at /input is still reported.
+	// error at /input ("got array, want string" or the reverse). Drop that
+	// artifact, and also drop /input type when a real nested /input/ error
+	// exists. A genuine mismatch (e.g. input:123) is kept.
 	hasNested := false
+	losingBranch := false
 	for _, item := range in {
 		if strings.HasPrefix(item.pointer, "/input/") {
 			hasNested = true
-			break
+		}
+		if item.keyword == "type" && (item.pointer == "/input" || item.pointer == "input") {
+			msg := strings.ToLower(item.message)
+			if strings.Contains(msg, "got array, want string") || strings.Contains(msg, "got string, want array") {
+				losingBranch = true
+			}
 		}
 	}
-	if !hasNested {
+	if !hasNested && !losingBranch {
 		return in
 	}
 	out := make([]schemaErr, 0, len(in))
 	for _, item := range in {
-		if item.keyword == "type" && item.pointer == "/input" {
+		if item.keyword == "type" && (item.pointer == "/input" || item.pointer == "input") {
 			continue
 		}
 		out = append(out, item)

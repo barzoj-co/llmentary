@@ -386,7 +386,7 @@ func TestE2EInvalidParameter400(t *testing.T) {
 	model := e2eModel()
 	testLab := newE2ELab(t)
 	body := []byte(`{"model":` + strconv.Quote(model) + `,"messages":[{"role":"user","content":"hi"}],"temperature":99}`)
-	status, resp := postOpenAIStatus(t, apiKey, testLab, "/chat/completions", body)
+	status, _, resp := postOpenAIStatus(t, apiKey, testLab, "/chat/completions", body)
 	if status != http.StatusBadRequest {
 		t.Fatalf("status=%d body=%s", status, resp)
 	}
@@ -407,7 +407,7 @@ func TestE2EUnauthorized401(t *testing.T) {
 	model := e2eModel()
 	testLab := newE2ELab(t)
 	body := []byte(`{"model":` + strconv.Quote(model) + `,"messages":[{"role":"user","content":"hi"}]}`)
-	status, resp := postOpenAIStatus(t, "sk-invalid-e2e-key", testLab, "/chat/completions", body)
+	status, _, resp := postOpenAIStatus(t, "sk-invalid-e2e-key", testLab, "/chat/completions", body)
 	if status != http.StatusUnauthorized {
 		t.Fatalf("status=%d body=%s", status, resp)
 	}
@@ -431,10 +431,17 @@ func TestE2EResponsesStreamErrorShape(t *testing.T) {
 	// fixture coverage remains D4. This live probe pins the pre-stream JSON
 	// error for previous_response_id:"resp_does_not_exist".
 	body := []byte(`{"model":` + strconv.Quote(model) + `,"stream":true,"previous_response_id":"resp_does_not_exist","input":"hi"}`)
-	status, resp := postOpenAIStatus(t, apiKey, testLab, "/responses", body)
+	status, hdr, resp := postOpenAIStatus(t, apiKey, testLab, "/responses", body)
 	row := loadLiveBehavior(t).Rows["stream_error_responses"]
 	if status != row.Status {
 		t.Fatalf("status=%d want %d body=%s", status, row.Status, resp)
+	}
+	ct := hdr.Get("Content-Type")
+	if row.ContentType != "" && !strings.Contains(strings.ToLower(ct), strings.ToLower(row.ContentType)) {
+		t.Fatalf("Content-Type=%q want %q body=%s", ct, row.ContentType, resp)
+	}
+	if strings.Contains(strings.ToLower(ct), "event-stream") {
+		t.Fatalf("Content-Type must be application/json, not text/event-stream; got %q body=%s", ct, resp)
 	}
 	if bytes.Contains(resp, []byte("event:")) || bytes.HasPrefix(bytes.TrimSpace(resp), []byte("data:")) {
 		t.Fatalf("Content-Type must be application/json, not text/event-stream; body=%s", resp)
@@ -447,6 +454,9 @@ func TestE2EResponsesStreamErrorShape(t *testing.T) {
 	if want, _ := row.Error["type"].(string); want != "" && fmt.Sprint(errObj["type"]) != want {
 		t.Fatalf("error.type=%v want %s", errObj["type"], want)
 	}
+	if want, ok := row.Error["code"]; ok && !liveCodeEqual(errObj["code"], want) {
+		t.Fatalf("error.code=%v want %v", errObj["code"], want)
+	}
 	if want, ok := row.Error["param"].(string); ok && want != "" && fmt.Sprint(errObj["param"]) != want {
 		t.Fatalf("error.param=%v want %s", errObj["param"], want)
 	}
@@ -456,7 +466,7 @@ func TestE2EResponsesStreamErrorShape(t *testing.T) {
 	if len(trace.Calls) == 0 {
 		t.Fatal("expected a recorded call")
 	}
-	call := assert.Trace().Calls[0]
+	call := trace.Calls[0]
 	if call.Normalized.Error == nil {
 		t.Fatal("normalized.error missing")
 	}
@@ -477,7 +487,7 @@ func requireAPIKey(t *testing.T) string {
 	return apiKey
 }
 
-func postOpenAIStatus(t *testing.T, apiKey string, lab *tracetest.Lab, path string, body []byte) (int, []byte) {
+func postOpenAIStatus(t *testing.T, apiKey string, lab *tracetest.Lab, path string, body []byte) (int, http.Header, []byte) {
 	t.Helper()
 	req, err := http.NewRequest(http.MethodPost, lab.OpenAIBaseURL("openai")+path, bytes.NewReader(body))
 	if err != nil {
@@ -496,7 +506,7 @@ func postOpenAIStatus(t *testing.T, apiKey string, lab *tracetest.Lab, path stri
 	if err != nil {
 		t.Fatal(err)
 	}
-	return resp.StatusCode, raw
+	return resp.StatusCode, resp.Header.Clone(), raw
 }
 
 func assertNoParserWarnings(t *testing.T, calls []lab.Call) {

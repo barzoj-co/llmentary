@@ -173,6 +173,14 @@ func TestD8SuspiciousEnum(t *testing.T) {
 	}
 }
 
+func TestEnumKeySortDeterministic(t *testing.T) {
+	got := suggestDescription(map[string]any{"description": "Shirt color"}, map[string]any{"red": "warm", "blue": "cool", "amber": "gold"})
+	want := "Shirt color. amber: gold; blue: cool; red: warm"
+	if got != want {
+		t.Fatalf("suggested=%q want %q", got, want)
+	}
+}
+
 func TestC4OverlayEvidence(t *testing.T) {
 	ov, err := specvalidate.ParseOverlay(specvalidate.EmbeddedOverlay())
 	if err != nil {

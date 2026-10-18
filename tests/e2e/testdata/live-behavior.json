@@ -127,43 +127,60 @@
     "invalid_utf8_chat": {
       "test": "TestLiveSpec_InvalidUTF8_Chat",
       "status": 400,
-      "error": {"message_contains": "parsing the body"}
+      "error": {"message_contains": "parsing the body"},
+      "relaxed_violations": true,
+      "strict_violations": true
     },
     "invalid_utf8_responses": {
       "test": "TestLiveSpec_InvalidUTF8_Responses",
       "status": 400,
-      "error": {"type": "invalid_request_error"}
+      "error": {"type": "invalid_request_error"},
+      "relaxed_violations": true,
+      "strict_violations": true
     },
     "utf8_bom_chat": {
       "test": "TestLiveSpec_UTF8BOM_Chat",
       "status": 400,
-      "error": {"type": "invalid_request_error", "message_contains": "JSON"}
+      "error": {"type": "invalid_request_error", "message_contains": "JSON"},
+      "relaxed_violations": true,
+      "strict_violations": true
     },
     "duplicate_keys_chat": {
       "test": "TestLiveSpec_DuplicateKeys_Chat",
       "status": 400,
-      "error": {"type": "invalid_request_error", "code": "invalid_json"}
+      "error": {"type": "invalid_request_error", "code": "invalid_json"},
+      "relaxed_violations": true,
+      "strict_violations": true
     },
     "content_part_chat": {
       "test": "TestLiveSpec_UnknownInContentPart_Chat",
       "status": 200,
-      "overlay": "chat-content-part-extra-props"
+      "overlay": "chat-content-part-extra-props",
+      "relaxed_violations": false,
+      "strict_violations": true,
+      "ignored_kind": "unknown_request_field"
     },
     "tool_call_chat": {
       "test": "TestLiveSpec_UnknownInToolCall_Chat",
       "status": 200,
-      "overlay": "chat-tool-call-extra-props"
+      "overlay": "chat-tool-call-extra-props",
+      "relaxed_violations": false,
+      "strict_violations": true,
+      "ignored_kind": "unknown_request_field"
     },
     "content_part_responses": {
       "test": "TestLiveSpec_UnknownInContentPart_Responses",
       "status": 400,
-      "error": {"type": "invalid_request_error", "code": "unknown_parameter", "param": "input[0].content[0].foo"}
+      "error": {"type": "invalid_request_error", "code": "unknown_parameter", "param": "input[0].content[0].foo"},
+      "relaxed_violations": true,
+      "strict_violations": true,
+      "ignored_fields": false
     },
     "stream_error_responses": {
       "test": "TestE2EResponsesStreamErrorShape",
       "status": 400,
       "content_type": "application/json",
-      "error": {"type": "invalid_request_error", "code": null, "param": "previous_response_id"},
+      "error": {"type": "invalid_request_error", "code": "previous_response_not_found", "param": "previous_response_id"},
       "mid_stream": false
     },
     "enumDescriptions": {

@@ -113,11 +113,11 @@ func TestA5WarnEmptyArraysPresent(t *testing.T) {
 
 func TestBMatrix(t *testing.T) {
 	type row struct {
-		name, path        string
+		name, route       string
 		body              []byte
 		strictV, relaxedV string
 		ignoredKind       string
-		enforceBoth       bool
+		jsonPath, pointer string
 	}
 	chat := []byte(`{"model":"m","messages":[{"role":"user","content":"hi"}],"foo":1}`)
 	chatMsg := []byte(`{"model":"m","messages":[{"role":"user","content":"hi","foo":1}]}`)
@@ -132,27 +132,32 @@ func TestBMatrix(t *testing.T) {
 	missingResp := []byte(`{"input":"hi"}`)
 	empty := []byte(`{}`)
 	wrongType := []byte(`{"model":"m","messages":[{"role":"user","content":"hi"}],"temperature":"0.7"}`)
+	wrongTypeResp := []byte(`{"model":"m","input":"hi","temperature":"0.7"}`)
 	trail := []byte(`{"model":"m","messages":[{"role":"user","content":"hi"}]} xyz`)
 	two := []byte(`{"model":"m","messages":[{"role":"user","content":"hi"}]}{"x":1}`)
 	twoSpace := []byte(`{"model":"m","messages":[{"role":"user","content":"hi"}]} {"x":1}`)
+	trailResp := []byte(`{"model":"m","input":"hi"} xyz`)
 
 	rows := []row{
-		{"B1_chat", "/v1/chat/completions", chat, "unevaluatedProperties", "unevaluatedProperties", "", false},
-		{"B1_resp", "/v1/responses", respFoo, "unevaluatedProperties", "unevaluatedProperties", "", false},
-		{"B2_chat_msg", "/v1/chat/completions", chatMsg, "unevaluatedProperties", "", "unknown_request_field", true},
-		{"B3_resp_input", "/v1/responses", respIn, "unevaluatedProperties", "unevaluatedProperties", "", false},
-		{"B4_chat_tool", "/v1/chat/completions", chatTool, "unevaluatedProperties", "", "unknown_request_field", true},
-		{"B4_resp_tool", "/v1/responses", respTool, "unevaluatedProperties", "", "unknown_request_field", true},
-		{"B5_resp_no_strict", "/v1/responses", respNoStrict, "required", "", "strict_fallback_predicted", false},
-		{"B6_chat_enum", "/v1/chat/completions", badEnumChat, "enum", "enum", "", false},
-		{"B6_resp_enum", "/v1/responses", badEnumResp, "enum", "enum", "", false},
-		{"B7_chat_missing", "/v1/chat/completions", missingChat, "required", "required", "", false},
-		{"B7_resp_missing", "/v1/responses", missingResp, "required", "required", "", false},
-		{"B7_empty", "/v1/chat/completions", empty, "required", "required", "", false},
-		{"B8_type", "/v1/chat/completions", wrongType, "type", "type", "", false},
-		{"B9_trail", "/v1/chat/completions", trail, "trailingData", "trailingData", "", false},
-		{"B9_two", "/v1/chat/completions", two, "trailingData", "trailingData", "", false},
-		{"B9_two_space", "/v1/chat/completions", twoSpace, "trailingData", "trailingData", "", false},
+		{"B1_chat", "/v1/chat/completions", chat, "unevaluatedProperties", "unevaluatedProperties", "", "foo", "/foo"},
+		{"B1_resp", "/v1/responses", respFoo, "unevaluatedProperties", "unevaluatedProperties", "", "foo", "/foo"},
+		{"B2_chat_msg", "/v1/chat/completions", chatMsg, "unevaluatedProperties", "", "unknown_request_field", "messages[0].foo", "/messages/0/foo"},
+		{"B3_resp_input", "/v1/responses", respIn, "unevaluatedProperties", "unevaluatedProperties", "", "input[0].foo", "/input/0/foo"},
+		{"B4_chat_tool", "/v1/chat/completions", chatTool, "unevaluatedProperties", "", "unknown_request_field", "tools[0].function.foo", "/tools/0/function/foo"},
+		{"B4_resp_tool", "/v1/responses", respTool, "unevaluatedProperties", "", "unknown_request_field", "tools[0].foo", "/tools/0/foo"},
+		{"B5_resp_no_strict", "/v1/responses", respNoStrict, "required", "", "strict_fallback_predicted", "tools[0]", "/tools/0"},
+		{"B6_chat_enum", "/v1/chat/completions", badEnumChat, "enum", "enum", "", "tool_choice", "/tool_choice"},
+		{"B6_resp_enum", "/v1/responses", badEnumResp, "enum", "enum", "", "tool_choice", "/tool_choice"},
+		{"B7_chat_missing", "/v1/chat/completions", missingChat, "required", "required", "", "messages", ""},
+		{"B7_resp_missing", "/v1/responses", missingResp, "required", "required", "", "model", ""},
+		{"B7_empty_chat", "/v1/chat/completions", empty, "required", "required", "", "messages", ""},
+		{"B7_empty_resp", "/v1/responses", empty, "required", "required", "", "model", ""},
+		{"B8_type_chat", "/v1/chat/completions", wrongType, "type", "type", "", "temperature", "/temperature"},
+		{"B8_type_resp", "/v1/responses", wrongTypeResp, "type", "type", "", "temperature", "/temperature"},
+		{"B9_trail", "/v1/chat/completions", trail, "trailingData", "trailingData", "", "", ""},
+		{"B9_two", "/v1/chat/completions", two, "trailingData", "trailingData", "", "", ""},
+		{"B9_two_space", "/v1/chat/completions", twoSpace, "trailingData", "trailingData", "", "", ""},
+		{"B9_trail_resp", "/v1/responses", trailResp, "trailingData", "trailingData", "", "", ""},
 	}
 
 	for _, r := range rows {
@@ -160,12 +165,12 @@ func TestBMatrix(t *testing.T) {
 			for _, mode := range []string{"off", "warn", "enforce"} {
 				t.Run(r.name+"/profile="+profile+"/mode="+mode, func(t *testing.T) {
 					up := chatOK()
-					if strings.Contains(r.path, "responses") {
+					if strings.Contains(r.route, "responses") {
 						up = responsesOK()
 					}
 					p := startSpecProxy(t, mode, profile, up)
 					sid := newSession()
-					status, hdr, body, session := postRaw(t, p, r.path, sid, nil, r.body)
+					status, hdr, body, session := postRaw(t, p, r.route, sid, nil, r.body)
 					call := lastCall(t, session)
 					wantKeyword := r.relaxedV
 					if profile == "strict" {
@@ -173,14 +178,7 @@ func TestBMatrix(t *testing.T) {
 					}
 					hasViolation := wantKeyword != ""
 					hasIgnored := r.ignoredKind != ""
-					shouldReject := mode == "enforce" && (hasViolation || (hasIgnored && r.enforceBoth) || (hasIgnored && !hasViolation && mode == "enforce" && r.ignoredKind != "" && (r.enforceBoth || hasIgnored)))
-					if mode == "enforce" && (hasViolation || hasIgnored) {
-						// B2/B4 reject in both profiles because ignored_fields are reject_in_enforce.
-						shouldReject = hasViolation || hasIgnored
-					}
-					if r.name == "B5_resp_no_strict" && profile == "relaxed" {
-						shouldReject = mode == "enforce" && hasIgnored
-					}
+					shouldReject := mode == "enforce" && (hasViolation || hasIgnored)
 					switch mode {
 					case "off":
 						if p.upstream.Count() != 1 {
@@ -200,6 +198,7 @@ func TestBMatrix(t *testing.T) {
 						n := normalized(call)
 						assertKeyword(t, n, wantKeyword)
 						assertIgnoredKind(t, n, r.ignoredKind)
+						assertBMatrixLocation(t, n, r.jsonPath, r.pointer, wantKeyword, r.ignoredKind, r.body)
 					case "enforce":
 						if shouldReject {
 							if status != 400 {
@@ -214,10 +213,13 @@ func TestBMatrix(t *testing.T) {
 							if call["upstream_called"] != false {
 								t.Fatalf("upstream_called=%v", call["upstream_called"])
 							}
-							errObj, _ := normalized(call)["error"].(map[string]any)
+							n := normalized(call)
+							errObj, _ := n["error"].(map[string]any)
 							if errObj["source"] != "proxy" {
 								t.Fatalf("error=%v", errObj)
 							}
+							assertBMatrixLocation(t, n, r.jsonPath, r.pointer, wantKeyword, r.ignoredKind, r.body)
+							assertEnforceError(t, body, profile, hasViolation, n)
 						} else if p.upstream.Count() != 1 {
 							t.Fatalf("expected forward, count=%d", p.upstream.Count())
 						}
@@ -225,6 +227,159 @@ func TestBMatrix(t *testing.T) {
 				})
 			}
 		}
+	}
+}
+
+func assertBMatrixLocation(t *testing.T, n map[string]any, jsonPath, pointer, keyword, ignoredKind string, body []byte) {
+	t.Helper()
+	if keyword != "" {
+		var match map[string]any
+		for _, v := range asAnySlice(n["spec_violations"]) {
+			m, _ := v.(map[string]any)
+			if m["side"] == "response" || m["keyword"] != keyword {
+				continue
+			}
+			if pointer != "" && m["pointer"] != pointer {
+				continue
+			}
+			match = m
+			break
+		}
+		if match == nil && pointer != "" {
+			for _, v := range asAnySlice(n["spec_violations"]) {
+				m, _ := v.(map[string]any)
+				if m["side"] == "response" || m["keyword"] != keyword {
+					continue
+				}
+				if m["pointer"] == pointer || strings.HasSuffix(fmt.Sprint(m["pointer"]), pointer) {
+					match = m
+					break
+				}
+			}
+		}
+		if match == nil {
+			t.Fatalf("missing keyword %s pointer %s in %v", keyword, pointer, n["spec_violations"])
+		}
+		if pointer != "" && match["pointer"] != pointer {
+			t.Fatalf("violation pointer=%v want %s (%v)", match["pointer"], pointer, match)
+		}
+		if jsonPath != "" && match["path"] != jsonPath && !strings.Contains(fmt.Sprint(match["path"]), jsonPath) && !strings.Contains(fmt.Sprint(match["message"]), jsonPath) {
+			t.Fatalf("violation path=%v want %s (%v)", match["path"], jsonPath, match)
+		}
+		if keyword == "trailingData" {
+			wantOff := trailingJSONOffset(body)
+			gotOff, ok := asInt(match["offset"])
+			if !ok || gotOff != wantOff {
+				t.Fatalf("B9 offset=%v want %d (%v)", match["offset"], wantOff, match)
+			}
+		}
+	}
+	if ignoredKind != "" && jsonPath != "" {
+		found := false
+		for _, v := range asAnySlice(n["ignored_fields"]) {
+			m, _ := v.(map[string]any)
+			if m["kind"] != ignoredKind {
+				continue
+			}
+			if pointer != "" && m["pointer"] != pointer && !strings.Contains(fmt.Sprint(m["pointer"]), pointer) {
+				continue
+			}
+			found = true
+			if pointer != "" && m["pointer"] != pointer && !strings.Contains(fmt.Sprint(m["pointer"]), pointer) {
+				t.Fatalf("ignored pointer=%v want %s", m["pointer"], pointer)
+			}
+			if m["path"] != jsonPath && !strings.Contains(fmt.Sprint(m["path"]), jsonPath) {
+				t.Fatalf("ignored path=%v want %s", m["path"], jsonPath)
+			}
+			break
+		}
+		if !found && keyword == "" {
+			t.Fatalf("missing ignored %s at %s: %v", ignoredKind, jsonPath, n["ignored_fields"])
+		}
+	}
+}
+
+func assertEnforceError(t *testing.T, body []byte, profile string, hasViolation bool, n map[string]any) {
+	t.Helper()
+	var env map[string]any
+	if err := json.Unmarshal(body, &env); err != nil {
+		t.Fatalf("enforce body: %v %s", err, body)
+	}
+	errObj, _ := env["error"].(map[string]any)
+	wantCode := "llmtestlab_ignored_field"
+	if hasViolation {
+		wantCode = "llmtestlab_spec_violation"
+	}
+	if fmt.Sprint(errObj["code"]) != wantCode {
+		t.Fatalf("enforce code=%v want %s body=%s", errObj["code"], wantCode, body)
+	}
+	if fmt.Sprint(errObj["type"]) != "invalid_request_error" {
+		t.Fatalf("enforce type=%v", errObj["type"])
+	}
+	msg := fmt.Sprint(errObj["message"])
+	if !strings.Contains(msg, "llm-test-lab: request rejected (profile="+profile+")") {
+		t.Fatalf("enforce message=%q", msg)
+	}
+	param, pointer := firstRejectLocation(n, hasViolation)
+	if fmt.Sprint(errObj["param"]) != param {
+		t.Fatalf("enforce param=%v want %s", errObj["param"], param)
+	}
+	if pointer != "" && !strings.Contains(msg, pointer) {
+		t.Fatalf("enforce message missing pointer %s: %q", pointer, msg)
+	}
+}
+
+func firstRejectLocation(n map[string]any, hasViolation bool) (param, pointer string) {
+	if hasViolation {
+		for _, v := range asAnySlice(n["spec_violations"]) {
+			m, _ := v.(map[string]any)
+			if m["side"] == "response" {
+				continue
+			}
+			return fmt.Sprint(m["path"]), fmt.Sprint(m["pointer"])
+		}
+	}
+	for _, v := range asAnySlice(n["ignored_fields"]) {
+		m, _ := v.(map[string]any)
+		if m["action"] == "report_only" || m["severity"] == "info" {
+			continue
+		}
+		return fmt.Sprint(m["path"]), fmt.Sprint(m["pointer"])
+	}
+	return "", ""
+}
+
+func asInt(v any) (int, bool) {
+	switch n := v.(type) {
+	case int:
+		return n, true
+	case int64:
+		return int(n), true
+	case float64:
+		return int(n), true
+	case json.Number:
+		i, err := n.Int64()
+		return int(i), err == nil
+	default:
+		return 0, false
+	}
+}
+
+func TestResponsesInputTypeNumber(t *testing.T) {
+	body := []byte(`{"model":"m","input":123}`)
+	p := startSpecProxy(t, "warn", "relaxed", responsesOK())
+	sid := newSession()
+	_, _, _, session := postRaw(t, p, "/v1/responses", sid, nil, body)
+	n := normalized(lastCall(t, session))
+	found := false
+	for _, v := range asAnySlice(n["spec_violations"]) {
+		m, _ := v.(map[string]any)
+		if m["keyword"] == "type" && (m["pointer"] == "/input" || m["path"] == "input") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("input:123 must produce /input type: %v", n["spec_violations"])
 	}
 }
 
@@ -246,24 +401,41 @@ func TestDEnumDescriptions(t *testing.T) {
 	arrayForm := []byte(`{"model":"m","messages":[{"role":"user","content":"hi"}],"tools":[{"type":"function","function":{"name":"shirt","parameters":{"type":"object","properties":{"color":{"type":"string","enum":["red","blue"],"enum_descriptions":["warm tone","cool tone"]}}}}}]}`)
 	forum := []byte(`{"model":"m","messages":[{"role":"user","content":"hi"}],"response_format":{"type":"json_schema","json_schema":{"name":"safety","strict":true,"schema":{"type":"object","properties":{"detection":{"type":"string","description":"Classification code for safety policy detection.","enum":["n","i","h","s"],"enumDescriptions":{"n":"No detection of safety policy issues.","i":"Illegal and dangerous activities.","h":"Harmful and violent content.","s":"Sexual explicit materials."}}},"required":["detection"],"additionalProperties":false}}}}`)
 	p := startSpecProxy(t, "warn", "relaxed", chatOK())
+	hintEnum := "OpenAI does not read `enumDescriptions`; the model never sees it. Move the per-value descriptions into this property's `description`."
+	hintSnake := "OpenAI does not read `enum_descriptions`; the model never sees it. Move the per-value descriptions into this property's `description`."
 	for name, body := range map[string][]byte{"D1": objectForm, "D2": arrayForm, "D5": forum} {
 		t.Run(name, func(t *testing.T) {
 			sid := newSession()
 			_, _, _, session := postRaw(t, p, "/v1/chat/completions", sid, nil, body)
 			n := normalized(lastCall(t, session))
-			ignored, _ := n["ignored_fields"].([]any)
-			if len(ignored) == 0 {
-				t.Fatal("expected ignored_fields")
-			}
-			first := ignored[0].(map[string]any)
-			if first["kind"] != "unknown_schema_keyword" || first["key"] != "enumDescriptions" && first["key"] != "enum_descriptions" {
-				t.Fatalf("finding=%v", first)
-			}
-			if name == "D5" {
-				want := "Classification code for safety policy detection. n: No detection of safety policy issues.; i: Illegal and dangerous activities.; h: Harmful and violent content.; s: Sexual explicit materials."
-				if first["suggested_description"] != want {
-					t.Fatalf("suggested=%q", first["suggested_description"])
-				}
+			switch name {
+			case "D1":
+				assertIgnoredExact(t, n, map[string]any{
+					"path":    "tools[0].function.parameters.properties.color.enumDescriptions",
+					"pointer": "/tools/0/function/parameters/properties/color/enumDescriptions",
+					"key":     "enumDescriptions", "kind": "unknown_schema_keyword",
+					"context": "chat.tools.function.parameters", "effective_strict": false,
+					"upstream_behavior": "silently_ignored", "hint": hintEnum,
+					"suggested_description": "Shirt color. red: warm tone; blue: cool tone",
+				})
+			case "D2":
+				assertIgnoredExact(t, n, map[string]any{
+					"path":    "tools[0].function.parameters.properties.color.enum_descriptions",
+					"pointer": "/tools/0/function/parameters/properties/color/enum_descriptions",
+					"key":     "enum_descriptions", "kind": "unknown_schema_keyword",
+					"context": "chat.tools.function.parameters", "effective_strict": false,
+					"upstream_behavior": "silently_ignored", "hint": hintSnake,
+					"suggested_description": "red: warm tone; blue: cool tone",
+				})
+			case "D5":
+				assertIgnoredExact(t, n, map[string]any{
+					"path":    "response_format.json_schema.schema.properties.detection.enumDescriptions",
+					"pointer": "/response_format/json_schema/schema/properties/detection/enumDescriptions",
+					"key":     "enumDescriptions", "kind": "unknown_schema_keyword",
+					"context": "chat.response_format.json_schema", "effective_strict": true,
+					"upstream_behavior": "silently_ignored", "hint": hintEnum,
+					"suggested_description": "Classification code for safety policy detection. n: No detection of safety policy issues.; i: Illegal and dangerous activities.; h: Harmful and violent content.; s: Sexual explicit materials.",
+				})
 			}
 		})
 	}
@@ -522,14 +694,14 @@ func TestH1RequestDecodeWarnings(t *testing.T) {
 		sid := newSession()
 		_, _, _, session := postRaw(t, p, "/v1/chat/completions", sid, nil, []byte(`{"model":"m","messages":[{"role":"user","content":"hi"}]} xyz`))
 		warns := asAnySlice(normalized(lastCall(t, session))["parser_warnings"])
-		found := false
+		count := 0
 		for _, w := range warns {
 			if strings.Contains(fmt.Sprint(w), "trailing_data_after_json") {
-				found = true
+				count++
 			}
 		}
-		if !found {
-			t.Fatalf("mode=%s warnings=%v", mode, warns)
+		if count != 1 {
+			t.Fatalf("mode=%s want exactly one trailing_data_after_json warning, got %d: %v", mode, count, warns)
 		}
 	}
 }
@@ -598,16 +770,34 @@ func TestI1NoCrossTalk(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			sid := newSession()
-			_, _, _, session := postRaw(t, p, "/v1/chat/completions", sid, nil, clean)
-			if len(asAnySlice(normalized(lastCall(t, session))["spec_violations"])) != 0 {
+			_, _, _, session, err := postRawErr(p, "/v1/chat/completions", sid, nil, clean)
+			if err != nil {
+				errCh <- err.Error()
+				return
+			}
+			call, err := lastCallErr(session)
+			if err != nil {
+				errCh <- err.Error()
+				return
+			}
+			if len(asAnySlice(normalized(call)["spec_violations"])) != 0 {
 				errCh <- "clean got violations"
 			}
 		}()
 		go func() {
 			defer wg.Done()
 			sid := newSession()
-			_, _, _, session := postRaw(t, p, "/v1/chat/completions", sid, nil, bad)
-			if len(asAnySlice(normalized(lastCall(t, session))["spec_violations"])) == 0 {
+			_, _, _, session, err := postRawErr(p, "/v1/chat/completions", sid, nil, bad)
+			if err != nil {
+				errCh <- err.Error()
+				return
+			}
+			call, err := lastCallErr(session)
+			if err != nil {
+				errCh <- err.Error()
+				return
+			}
+			if len(asAnySlice(normalized(call)["spec_violations"])) == 0 {
 				errCh <- "bad missing violations"
 			}
 		}()
@@ -615,6 +805,6 @@ func TestI1NoCrossTalk(t *testing.T) {
 	wg.Wait()
 	close(errCh)
 	for e := range errCh {
-		t.Fatal(e)
+		t.Error(e)
 	}
 }

@@ -115,10 +115,20 @@ func TestD3ResponsesToolsEnumDescriptions(t *testing.T) {
 			p := startSpecProxy(t, "warn", "relaxed", responsesOK())
 			sid := newSession()
 			_, _, _, session := postRaw(t, p, "/v1/responses", sid, nil, body)
-			assertIgnoredKind(t, normalized(lastCall(t, session)), "unknown_schema_keyword")
-			if !hasIgnoredKey(normalized(lastCall(t, session)), "enumDescriptions") {
-				t.Fatalf("missing enumDescriptions: %v", normalized(lastCall(t, session))["ignored_fields"])
+			n := normalized(lastCall(t, session))
+			effective := false
+			if b, ok := strict.(bool); ok {
+				effective = b
 			}
+			assertIgnoredExact(t, n, map[string]any{
+				"path":    "tools[0].parameters.properties.color.enumDescriptions",
+				"pointer": "/tools/0/parameters/properties/color/enumDescriptions",
+				"key":     "enumDescriptions", "kind": "unknown_schema_keyword",
+				"context": "responses.tools.parameters", "effective_strict": effective,
+				"upstream_behavior":     "silently_ignored",
+				"hint":                  "OpenAI does not read `enumDescriptions`; the model never sees it. Move the per-value descriptions into this property's `description`.",
+				"suggested_description": "red: warm; blue: cool",
+			})
 		})
 	}
 }
@@ -130,12 +140,15 @@ func TestD4JSONSchemaContexts(t *testing.T) {
 		sid := newSession()
 		_, _, _, session := postRaw(t, p, "/v1/chat/completions", sid, nil, body)
 		n := normalized(lastCall(t, session))
-		if !hasIgnoredKey(n, "enumDescriptions") {
-			t.Fatalf("chat json_schema: %v", n["ignored_fields"])
-		}
-		if !hasIgnoredContext(n, "chat.response_format.json_schema") {
-			t.Fatalf("context: %v", n["ignored_fields"])
-		}
+		assertIgnoredExact(t, n, map[string]any{
+			"path":    "response_format.json_schema.schema.properties.x.enumDescriptions",
+			"pointer": "/response_format/json_schema/schema/properties/x/enumDescriptions",
+			"key":     "enumDescriptions", "kind": "unknown_schema_keyword",
+			"context": "chat.response_format.json_schema", "effective_strict": true,
+			"upstream_behavior":     "silently_ignored",
+			"hint":                  "OpenAI does not read `enumDescriptions`; the model never sees it. Move the per-value descriptions into this property's `description`.",
+			"suggested_description": "a: aye",
+		})
 	})
 	t.Run("responses_text_format", func(t *testing.T) {
 		body := []byte(`{"model":"m","input":"hi","text":{"format":{"type":"json_schema","name":"out","strict":true,"schema":{"type":"object","properties":{"x":{"type":"string","enum":["a"],"enumDescriptions":{"a":"aye"}}},"required":["x"],"additionalProperties":false}}}}`)
@@ -143,12 +156,15 @@ func TestD4JSONSchemaContexts(t *testing.T) {
 		sid := newSession()
 		_, _, _, session := postRaw(t, p, "/v1/responses", sid, nil, body)
 		n := normalized(lastCall(t, session))
-		if !hasIgnoredKey(n, "enumDescriptions") {
-			t.Fatalf("responses text.format: %v", n["ignored_fields"])
-		}
-		if !hasIgnoredContext(n, "responses.text.format") {
-			t.Fatalf("context: %v", n["ignored_fields"])
-		}
+		assertIgnoredExact(t, n, map[string]any{
+			"path":    "text.format.schema.properties.x.enumDescriptions",
+			"pointer": "/text/format/schema/properties/x/enumDescriptions",
+			"key":     "enumDescriptions", "kind": "unknown_schema_keyword",
+			"context": "responses.text.format", "effective_strict": true,
+			"upstream_behavior":     "silently_ignored",
+			"hint":                  "OpenAI does not read `enumDescriptions`; the model never sees it. Move the per-value descriptions into this property's `description`.",
+			"suggested_description": "a: aye",
+		})
 	})
 }
 
@@ -166,28 +182,33 @@ func TestD6OneOfAndMetaKeywords(t *testing.T) {
 }
 
 func TestD9RemainingContexts(t *testing.T) {
+	hint := "OpenAI does not read `enumDescriptions`; the model never sees it. Move the per-value descriptions into this property's `description`."
 	cases := []struct {
-		name, path, context string
-		body                []byte
-		up                  http.HandlerFunc
+		name, route, jsonPath, pointer, context string
+		body                                    []byte
+		up                                      http.HandlerFunc
 	}{
-		{"functions", "/v1/chat/completions", "chat.functions.parameters", []byte(`{"model":"m","messages":[{"role":"user","content":"hi"}],"functions":[{"name":"shirt","parameters":{"type":"object","properties":{"color":{"type":"string","enum":["red"],"enumDescriptions":{"red":"warm"}}}}}]}`), chatOK()},
-		{"responses_tools", "/v1/responses", "responses.tools.parameters", []byte(`{"model":"m","input":"hi","tools":[{"type":"function","name":"shirt","parameters":{"type":"object","properties":{"color":{"type":"string","enum":["red"],"enumDescriptions":{"red":"warm"}}}}}]}`), responsesOK()},
-		{"json_schema", "/v1/chat/completions", "chat.response_format.json_schema", []byte(`{"model":"m","messages":[{"role":"user","content":"hi"}],"response_format":{"type":"json_schema","json_schema":{"name":"o","schema":{"type":"object","properties":{"c":{"enum":["r"],"enumDescriptions":{"r":"w"}}}}}}}`), chatOK()},
-		{"text_format", "/v1/responses", "responses.text.format", []byte(`{"model":"m","input":"hi","text":{"format":{"type":"json_schema","name":"o","schema":{"type":"object","properties":{"c":{"enum":["r"],"enumDescriptions":{"r":"w"}}}}}}}`), responsesOK()},
+		{"functions", "/v1/chat/completions", "functions[0].parameters.properties.color.enumDescriptions", "/functions/0/parameters/properties/color/enumDescriptions", "chat.functions.parameters", []byte(`{"model":"m","messages":[{"role":"user","content":"hi"}],"functions":[{"name":"shirt","parameters":{"type":"object","properties":{"color":{"type":"string","enum":["red"],"enumDescriptions":{"red":"warm"}}}}}]}`), chatOK()},
+		{"responses_tools", "/v1/responses", "tools[0].parameters.properties.color.enumDescriptions", "/tools/0/parameters/properties/color/enumDescriptions", "responses.tools.parameters", []byte(`{"model":"m","input":"hi","tools":[{"type":"function","name":"shirt","parameters":{"type":"object","properties":{"color":{"type":"string","enum":["red"],"enumDescriptions":{"red":"warm"}}}}}]}`), responsesOK()},
+		{"json_schema", "/v1/chat/completions", "response_format.json_schema.schema.properties.c.enumDescriptions", "/response_format/json_schema/schema/properties/c/enumDescriptions", "chat.response_format.json_schema", []byte(`{"model":"m","messages":[{"role":"user","content":"hi"}],"response_format":{"type":"json_schema","json_schema":{"name":"o","schema":{"type":"object","properties":{"c":{"enum":["r"],"enumDescriptions":{"r":"w"}}}}}}}`), chatOK()},
+		{"text_format", "/v1/responses", "text.format.schema.properties.c.enumDescriptions", "/text/format/schema/properties/c/enumDescriptions", "responses.text.format", []byte(`{"model":"m","input":"hi","text":{"format":{"type":"json_schema","name":"o","schema":{"type":"object","properties":{"c":{"enum":["r"],"enumDescriptions":{"r":"w"}}}}}}}`), responsesOK()},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			p := startSpecProxy(t, "warn", "relaxed", c.up)
 			sid := newSession()
-			_, _, _, session := postRaw(t, p, c.path, sid, nil, c.body)
+			_, _, _, session := postRaw(t, p, c.route, sid, nil, c.body)
 			n := normalized(lastCall(t, session))
-			if !hasIgnoredKey(n, "enumDescriptions") {
-				t.Fatalf("missing enumDescriptions: %v", n["ignored_fields"])
+			wantSuggested := "red: warm"
+			if c.name == "json_schema" || c.name == "text_format" {
+				wantSuggested = "r: w"
 			}
-			if !hasIgnoredContext(n, c.context) {
-				t.Fatalf("want context %s: %v", c.context, n["ignored_fields"])
-			}
+			assertIgnoredExact(t, n, map[string]any{
+				"path": c.jsonPath, "pointer": c.pointer, "key": "enumDescriptions",
+				"kind": "unknown_schema_keyword", "context": c.context,
+				"effective_strict": false, "upstream_behavior": "silently_ignored",
+				"hint": hint, "suggested_description": wantSuggested,
+			})
 		})
 	}
 }
@@ -496,6 +517,34 @@ func TestF7ContentEncoding(t *testing.T) {
 			t.Fatalf("skipped_reason=%v", val["skipped_reason"])
 		}
 	})
+	t.Run("gzip_bomb_capped", func(t *testing.T) {
+		zeros := make([]byte, 256*1024)
+		var buf bytes.Buffer
+		zw := gzip.NewWriter(&buf)
+		_, _ = zw.Write(zeros)
+		_ = zw.Close()
+		p := startSpecProxy(t, "enforce", "relaxed", chatOK(), func(cfg *lab.Config) {
+			cfg.SpecValidationMaxBytes = 1024
+		})
+		sid := newSession()
+		status, _, _, session := postRaw(t, p, "/v1/chat/completions", sid, map[string]string{
+			"Content-Encoding": "gzip",
+			"Content-Type":     "application/json",
+		}, buf.Bytes())
+		if status == 400 && p.upstream.Count() == 0 {
+			t.Fatal("gzip bomb must not produce an enforce 400; it must skip as body_too_large")
+		}
+		if p.upstream.Count() != 1 {
+			t.Fatalf("gzip bomb should be forwarded unchanged, upstream=%d", p.upstream.Count())
+		}
+		val, _ := normalized(lastCall(t, session))["validation"].(map[string]any)
+		if fmt.Sprint(val["skipped_reason"]) != "body_too_large" {
+			t.Fatalf("skipped_reason=%v", val["skipped_reason"])
+		}
+		if val["request_checked"] != false {
+			t.Fatalf("request_checked=%v", val["request_checked"])
+		}
+	})
 	t.Run("non_json_content_type", func(t *testing.T) {
 		p := startSpecProxy(t, "warn", "relaxed", chatOK())
 		sid := newSession()
@@ -720,8 +769,17 @@ func TestI1Scale50x20(t *testing.T) {
 				default:
 					path, body, kind = "/v1/responses", []byte(`{"model":"m","input":"hi","foo":1}`), "bad_resp"
 				}
-				_, _, _, session := postRaw(t, p, path, sid, nil, body)
-				n := normalized(lastCall(t, session))
+				_, _, _, session, err := postRawErr(p, path, sid, nil, body)
+				if err != nil {
+					report(sid + " " + err.Error())
+					continue
+				}
+				call, err := lastCallErr(session)
+				if err != nil {
+					report(sid + " " + err.Error())
+					continue
+				}
+				n := normalized(call)
 				switch kind {
 				case "clean_chat", "clean_resp":
 					if requestViolations(n) != 0 {
@@ -742,6 +800,39 @@ func TestI1Scale50x20(t *testing.T) {
 	wg.Wait()
 	if len(errs) > 0 {
 		t.Fatalf("cross-talk/scale errors (%d): %s", len(errs), strings.Join(errs[:min(len(errs), 8)], "; "))
+	}
+}
+
+func TestDocumentedResponsesContentPartsEnforce(t *testing.T) {
+	fileReq := []byte(`{"model":"m","input":[{"role":"user","content":[{"type":"input_file","filename":"notes.txt","file_data":"aGVsbG8=","file_url":"https://example.com/notes.txt"}]}]}`)
+	multiTurn := []byte(`{"model":"m","input":[{"role":"user","content":[{"type":"input_text","text":"first"}]},{"role":"user","content":[{"type":"input_file","filename":"notes.txt","file_data":"aGVsbG8=","file_url":"https://example.com/notes.txt"}]}]}`)
+	lintBody := []byte(`{"model":"m","input":[{"role":"user","content":[{"type":"input_text","text":"hi","annotations":[],"logprobs":[]},{"type":"refusal","refusal":"nope"}]}]}`)
+	for name, body := range map[string][]byte{"file": fileReq, "multi_turn": multiTurn} {
+		for _, profile := range []string{"strict", "relaxed"} {
+			t.Run(name+"/profile="+profile, func(t *testing.T) {
+				p := startSpecProxy(t, "enforce", profile, responsesOK())
+				sid := newSession()
+				status, hdr, resp, session := postRaw(t, p, "/v1/responses", sid, nil, body)
+				if hdr.Get("X-LLMTestLab-Rejected") != "" {
+					t.Fatalf("documented Responses content-part fields rejected (%s): status=%d body=%s ignored=%v violations=%v", name, status, resp, normalized(lastCall(t, session))["ignored_fields"], normalized(lastCall(t, session))["spec_violations"])
+				}
+				if status == 400 && p.upstream.Count() == 0 {
+					t.Fatalf("enforce rejected documented fields: %s", resp)
+				}
+				if p.upstream.Count() != 1 {
+					t.Fatalf("upstream=%d status=%d body=%s", p.upstream.Count(), status, resp)
+				}
+			})
+		}
+	}
+	p := startSpecProxy(t, "warn", "relaxed", responsesOK())
+	sid := newSession()
+	_, _, _, session := postRaw(t, p, "/v1/responses", sid, nil, lintBody)
+	n := normalized(lastCall(t, session))
+	for _, key := range []string{"file_data", "file_url", "filename", "annotations", "logprobs", "refusal"} {
+		if hasIgnoredKey(n, key) {
+			t.Fatalf("documented content-part field %s flagged as ignored: %v", key, n["ignored_fields"])
+		}
 	}
 }
 

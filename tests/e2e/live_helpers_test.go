@@ -24,12 +24,20 @@ import (
 
 const liveRequestCap = 120
 
+func checkLiveCost(used, cap int64) string {
+	if used > cap {
+		return fmt.Sprintf("K2 live cost guard: upstream calls=%d exceeds cap %d", used, cap)
+	}
+	return ""
+}
+
 func TestMain(m *testing.M) {
 	before := lab.UpstreamCallCount.Load()
 	code := m.Run()
 	used := lab.UpstreamCallCount.Load() - before
-	if used > liveRequestCap {
-		fmt.Fprintf(os.Stderr, "K2 live cost guard: upstream calls=%d exceeds cap %d\n", used, liveRequestCap)
+	fmt.Fprintf(os.Stderr, "K2 live cost: upstream calls=%d cap=%d\n", used, liveRequestCap)
+	if msg := checkLiveCost(used, int64(liveRequestCap)); msg != "" {
+		fmt.Fprintln(os.Stderr, msg)
 		os.Exit(1)
 	}
 	os.Exit(code)
@@ -268,4 +276,28 @@ func assertPrediction(t *testing.T, row liveBehaviorRow, relaxed, strict map[str
 func quoteJSON(s string) string {
 	raw, _ := json.Marshal(s)
 	return string(raw)
+}
+
+func assertIgnoredExact(t *testing.T, n map[string]any, want map[string]any) {
+	t.Helper()
+	var found map[string]any
+	for _, v := range liveSlice(n["ignored_fields"]) {
+		m, _ := v.(map[string]any)
+		if m["key"] != want["key"] {
+			continue
+		}
+		if p, ok := want["pointer"]; ok && p != "" && m["pointer"] != p {
+			continue
+		}
+		found = m
+		break
+	}
+	if found == nil {
+		t.Fatalf("missing ignored_fields %v in %v", want, n["ignored_fields"])
+	}
+	for k, exp := range want {
+		if fmt.Sprint(found[k]) != fmt.Sprint(exp) {
+			t.Fatalf("ignored_fields.%s=%v want %v (entry=%v)", k, found[k], exp, found)
+		}
+	}
 }

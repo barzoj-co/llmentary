@@ -94,11 +94,10 @@ func startSpecProxy(t *testing.T, mode, profile string, upstream http.HandlerFun
 	return proxyProc{proxyURL: proxy.URL, controlURL: control.URL, upstream: fake}
 }
 
-func postRaw(t *testing.T, p proxyProc, path, session string, headers map[string]string, body []byte) (status int, respHeaders http.Header, respBody []byte, trace map[string]any) {
-	t.Helper()
+func postRawErr(p proxyProc, path, session string, headers map[string]string, body []byte) (status int, respHeaders http.Header, respBody []byte, trace map[string]any, err error) {
 	req, err := http.NewRequest(http.MethodPost, p.proxyURL+path, bytes.NewReader(body))
 	if err != nil {
-		t.Fatal(err)
+		return 0, nil, nil, nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set(lab.SessionHeaderName, session)
@@ -108,40 +107,60 @@ func postRaw(t *testing.T, p proxyProc, path, session string, headers map[string
 	client := &http.Client{Transport: &http.Transport{DisableCompression: true}}
 	res, err := client.Do(req)
 	if err != nil {
-		t.Fatal(err)
+		return 0, nil, nil, nil, err
 	}
 	raw, err := io.ReadAll(res.Body)
 	_ = res.Body.Close()
 	if err != nil {
-		t.Fatal(err)
+		return 0, nil, nil, nil, err
 	}
 	wait, err := http.NewRequestWithContext(context.Background(), http.MethodGet, p.controlURL+"/sessions/"+session+"/wait?quiet=20ms&timeout=3s", nil)
 	if err != nil {
-		t.Fatal(err)
+		return 0, nil, nil, nil, err
 	}
 	wres, err := http.DefaultClient.Do(wait)
 	if err != nil {
-		t.Fatal(err)
+		return 0, nil, nil, nil, err
 	}
 	wraw, err := io.ReadAll(wres.Body)
 	_ = wres.Body.Close()
 	if err != nil {
-		t.Fatal(err)
+		return 0, nil, nil, nil, err
 	}
 	var sessionJSON map[string]any
 	if err := json.Unmarshal(wraw, &sessionJSON); err != nil {
-		t.Fatalf("session json: %v body=%s", err, wraw)
+		return 0, nil, nil, nil, fmt.Errorf("session json: %v body=%s", err, wraw)
 	}
-	return res.StatusCode, res.Header.Clone(), raw, sessionJSON
+	return res.StatusCode, res.Header.Clone(), raw, sessionJSON, nil
+}
+
+func postRaw(t *testing.T, p proxyProc, path, session string, headers map[string]string, body []byte) (status int, respHeaders http.Header, respBody []byte, trace map[string]any) {
+	t.Helper()
+	status, respHeaders, respBody, trace, err := postRawErr(p, path, session, headers, body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return status, respHeaders, respBody, trace
+}
+
+func lastCallErr(session map[string]any) (map[string]any, error) {
+	calls, _ := session["calls"].([]any)
+	if len(calls) == 0 {
+		return nil, fmt.Errorf("no calls in session")
+	}
+	call, _ := calls[len(calls)-1].(map[string]any)
+	if call == nil {
+		return nil, fmt.Errorf("last call is not an object")
+	}
+	return call, nil
 }
 
 func lastCall(t *testing.T, session map[string]any) map[string]any {
 	t.Helper()
-	calls, _ := session["calls"].([]any)
-	if len(calls) == 0 {
-		t.Fatal("no calls in session")
+	call, err := lastCallErr(session)
+	if err != nil {
+		t.Fatal(err)
 	}
-	call, _ := calls[len(calls)-1].(map[string]any)
 	return call
 }
 
@@ -275,4 +294,49 @@ var sessionSeq atomic.Int64
 
 func newSession() string {
 	return fmt.Sprintf("s%d", sessionSeq.Add(1))
+}
+
+func trailingJSONOffset(body []byte) int {
+	dec := json.NewDecoder(bytes.NewReader(body))
+	var v json.RawMessage
+	if err := dec.Decode(&v); err != nil {
+		return int(dec.InputOffset())
+	}
+	off := int(dec.InputOffset())
+	if off < 0 {
+		off = 0
+	}
+	if off > len(body) {
+		off = len(body)
+	}
+	for i, c := range body[off:] {
+		if c != ' ' && c != '\t' && c != '\n' && c != '\r' {
+			return off + i
+		}
+	}
+	return -1
+}
+
+func assertIgnoredExact(t *testing.T, n map[string]any, want map[string]any) {
+	t.Helper()
+	var found map[string]any
+	for _, v := range asAnySlice(n["ignored_fields"]) {
+		m, _ := v.(map[string]any)
+		if m["key"] != want["key"] {
+			continue
+		}
+		if p, ok := want["pointer"]; ok && p != "" && m["pointer"] != p {
+			continue
+		}
+		found = m
+		break
+	}
+	if found == nil {
+		t.Fatalf("missing ignored_fields %v in %v", want, n["ignored_fields"])
+	}
+	for k, exp := range want {
+		if fmt.Sprint(found[k]) != fmt.Sprint(exp) {
+			t.Fatalf("ignored_fields.%s=%v want %v (entry=%v)", k, found[k], exp, found)
+		}
+	}
 }

@@ -292,19 +292,12 @@ func writeEnforceReject(w http.ResponseWriter, rv requestValidation) {
 
 func requestDecodeWarnings(apiFamily string, raw []byte, contentType string) []string {
 	var out []string
-	first, rest, err := splitFirstJSON(raw)
+	first, _, err := splitFirstJSON(raw)
 	if err != nil {
 		if len(bytes.TrimSpace(raw)) > 0 {
 			out = append(out, "request does not match spec: "+err.Error())
 		}
 		return out
-	}
-	if i := indexNonWS(rest); i >= 0 {
-		offset := len(raw) - len(rest) + i
-		if bytes.HasPrefix(raw, []byte{0xEF, 0xBB, 0xBF}) {
-			offset += 0
-		}
-		out = append(out, fmt.Sprintf("trailing_data_after_json at offset %d", offset))
 	}
 	if bytes.Equal(bytes.TrimSpace(first), []byte("{}")) {
 		switch apiFamily {
