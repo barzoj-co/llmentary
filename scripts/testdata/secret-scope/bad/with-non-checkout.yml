@@ -1,0 +1,9 @@
+# expect: secret in with:
+on: pull_request
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: some/action@v1
+        with:
+          api-key: ${{ secrets.OPENAI_API_KEY }}

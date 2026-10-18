@@ -1,0 +1,11 @@
+# Fixture: boolean presence check plus raw use in the same step is accepted.
+on: pull_request
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require and run
+        env:
+          HAS_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY != '' }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: echo ok

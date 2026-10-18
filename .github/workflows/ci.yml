@@ -115,13 +115,15 @@ jobs:
         run: bash scripts/check-mermaid.sh --self-test
 
   e2e:
+    # To require maintainer approval for live e2e, add one line here:
+    #   environment: openai-e2e
+    # after Denis creates that environment with its protection rules and moves OPENAI_API_KEY into it.
     runs-on: ubuntu-latest
     timeout-minutes: 20
     # Live e2e once per change: pull_request (non-fork) or push to main.
     # Do not also run on push of the PR branch (that would double-bill OpenAI).
     if: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork != true) || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
     env:
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       OPENAI_E2E_MODEL: ${{ vars.OPENAI_E2E_MODEL }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -131,15 +133,43 @@ jobs:
         with:
           go-version: "1.26.x"
           cache: true
-      - name: Require OPENAI_API_KEY
-        run: |
-          if [ -z "$OPENAI_API_KEY" ]; then
-            echo "::error::OPENAI_API_KEY is required for non-fork e2e runs"
-            exit 1
-          fi
-      - name: Run e2e tests
-        run: go test -v -tags=e2e ./...
+      - name: Download modules
         working-directory: tests/e2e
+        run: go mod download
+      - name: Compile e2e tests
+        working-directory: tests/e2e
+        run: |
+          mkdir -p "$RUNNER_TEMP/e2e-bin"
+          go test -tags=e2e -c -o "$RUNNER_TEMP/e2e-bin/" ./...
+      - name: Require OPENAI_API_KEY
+        env:
+          HAS_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY != '' }}
+        run: |
+          if [ "${HAS_OPENAI_API_KEY}" != "true" ]; then echo "::error::OPENAI_API_KEY is required for non-fork e2e runs"; exit 1; fi
+      - name: Run e2e tests
+        working-directory: tests/e2e
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: go test -v -tags=e2e ./...
+
+  e2e-gate:
+    name: e2e-gate
+    if: ${{ always() }}
+    needs: [e2e]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Require live e2e success
+        env:
+          E2E_RESULT: ${{ needs.e2e.result }}
+          EVENT_NAME: ${{ github.event_name }}
+          IS_FORK: ${{ github.event.pull_request.head.repo.fork == true }}
+        run: bash scripts/e2e-gate.sh
 
   perf:
     runs-on: ubuntu-latest
