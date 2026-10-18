@@ -40,17 +40,35 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
           go-version: "1.26.x"
           cache: true
+      - name: go build and vet
+        run: |
+          go build ./...
+          go vet ./...
+          (cd tests/proxy && go build ./... && go vet ./...)
+          (cd tests/e2e && go build ./... && go vet -tags=e2e ./...)
+      - name: go mod tidy is clean
+        run: |
+          go mod tidy
+          (cd tests/proxy && go mod tidy)
+          (cd tests/e2e && go mod tidy)
+          git diff --exit-code
       - run: go test ./...
-      - run: go test ./...
-        working-directory: pkg/llmtestlab
       - run: go test ./...
         working-directory: tests/proxy
-      - run: go test ./...
-        working-directory: examples/go
+      - name: GoReleaser snapshot
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --snapshot --clean
+      - name: List snapshot artifacts
+        run: find dist -type f | sort
 
   e2e:
     runs-on: ubuntu-latest

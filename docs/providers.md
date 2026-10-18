@@ -188,8 +188,9 @@ The proxy reads `x-stainless-retry-count` into `call.retry_count` and the OTel
 `http.request.resend_count` attribute. If the header is missing or not an integer, retry
 count is omitted.
 
-In Go assertions, `llmtestlab.ExcludeRetries()` excludes calls whose `retry_count` is
-present and greater than zero.
+In Go assertions (see [llm-test-lab-go](https://github.com/barzoj-co/llm-test-lab-go)),
+`llmtestlab.ExcludeRetries()` excludes calls whose `retry_count` is present and greater
+than zero.
 
 ## SDK wiring snippets
 
@@ -199,6 +200,7 @@ Use `X-Test-Session` for the clearest session tagging. W3C baggage with
 ### `openai-go`
 
 ```go
+// MIT Go client: github.com/barzoj-co/llm-test-lab-go
 lab := llmtestlab.New(t)
 
 client := openai.NewClient(

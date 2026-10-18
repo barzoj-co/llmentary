@@ -36,7 +36,8 @@ Clients must send:
 Authorization: Bearer <token>
 ```
 
-The Go client reads `LLMTESTLAB_CONTROL_TOKEN` automatically or can be configured with
+The [Go client](https://github.com/barzoj-co/llm-test-lab-go) reads
+`LLMTESTLAB_CONTROL_TOKEN` automatically or can be configured with
 `llmtestlab.WithControlToken(token)` / `llmtestlab.WithLabControlToken(token)`.
 
 ## `401 unauthorized` from the control API
@@ -89,7 +90,7 @@ Check session tagging:
 - W3C baggage key `llmtestlab.session.id` is accepted when the header is absent.
 - Calls with no tag land in the `default` session.
 
-For Go tests, prefer:
+For Go tests, prefer the [Go client](https://github.com/barzoj-co/llm-test-lab-go):
 
 ```go
 lab := llmtestlab.New(t)
@@ -115,7 +116,7 @@ timeout.
 Try:
 
 ```go
-lab := llmtestlab.New(t, llmtestlab.WithWait(100*time.Millisecond, 60*time.Second))
+lab := llmtestlab.New(t, llmtestlab.WithWait(100*time.Millisecond, 60*time.Second)) // llm-test-lab-go
 ```
 
 Or inspect the current session without waiting:

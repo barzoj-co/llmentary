@@ -2,10 +2,7 @@ module github.com/barzoj-co/llm-test-lab/tests/proxy
 
 go 1.26.0
 
-require (
-	github.com/barzoj-co/llm-test-lab v0.0.0
-	github.com/barzoj-co/llm-test-lab/pkg/llmtestlab v0.0.0
-)
+require github.com/barzoj-co/llm-test-lab v0.0.0
 
 require (
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
@@ -26,5 +23,3 @@ require (
 )
 
 replace github.com/barzoj-co/llm-test-lab => ../..
-
-replace github.com/barzoj-co/llm-test-lab/pkg/llmtestlab => ../../pkg/llmtestlab

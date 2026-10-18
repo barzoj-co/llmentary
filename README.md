@@ -2,10 +2,12 @@
 
 Deterministic, trace-based integration testing for LLM apps, without an LLM judge.
 
-`llm-test-lab` is a small Go reverse proxy plus Go test client. Put the proxy between
-your app and an OpenAI-compatible provider, run the real SDK call, then assert on the
-recorded trace: tool names, tool arguments, tool order, request parameters, finish
+`llm-test-lab` is an AGPL-3.0 Go reverse proxy. Put it between your app and an
+OpenAI-compatible provider, run the real SDK call, then assert on the recorded
+trace: tool names, tool arguments, tool order, request parameters, finish
 reasons, token usage, retries, latency, TTFT, and provider errors.
+
+Clients live in separate MIT repositories and download or run this proxy binary.
 
 ## 60-second quickstart
 
@@ -24,7 +26,9 @@ llmtestlab \
   --upstream openai=https://api.openai.com/v1
 ```
 
-Point `openai-go` at the named upstream prefix and let `llmtestlab.New(t)` tag requests:
+Then drive tests through a client in one of the [client repositories](#clients).
+The Go client lives in [`llm-test-lab-go`](https://github.com/barzoj-co/llm-test-lab-go)
+and tags requests with `X-Test-Session`:
 
 ```go
 package myapp_test
@@ -34,7 +38,7 @@ import (
     "os"
     "testing"
 
-    "github.com/barzoj-co/llm-test-lab/pkg/llmtestlab"
+    llmtestlab "github.com/barzoj-co/llm-test-lab-go"
     "github.com/openai/openai-go"
     "github.com/openai/openai-go/option"
 )
@@ -64,17 +68,25 @@ func TestWeatherTool(t *testing.T) {
 }
 ```
 
-Run your Go test:
+Run your Go test (from a project that depends on the Go client):
 
 ```bash
 OPENAI_API_KEY=sk-... go test ./...
 ```
 
+## Clients
+
+This repository ships only the proxy. Use these MIT client libraries against it:
+
+- [Go](https://github.com/barzoj-co/llm-test-lab-go)
+- [Python](https://github.com/barzoj-co/llm-test-lab-python)
+- [JS/TS](https://github.com/barzoj-co/llm-test-lab-js)
+
 ## How it works
 
 ```mermaid
 flowchart LR
-    T[Go test] -->|llmtestlab.New(t)| L[Session id]
+    T[Test] -->|client session| L[Session id]
     L -->|X-Test-Session or baggage| SDK[LLM SDK / app]
     SDK -->|OpenAI-compatible HTTP| P[llmtestlab proxy]
     P -->|unchanged request body and auth| U[Upstream provider]
@@ -82,7 +94,7 @@ flowchart LR
     P --> S[(in-memory session store)]
     P --> O[(in-memory OTLP spans)]
     T -->|GET /sessions/{id}/wait| S
-    T --> A[Go assertions]
+    T --> A[Client assertions]
     T -->|GET /sessions/{id}/otlp| O
 ```
 
@@ -104,8 +116,8 @@ OpenAI-wire calls when it can, and leaves everything else as raw passthrough.
 - Per-test sessions via `X-Test-Session` or W3C baggage.
 - Control API for health, session fetch, wait-until-quiet, OTLP/JSON export, and delete.
 - Secret redaction in recorded headers and selected URL query parameters.
-- Go test client with trace queries and assertions for tools, JSON args, retries, errors,
-  usage, response content, latency, and TTFT.
+- Clients (separate repos) with trace queries and assertions for tools, JSON args, retries,
+  errors, usage, response content, latency, and TTFT.
 - One in-memory OTel CLIENT span per proxied attempt, using stable HTTP attributes plus
   pinned GenAI attributes.
 
@@ -114,7 +126,6 @@ OpenAI-wire calls when it can, and leaves everything else as raw passthrough.
 - [Proxy configuration and control API](docs/proxy.md)
 - [Provider compatibility and SDK wiring](docs/providers.md)
 - [Recorded trace data model](docs/data-model.md)
-- [Go testing client](docs/go-client.md)
 - [OTel GenAI mapping](docs/otel.md)
 - [GitHub Actions / CI](docs/ci.md)
 - [Troubleshooting](docs/troubleshooting.md)
@@ -122,28 +133,25 @@ OpenAI-wire calls when it can, and leaves everything else as raw passthrough.
 
 ## Licensing
 
-Only the Go proxy binary is AGPL-3.0. `pkg/llmtestlab` and the separate Python/JS
-client repos are MIT.
+This repository is AGPL-3.0 only (the Go proxy). All clients are MIT in their own
+repositories.
 
 - Go proxy binary (`cmd/llmtestlab` and the proxy/server implementation it ships):
   AGPL-3.0, covered by the root [LICENSE](LICENSE).
-- Go client library (`pkg/llmtestlab`): MIT, covered by
-  [`pkg/llmtestlab/LICENSE`](pkg/llmtestlab/LICENSE).
-- Separate Python and JS client repositories (`llm-test-lab-python`,
-  `llm-test-lab-js`): MIT.
+- Go client: MIT, [`llm-test-lab-go`](https://github.com/barzoj-co/llm-test-lab-go).
+- Python client: MIT, [`llm-test-lab-python`](https://github.com/barzoj-co/llm-test-lab-python).
+- JS/TS client: MIT, [`llm-test-lab-js`](https://github.com/barzoj-co/llm-test-lab-js).
 
 Using the proxy in your test pipeline does not affect your application's license.
 See [LICENSING.md](LICENSING.md).
 
 ## Status and roadmap
 
-Current code is a Go proxy and Go client for deterministic integration tests. The session
-store and OTLP span store are in memory.
+This repo contains the AGPL-3.0 Go proxy only. The session store and OTLP span store are
+in memory. Clients are MIT in their own repos (see [Clients](#clients)).
 
-Planned outside this repo or in later versions:
+Planned in later versions of the proxy:
 
-- Python client: `llm-test-lab-python`.
-- TypeScript/JavaScript client: `llm-test-lab-js`.
 - Anthropic Messages parsing in v2.
 - External OTLP export and stricter content-capture controls.
 - Record/replay cassettes, fault injection, packaging polish, and local TLS.

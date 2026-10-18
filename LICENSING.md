@@ -1,14 +1,13 @@
 # Licensing
 
-Only the Go proxy binary is AGPL-3.0. `pkg/llmtestlab` and the separate Python/JS
-client repos are MIT.
+This repository is AGPL-3.0 only: it contains the Go proxy. All clients are MIT
+in their own repositories.
 
 - Go proxy binary (`cmd/llmtestlab` and the proxy/server implementation it
   ships): AGPL-3.0, covered by the root [LICENSE](LICENSE).
-- Go client library (`pkg/llmtestlab`): MIT, covered by
-  [`pkg/llmtestlab/LICENSE`](pkg/llmtestlab/LICENSE).
-- Separate Python and JS client repositories (`llm-test-lab-python`,
-  `llm-test-lab-js`): MIT.
+- Go client: MIT, [llm-test-lab-go](https://github.com/barzoj-co/llm-test-lab-go).
+- Python client: MIT, [llm-test-lab-python](https://github.com/barzoj-co/llm-test-lab-python).
+- JS/TS client: MIT, [llm-test-lab-js](https://github.com/barzoj-co/llm-test-lab-js).
 
 Using the proxy in your test pipeline does not affect your application's
 license. Your app talks to the proxy over HTTP. The MIT client libraries are

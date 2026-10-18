@@ -1,7 +1,7 @@
 # Recorded trace data model
 
 The control API returns one `Session` per test id. A session contains ordered `Call`
-records. The Go structs live in `pkg/llmtestlab/types.go`; this document describes their
+records. The Go structs live in `internal/lab/types.go`; this document describes their
 JSON shape and normalization rules.
 
 ## Session
@@ -328,7 +328,8 @@ is:
 first_byte_at - started_at
 ```
 
-The Go client exposes this through `Assertions.TTFTBelow(duration)`.
+Clients can assert TTFT from `first_byte_at - started_at`. The Go client lives in
+[llm-test-lab-go](https://github.com/barzoj-co/llm-test-lab-go).
 
 ## Retries
 
@@ -336,10 +337,5 @@ Each SDK retry appears as a separate `Call` because the proxy sees a separate HT
 request. `retry_count` is parsed from request header `x-stainless-retry-count` when that
 header is present and integer-valued.
 
-The Go client can count or exclude retries:
-
-```go
-assert.CallCount(1, llmtestlab.ExcludeRetries())
-assert.Retries(0)
-assert.NoRetries()
-```
+Clients can count or exclude retries (`retry_count` present and greater than zero).
+The Go client lives in [llm-test-lab-go](https://github.com/barzoj-co/llm-test-lab-go).

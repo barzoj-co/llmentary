@@ -54,13 +54,11 @@ to `gen.go` fail `codegen-check`.
 
 ## Local checks
 
-Run unit and fixture tests for both Go modules:
+Run unit and fixture tests for the proxy modules:
 
 ```bash
 go test ./...
-(cd pkg/llmtestlab && go test ./...)
 (cd tests/proxy && go test ./...)
-(cd examples/go && go test ./...)
 ```
 
 Run real-provider e2e tests:
@@ -76,12 +74,12 @@ Optional:
 ```
 
 The e2e tests use a real OpenAI key, start an in-process proxy/control server with
-`httptest`, call Chat Completions and Responses, and assert through the Go client.
+`httptest`, call Chat Completions and Responses, and assert on recorded traces.
 
 Before sending code changes, format Go files:
 
 ```bash
-gofmt -w ./cmd ./internal ./pkg ./examples
+gofmt -w ./cmd ./internal
 ```
 
 CI also runs `golangci-lint-action@v8`.
@@ -90,14 +88,12 @@ CI also runs `golangci-lint-action@v8`.
 
 Document only behavior implemented in the current code. In particular:
 
-- Only the Go proxy binary is AGPL-3.0. `pkg/llmtestlab` and the separate Python/JS
-  client repos are MIT. Keep the nested Go client module importable without
-  proxy/server packages. See [LICENSING.md](LICENSING.md).
-- The example and test modules carry their own local `replace` directives for the root
-  proxy module and MIT client module. Do not add a root `require` plus local `replace`
-  for the client module; versioned
+- Only the Go proxy binary is AGPL-3.0. The Go, Python, and JS clients are MIT in
+  separate repositories. See [LICENSING.md](LICENSING.md).
+- The proxy test modules carry their own local `replace` directives for the root
+  proxy module. Versioned
   `go install github.com/barzoj-co/llm-test-lab/cmd/llmtestlab@latest` ignores local
-  replaces and must build the proxy without the nested client module.
+  replaces and must build the proxy without a nested client module.
 - CLI flags are in `cmd/llmtestlab/main.go`.
 - Environment variables and validation are in `internal/lab/config.go`.
 - Proxy routing and control endpoints are in `internal/lab/server.go`.
@@ -106,7 +102,7 @@ Document only behavior implemented in the current code. In particular:
 - Chat Completions parsing is in `internal/lab/parse_chat.go`.
 - Responses parsing is in `internal/lab/parse_responses.go`.
 - OTel attributes are in `internal/lab/otel.go` and `internal/semconv/genai`.
-- Public Go client APIs are in `pkg/llmtestlab`.
+- Public client APIs live in the separate MIT client repositories.
 
 Avoid documenting planned flags, endpoints, or APIs as if they already exist.
 
@@ -114,9 +110,8 @@ Avoid documenting planned flags, endpoints, or APIs as if they already exist.
 
 Parser behavior should be covered by fixture tests when possible. Existing fixtures live
 under `tests/proxy/testdata` and are exercised by `tests/proxy/fixture_proxy_test.go`.
-Proxy fixture tests should stay outside `pkg/llmtestlab` and outside the root module's
-package tree so the MIT client module does not import AGPL proxy/server code and the
-proxy binary remains installable without the nested client module.
+Proxy fixture tests should stay in `tests/proxy` so the proxy binary remains
+installable without pulling test-only helpers into the released module graph.
 
 Good fixture coverage includes:
 
@@ -145,7 +140,6 @@ Keep changes focused. For docs, cross-link the relevant reference pages:
 - `docs/proxy.md`
 - `docs/providers.md`
 - `docs/data-model.md`
-- `docs/go-client.md`
 - `docs/otel.md`
 - `docs/ci.md`
 - `docs/troubleshooting.md`

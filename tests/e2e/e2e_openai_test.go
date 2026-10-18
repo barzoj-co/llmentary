@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/barzoj-co/llm-test-lab/internal/lab"
-	"github.com/barzoj-co/llm-test-lab/pkg/llmtestlab"
+	"github.com/barzoj-co/llm-test-lab/internal/tracetest"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
 	"github.com/openai/openai-go/packages/param"
@@ -66,19 +66,19 @@ func TestE2EChatCompletionsToolFlow(t *testing.T) {
 		t.Fatalf("expected final chat answer to mention Paris, got %#v", final)
 	}
 
-	assert := testLab.Expect(ctx)
-	chat := assert.Trace().Query().APIType("chat").Expect(t)
-	chat.CallCount(2)
-	chat.ToolCalled("echo_city", llmtestlab.ArgsSubset(map[string]any{"city": "Paris"}))
-	chat.ToolResultFedBack(toolCall.ID)
-	chat.FinishReason("stop")
-	chat.ResponseContains("Paris")
-	chat.NoErrors()
-	chat.TokensAtMost(2000)
-	chat.TTFTBelow(10 * time.Second)
-	chat.LatencyBelow(20 * time.Second)
-	chat.NoRetries()
-	assertNoParserWarnings(t, assert.Trace().Calls)
+	trace := testLab.Wait(ctx)
+	chat := trace.Query().APIType("chat").Calls()
+	assertCallCount(t, chat, 2)
+	assertToolCalledSubset(t, chat, "echo_city", map[string]any{"city": "Paris"})
+	assertToolResultFedBack(t, chat, toolCall.ID)
+	assertFinishReason(t, chat, "stop")
+	assertResponseContains(t, chat, "Paris")
+	assertNoErrors(t, chat)
+	assertTokensAtMost(t, chat, 2000)
+	assertTTFTBelow(t, chat, 10*time.Second)
+	assertLatencyBelow(t, chat, 20*time.Second)
+	assertNoRetries(t, chat)
+	assertNoParserWarnings(t, trace.Calls)
 }
 
 func TestE2EResponsesToolFlow(t *testing.T) {
@@ -138,19 +138,19 @@ func TestE2EResponsesToolFlow(t *testing.T) {
 
 	finalCtx, finalCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer finalCancel()
-	assert := testLab.Expect(finalCtx)
-	responses := assert.Trace().Query().APIType("responses").Expect(t)
-	responses.CallCount(2)
-	responses.ToolCalled("echo_city", llmtestlab.ArgsSubset(map[string]any{"city": "Paris"}))
-	responses.ToolResultFedBack(toolCallID)
-	responses.FinishReason("stop")
-	responses.ResponseContains("Paris")
-	responses.NoErrors()
-	responses.TokensAtMost(2000)
-	responses.TTFTBelow(10 * time.Second)
-	responses.LatencyBelow(20 * time.Second)
-	responses.NoRetries()
-	assertNoParserWarnings(t, assert.Trace().Calls)
+	trace := testLab.Wait(finalCtx)
+	responses := trace.Query().APIType("responses").Calls()
+	assertCallCount(t, responses, 2)
+	assertToolCalledSubset(t, responses, "echo_city", map[string]any{"city": "Paris"})
+	assertToolResultFedBack(t, responses, toolCallID)
+	assertFinishReason(t, responses, "stop")
+	assertResponseContains(t, responses, "Paris")
+	assertNoErrors(t, responses)
+	assertTokensAtMost(t, responses, 2000)
+	assertTTFTBelow(t, responses, 10*time.Second)
+	assertLatencyBelow(t, responses, 20*time.Second)
+	assertNoRetries(t, responses)
+	assertNoParserWarnings(t, trace.Calls)
 }
 
 func TestE2EChatCompletionsNonStreaming(t *testing.T) {
@@ -194,18 +194,18 @@ func TestE2EChatCompletionsNonStreaming(t *testing.T) {
 	_ = postOpenAI(t, apiKey, testLab, "/chat/completions", finalBody)
 	finalCtx, finalCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer finalCancel()
-	assert := testLab.Expect(finalCtx)
-	assert.CallCount(2)
-	chat := assert.Trace().Query().APIType("chat").Expect(t)
-	chat.ToolCalled("echo_city", llmtestlab.ArgsSubset(map[string]any{"city": "Paris"}))
-	chat.ToolResultFedBack(toolCall.ID)
-	chat.FinishReason("stop")
-	chat.ResponseContains("Paris")
-	assert.NoErrors()
-	assertNoParserWarnings(t, assert.Trace().Calls)
+	trace := testLab.Wait(finalCtx)
+	assertCallCount(t, trace.Calls, 2)
+	chat := trace.Query().APIType("chat").Calls()
+	assertToolCalledSubset(t, chat, "echo_city", map[string]any{"city": "Paris"})
+	assertToolResultFedBack(t, chat, toolCall.ID)
+	assertFinishReason(t, chat, "stop")
+	assertResponseContains(t, chat, "Paris")
+	assertNoErrors(t, trace.Calls)
+	assertNoParserWarnings(t, trace.Calls)
 }
 
-func postOpenAI(t *testing.T, apiKey string, lab *llmtestlab.Lab, path string, body []byte) []byte {
+func postOpenAI(t *testing.T, apiKey string, lab *tracetest.Lab, path string, body []byte) []byte {
 	t.Helper()
 	req, err := http.NewRequest(http.MethodPost, lab.OpenAIBaseURL("openai")+path, bytes.NewReader(body))
 	if err != nil {
@@ -230,7 +230,7 @@ func postOpenAI(t *testing.T, apiKey string, lab *llmtestlab.Lab, path string, b
 	return stream
 }
 
-func newE2ELab(t *testing.T) *llmtestlab.Lab {
+func newE2ELab(t *testing.T) *tracetest.Lab {
 	t.Helper()
 	cfg, err := lab.ConfigFromEnv()
 	if err != nil {
@@ -248,7 +248,7 @@ func newE2ELab(t *testing.T) *llmtestlab.Lab {
 	t.Cleanup(proxy.Close)
 	control := httptest.NewServer(server.ControlHandler())
 	t.Cleanup(control.Close)
-	return llmtestlab.New(t, llmtestlab.WithProxyURL(proxy.URL), llmtestlab.WithControlURL(control.URL), llmtestlab.WithWait(100*time.Millisecond, 5*time.Second))
+	return tracetest.New(t, tracetest.WithProxyURL(proxy.URL), tracetest.WithControlURL(control.URL), tracetest.WithWait(100*time.Millisecond, 5*time.Second))
 }
 
 func e2eModel() string {
@@ -274,17 +274,17 @@ func TestE2EChatNonStreamAndStreamText(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	assert := testLab.Expect(ctx)
-	chat := assert.Trace().Query().APIType("chat").Expect(t)
-	chat.CallCount(2)
-	chat.ResponseContains("pong")
-	chat.NoErrors()
-	for _, call := range chat.Trace().Calls {
+	trace := testLab.Wait(ctx)
+	chat := trace.Query().APIType("chat").Calls()
+	assertCallCount(t, chat, 2)
+	assertResponseContains(t, chat, "pong")
+	assertNoErrors(t, chat)
+	for _, call := range chat {
 		if call.Normalized.Usage == nil || call.Normalized.Usage.TotalTokens == nil {
 			t.Fatalf("expected usage on chat call #%d: %+v", call.Seq, call.Normalized.Usage)
 		}
 	}
-	assertNoParserWarnings(t, assert.Trace().Calls)
+	assertNoParserWarnings(t, trace.Calls)
 }
 
 func TestE2EChatParallelToolCalls(t *testing.T) {
@@ -302,15 +302,15 @@ func TestE2EChatParallelToolCalls(t *testing.T) {
 	_ = postOpenAIRetryNetwork(t, apiKey, testLab, "/chat/completions", body)
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	assert := testLab.Expect(ctx)
-	chat := assert.Trace().Query().APIType("chat").Expect(t)
-	chat.CallCount(1)
-	if n := len(chat.Trace().Calls[0].Normalized.ToolCalls); n < 2 {
-		t.Fatalf("expected two parallel tool calls (echo_city + echo_country), got %d:\n%s", n, chat.Trace().Summary())
+	trace := testLab.Wait(ctx)
+	chat := trace.Query().APIType("chat").Calls()
+	assertCallCount(t, chat, 1)
+	if n := len(chat[0].Normalized.ToolCalls); n < 2 {
+		t.Fatalf("expected two parallel tool calls (echo_city + echo_country), got %d:\n%s", n, trace.Query().APIType("chat").Trace().Summary())
 	}
-	chat.ToolCalled("echo_city")
-	chat.ToolCalled("echo_country")
-	assertNoParserWarnings(t, assert.Trace().Calls)
+	assertToolCalled(t, chat, "echo_city")
+	assertToolCalled(t, chat, "echo_country")
+	assertNoParserWarnings(t, trace.Calls)
 }
 
 func TestE2EChatStructuredOutput(t *testing.T) {
@@ -326,10 +326,10 @@ func TestE2EChatStructuredOutput(t *testing.T) {
 	_ = postOpenAI(t, apiKey, testLab, "/chat/completions", body)
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	assert := testLab.Expect(ctx)
-	chat := assert.Trace().Query().APIType("chat").Expect(t)
-	chat.CallCount(1)
-	chat.ResponseJSONSchemaValid(map[string]any{
+	trace := testLab.Wait(ctx)
+	chat := trace.Query().APIType("chat").Calls()
+	assertCallCount(t, chat, 1)
+	assertResponseJSONSchemaValid(t, chat, map[string]any{
 		"type":     "object",
 		"required": []string{"answer", "count"},
 		"properties": map[string]any{
@@ -337,8 +337,8 @@ func TestE2EChatStructuredOutput(t *testing.T) {
 			"count":  map[string]any{"type": "integer"},
 		},
 	})
-	chat.NoErrors()
-	assertNoParserWarnings(t, assert.Trace().Calls)
+	assertNoErrors(t, chat)
+	assertNoParserWarnings(t, trace.Calls)
 }
 
 func TestE2EResponsesNonStreamAndStructured(t *testing.T) {
@@ -359,24 +359,24 @@ func TestE2EResponsesNonStreamAndStructured(t *testing.T) {
 	_ = postOpenAI(t, apiKey, testLab, "/responses", structured)
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	assert := testLab.Expect(ctx)
-	responses := assert.Trace().Query().APIType("responses").Expect(t)
-	responses.CallCount(2)
-	responses.ResponseContains("pong")
-	responses.ResponseJSONSchemaValid(map[string]any{
+	trace := testLab.Wait(ctx)
+	responses := trace.Query().APIType("responses").Calls()
+	assertCallCount(t, responses, 2)
+	assertResponseContains(t, responses, "pong")
+	assertResponseJSONSchemaValid(t, responses, map[string]any{
 		"type":     "object",
 		"required": []string{"answer"},
 		"properties": map[string]any{
 			"answer": map[string]any{"type": "string"},
 		},
 	})
-	responses.NoErrors()
-	for _, call := range responses.Trace().Calls {
+	assertNoErrors(t, responses)
+	for _, call := range responses {
 		if call.Normalized.Usage == nil || call.Normalized.Usage.TotalTokens == nil {
 			t.Fatalf("expected usage on responses call #%d: %+v", call.Seq, call.Normalized.Usage)
 		}
 	}
-	assertNoParserWarnings(t, assert.Trace().Calls)
+	assertNoParserWarnings(t, trace.Calls)
 }
 
 func TestE2EInvalidParameter400(t *testing.T) {
@@ -390,14 +390,14 @@ func TestE2EInvalidParameter400(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	assert := testLab.Expect(ctx)
-	assert.HasError()
-	call := assert.Trace().Calls[0]
+	trace := testLab.Wait(ctx)
+	assertHasError(t, trace.Calls)
+	call := trace.Calls[0]
 	if call.Normalized.Error == nil || call.Normalized.Error.Normalized != "bad_request" || call.HTTPStatus != 400 {
 		t.Fatalf("error=%+v status=%d", call.Normalized.Error, call.HTTPStatus)
 	}
 	t.Logf("live OpenAI 400 body shape: %s", resp)
-	assertNoParserWarnings(t, assert.Trace().Calls)
+	assertNoParserWarnings(t, trace.Calls)
 }
 
 func TestE2EUnauthorized401(t *testing.T) {
@@ -411,14 +411,14 @@ func TestE2EUnauthorized401(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	assert := testLab.Expect(ctx)
-	assert.HasError()
-	call := assert.Trace().Calls[0]
+	trace := testLab.Wait(ctx)
+	assertHasError(t, trace.Calls)
+	call := trace.Calls[0]
 	if call.Normalized.Error == nil || call.Normalized.Error.Normalized != "auth" || call.HTTPStatus != 401 {
 		t.Fatalf("error=%+v status=%d", call.Normalized.Error, call.HTTPStatus)
 	}
 	t.Logf("live OpenAI 401 body shape: %s", resp)
-	assertNoParserWarnings(t, assert.Trace().Calls)
+	assertNoParserWarnings(t, trace.Calls)
 }
 
 func TestE2EResponsesStreamErrorShape(t *testing.T) {
@@ -437,8 +437,8 @@ func TestE2EResponsesStreamErrorShape(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	assert := testLab.Expect(ctx)
-	if len(assert.Trace().Calls) == 0 {
+	trace := testLab.Wait(ctx)
+	if len(trace.Calls) == 0 {
 		t.Fatal("expected a recorded call")
 	}
 }
@@ -452,7 +452,7 @@ func requireAPIKey(t *testing.T) string {
 	return apiKey
 }
 
-func postOpenAIStatus(t *testing.T, apiKey string, lab *llmtestlab.Lab, path string, body []byte) (int, []byte) {
+func postOpenAIStatus(t *testing.T, apiKey string, lab *tracetest.Lab, path string, body []byte) (int, []byte) {
 	t.Helper()
 	req, err := http.NewRequest(http.MethodPost, lab.OpenAIBaseURL("openai")+path, bytes.NewReader(body))
 	if err != nil {
@@ -474,7 +474,7 @@ func postOpenAIStatus(t *testing.T, apiKey string, lab *llmtestlab.Lab, path str
 	return resp.StatusCode, raw
 }
 
-func assertNoParserWarnings(t *testing.T, calls []llmtestlab.Call) {
+func assertNoParserWarnings(t *testing.T, calls []lab.Call) {
 	t.Helper()
 	for _, call := range calls {
 		if len(call.Normalized.ParserWarnings) != 0 {
@@ -483,7 +483,7 @@ func assertNoParserWarnings(t *testing.T, calls []llmtestlab.Call) {
 	}
 }
 
-func postOpenAIRetryNetwork(t *testing.T, apiKey string, lab *llmtestlab.Lab, path string, body []byte) []byte {
+func postOpenAIRetryNetwork(t *testing.T, apiKey string, lab *tracetest.Lab, path string, body []byte) []byte {
 	t.Helper()
 	var lastErr error
 	for attempt := 1; attempt <= 3; attempt++ {
