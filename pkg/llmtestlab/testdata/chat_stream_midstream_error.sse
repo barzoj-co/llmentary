@@ -1,0 +1,4 @@
+data: {"id":"chatcmpl_error","model":"gpt-fixture","choices":[{"delta":{"content":"partial"}}]}
+
+data: {"error":{"type":"rate_limit_error","code":"rate_limit_exceeded","message":"slow down"},"finish_reason":"error"}
+
