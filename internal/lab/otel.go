@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/barzoj-co/llm-test-lab/internal/semconv/genai"
-	"github.com/barzoj-co/llm-test-lab/pkg/llmtestlab"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/baggage"
 	"go.opentelemetry.io/otel/codes"
@@ -62,7 +61,7 @@ func NewTracingRuntime() (*TracingRuntime, error) {
 		Tracer: provider.Tracer(
 			scopeName,
 			trace.WithInstrumentationVersion(scopeVersion),
-			trace.WithInstrumentationAttributes(attribute.String("llmtestlab.semconv.genai_commit", genAICommit)),
+			trace.WithInstrumentationAttributes(attribute.String("semconv.genai_commit", genAICommit)),
 		),
 		Propagator: propagator,
 	}, nil
@@ -79,7 +78,7 @@ func StripLLMTestLabBaggageFromContext(ctx context.Context) context.Context {
 	}
 	members := make([]baggage.Member, 0, bg.Len())
 	for _, member := range bg.Members() {
-		if strings.HasPrefix(strings.ToLower(member.Key()), "llmtestlab.") {
+		if strings.HasPrefix(strings.ToLower(member.Key()), "") {
 			continue
 		}
 		members = append(members, member)
@@ -113,9 +112,9 @@ func NewInMemorySpanProcessor() *InMemorySpanProcessor {
 }
 
 func (p *InMemorySpanProcessor) OnStart(_ context.Context, s sdktrace.ReadWriteSpan) {
-	sessionID := attrString(s.Attributes(), "llmtestlab.session.id")
+	sessionID := attrString(s.Attributes(), "session.id")
 	if sessionID == "" {
-		sessionID = llmtestlab.DefaultSessionID
+		sessionID = DefaultSessionID
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -123,7 +122,7 @@ func (p *InMemorySpanProcessor) OnStart(_ context.Context, s sdktrace.ReadWriteS
 }
 
 func (p *InMemorySpanProcessor) OnEnd(s sdktrace.ReadOnlySpan) {
-	sessionID := attrString(s.Attributes(), "llmtestlab.session.id")
+	sessionID := attrString(s.Attributes(), "session.id")
 	p.mu.Lock()
 	spanID := s.SpanContext().SpanID()
 	_, discard := p.discard[spanID]
@@ -138,7 +137,7 @@ func (p *InMemorySpanProcessor) OnEnd(s sdktrace.ReadOnlySpan) {
 		sessionID = activeSessionID
 	}
 	if sessionID == "" {
-		sessionID = llmtestlab.DefaultSessionID
+		sessionID = DefaultSessionID
 	}
 	stored := storedSpan{
 		resourceAttrs: s.Resource().Attributes(),
@@ -186,7 +185,7 @@ func tracesData(spans []storedSpan) *tracepb.TracesData {
 	scope := instrumentation.Scope{
 		Name:       scopeName,
 		Version:    scopeVersion,
-		Attributes: attribute.NewSet(attribute.String("llmtestlab.semconv.genai_commit", genAICommit)),
+		Attributes: attribute.NewSet(attribute.String("semconv.genai_commit", genAICommit)),
 	}
 	protoSpans := make([]*tracepb.Span, 0, len(spans))
 	if len(spans) > 0 {
@@ -388,7 +387,7 @@ func replaceID(span map[string]any, key string, id []byte) {
 	}
 }
 
-func startSpanAttributes(call llmtestlab.Call) []attribute.KeyValue {
+func startSpanAttributes(call Call) []attribute.KeyValue {
 	model := requestModel(call)
 	attrs := []attribute.KeyValue{
 		attribute.String("http.request.method", call.Upstream.Method),
@@ -396,10 +395,10 @@ func startSpanAttributes(call llmtestlab.Call) []attribute.KeyValue {
 		attribute.String(genai.OperationName, "chat"),
 		attribute.String(genai.ProviderName, providerName(call.Provider, call.Upstream.URL)),
 		attribute.String(genai.RequestModel, model),
-		attribute.String("llmtestlab.session.id", call.SessionID),
-		attribute.String("llmtestlab.session.source", call.SessionSource),
-		attribute.String("llmtestlab.call.id", call.ID),
-		attribute.Int("llmtestlab.call.seq", call.Seq),
+		attribute.String("session.id", call.SessionID),
+		attribute.String("session.source", call.SessionSource),
+		attribute.String("call.id", call.ID),
+		attribute.Int("call.seq", call.Seq),
 	}
 	if host, port := serverAddressPort(call.Upstream.URL); host != "" {
 		attrs = append(attrs, attribute.String("server.address", host))
@@ -410,12 +409,12 @@ func startSpanAttributes(call llmtestlab.Call) []attribute.KeyValue {
 	return attrs
 }
 
-func finalSpanAttributes(call llmtestlab.Call) []attribute.KeyValue {
+func finalSpanAttributes(call Call) []attribute.KeyValue {
 	attrs := []attribute.KeyValue{
 		attribute.Int("http.response.status_code", call.HTTPStatus),
 		attribute.Int("http.request.body.size", len(call.RawRequest)),
 		attribute.Int("http.response.body.size", len(call.RawResponse)),
-		attribute.Int("llmtestlab.derived.version", call.Normalized.DerivedVersion),
+		attribute.Int("derived.version", call.Normalized.DerivedVersion),
 	}
 	if call.Stream {
 		attrs = append(attrs, attribute.Bool(genai.RequestStream, true))
@@ -443,7 +442,7 @@ func finalSpanAttributes(call llmtestlab.Call) []attribute.KeyValue {
 	return attrs
 }
 
-func finishSpan(span trace.Span, call llmtestlab.Call, endedAt time.Time) {
+func finishSpan(span trace.Span, call Call, endedAt time.Time) {
 	span.SetAttributes(finalSpanAttributes(call)...)
 	if errType, message := errorTypeAndMessage(call); errType != "" {
 		span.SetStatus(codes.Error, truncate(message, 256))
@@ -475,7 +474,7 @@ func (m mapCarrier) Keys() []string {
 	return keys
 }
 
-func requestModel(call llmtestlab.Call) string {
+func requestModel(call Call) string {
 	if call.Normalized.Model.Requested != "" {
 		return call.Normalized.Model.Requested
 	}
@@ -539,7 +538,7 @@ func serverAddressPort(rawURL string) (string, int) {
 	return host, port
 }
 
-func requestAttributes(call llmtestlab.Call) []attribute.KeyValue {
+func requestAttributes(call Call) []attribute.KeyValue {
 	var attrs []attribute.KeyValue
 	if call.RetryCount != nil && *call.RetryCount > 0 {
 		attrs = append(attrs, attribute.Int("http.request.resend_count", *call.RetryCount))
@@ -622,7 +621,7 @@ func requestAttributes(call llmtestlab.Call) []attribute.KeyValue {
 	return attrs
 }
 
-func responseAttributes(call llmtestlab.Call) []attribute.KeyValue {
+func responseAttributes(call Call) []attribute.KeyValue {
 	var attrs []attribute.KeyValue
 	if id := call.RequestIDs["body.id"]; id != "" {
 		attrs = append(attrs, attribute.String(genai.ResponseID, id))
@@ -670,21 +669,21 @@ func responseAttributes(call llmtestlab.Call) []attribute.KeyValue {
 	return attrs
 }
 
-func llmtestlabAttributes(call llmtestlab.Call) []attribute.KeyValue {
+func llmtestlabAttributes(call Call) []attribute.KeyValue {
 	attrs := []attribute.KeyValue{
-		attribute.Int("llmtestlab.prompt.chars", promptTextChars(call)),
-		attribute.Int("llmtestlab.prompt.message_count", call.Normalized.MessagesCount),
-		attribute.StringSlice("llmtestlab.finish_reasons.normalized", []string{call.Normalized.FinishReason}),
-		attribute.Int("llmtestlab.stream.chunk_count", len(call.SSEEvents)),
-		attribute.Bool("llmtestlab.stream.truncated", call.Normalized.StreamTruncated),
-		attribute.Bool("llmtestlab.client.aborted", call.Normalized.ClientAborted),
+		attribute.Int("prompt.chars", promptTextChars(call)),
+		attribute.Int("prompt.message_count", call.Normalized.MessagesCount),
+		attribute.StringSlice("finish_reasons.normalized", []string{call.Normalized.FinishReason}),
+		attribute.Int("stream.chunk_count", len(call.SSEEvents)),
+		attribute.Bool("stream.truncated", call.Normalized.StreamTruncated),
+		attribute.Bool("client.aborted", call.Normalized.ClientAborted),
 	}
 	if call.Normalized.SystemPromptHash != "" {
-		attrs = append(attrs, attribute.String("llmtestlab.system_prompt.hash", ensureSHA(call.Normalized.SystemPromptHash)))
+		attrs = append(attrs, attribute.String("system_prompt.hash", ensureSHA(call.Normalized.SystemPromptHash)))
 	}
 	if len(call.Normalized.ToolsDeclared) > 0 {
 		if b, err := json.Marshal(call.Normalized.ToolsDeclared); err == nil {
-			attrs = append(attrs, attribute.String("llmtestlab.tool_definitions.hash", "sha256:"+hashBytes(b)))
+			attrs = append(attrs, attribute.String("tool_definitions.hash", "sha256:"+hashBytes(b)))
 		}
 	}
 	if len(call.Normalized.ToolCalls) > 0 {
@@ -692,24 +691,24 @@ func llmtestlabAttributes(call llmtestlab.Call) []attribute.KeyValue {
 		for _, tool := range call.Normalized.ToolCalls {
 			names = append(names, tool.Name)
 		}
-		attrs = append(attrs, attribute.StringSlice("llmtestlab.tool_calls.names", names))
+		attrs = append(attrs, attribute.StringSlice("tool_calls.names", names))
 	}
 	if call.Upstream.APIVersion != "" {
-		attrs = append(attrs, attribute.String("llmtestlab.azure.api_version", call.Upstream.APIVersion))
+		attrs = append(attrs, attribute.String("azure.api_version", call.Upstream.APIVersion))
 	}
 	if call.Upstream.Deployment != "" {
-		attrs = append(attrs, attribute.String("llmtestlab.azure.deployment", call.Upstream.Deployment))
+		attrs = append(attrs, attribute.String("azure.deployment", call.Upstream.Deployment))
 	}
 	if len(call.Normalized.ParserWarnings) > 0 {
-		attrs = append(attrs, attribute.StringSlice("llmtestlab.parser.warnings", call.Normalized.ParserWarnings))
+		attrs = append(attrs, attribute.StringSlice("parser.warnings", call.Normalized.ParserWarnings))
 	}
 	if call.Normalized.Error != nil && call.Normalized.Error.MidStream {
-		attrs = append(attrs, attribute.Bool("llmtestlab.error.mid_stream", true))
+		attrs = append(attrs, attribute.Bool("error.mid_stream", true))
 	}
 	return attrs
 }
 
-func errorTypeAndMessage(call llmtestlab.Call) (string, string) {
+func errorTypeAndMessage(call Call) (string, string) {
 	if call.Normalized.ClientAborted {
 		return "client_aborted", "client aborted the stream"
 	}
@@ -818,7 +817,7 @@ func outputTypeFromText(raw json.RawMessage) string {
 	return ""
 }
 
-func inputMessages(call llmtestlab.Call) []any {
+func inputMessages(call Call) []any {
 	var body map[string]json.RawMessage
 	if json.Unmarshal(call.RawRequest, &body) != nil {
 		return nil
@@ -895,7 +894,7 @@ func responsesInputMessages(raw json.RawMessage) []any {
 	return out
 }
 
-func outputMessages(call llmtestlab.Call) []any {
+func outputMessages(call Call) []any {
 	parts := []any{}
 	if call.Normalized.OutputText != "" {
 		parts = append(parts, map[string]any{"type": "text", "content": call.Normalized.OutputText})
@@ -917,7 +916,7 @@ func outputMessages(call llmtestlab.Call) []any {
 	return []any{map[string]any{"role": "assistant", "parts": parts}}
 }
 
-func toolDefinitions(call llmtestlab.Call) []any {
+func toolDefinitions(call Call) []any {
 	out := make([]any, 0, len(call.Normalized.ToolsDeclared))
 	for _, tool := range call.Normalized.ToolsDeclared {
 		out = append(out, map[string]any{"type": tool.Type, "name": tool.Name})
@@ -925,7 +924,7 @@ func toolDefinitions(call llmtestlab.Call) []any {
 	return out
 }
 
-func promptTextChars(call llmtestlab.Call) int {
+func promptTextChars(call Call) int {
 	var body map[string]json.RawMessage
 	if json.Unmarshal(call.RawRequest, &body) != nil {
 		return call.Normalized.PromptChars

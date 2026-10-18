@@ -14,18 +14,20 @@ Run unit and fixture tests for both Go modules:
 ```bash
 go test ./...
 (cd pkg/llmtestlab && go test ./...)
+(cd tests/proxy && go test ./...)
+(cd examples/go && go test ./...)
 ```
 
 Run real-provider e2e tests:
 
 ```bash
-OPENAI_API_KEY=sk-... go test -v -tags=e2e ./...
+(cd tests/e2e && OPENAI_API_KEY=sk-... go test -v -tags=e2e ./...)
 ```
 
 Optional:
 
 ```bash
-OPENAI_E2E_MODEL=gpt-4.1-mini go test -v -tags=e2e ./...
+(cd tests/e2e && OPENAI_E2E_MODEL=gpt-4.1-mini OPENAI_API_KEY=sk-... go test -v -tags=e2e ./...)
 ```
 
 The e2e tests use a real OpenAI key, start an in-process proxy/control server with
@@ -45,6 +47,11 @@ Document only behavior implemented in the current code. In particular:
 
 - The root module is AGPL-3.0-only. The nested Go client module at `pkg/llmtestlab` is
   MIT-licensed and should stay importable without proxy/server packages.
+- The example and test modules carry their own local `replace` directives for the root
+  proxy module and MIT client module. Do not add a root `require` plus local `replace`
+  for the client module; versioned
+  `go install github.com/barzoj-co/llm-test-lab/cmd/llmtestlab@latest` ignores local
+  replaces and must build the proxy without the nested client module.
 - CLI flags are in `cmd/llmtestlab/main.go`.
 - Environment variables and validation are in `internal/lab/config.go`.
 - Proxy routing and control endpoints are in `internal/lab/server.go`.
@@ -60,9 +67,10 @@ Avoid documenting planned flags, endpoints, or APIs as if they already exist.
 ## Provider fixtures
 
 Parser behavior should be covered by fixture tests when possible. Existing fixtures live
-under `internal/lab/testdata` and are exercised by `internal/lab/fixture_proxy_test.go`.
-Proxy fixture tests should stay outside `pkg/llmtestlab` so the MIT client module does
-not import AGPL proxy/server code.
+under `tests/proxy/testdata` and are exercised by `tests/proxy/fixture_proxy_test.go`.
+Proxy fixture tests should stay outside `pkg/llmtestlab` and outside the root module's
+package tree so the MIT client module does not import AGPL proxy/server code and the
+proxy binary remains installable without the nested client module.
 
 Good fixture coverage includes:
 

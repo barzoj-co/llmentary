@@ -175,9 +175,9 @@ For Responses, keep the first response stored and send a `function_call_output` 
 
 ## Fixture testing
 
-`internal/lab/testdata` contains raw upstream fixture bodies for Chat Completions and
+`tests/proxy/testdata` contains raw upstream fixture bodies for Chat Completions and
 Responses, streaming and non-streaming, mid-stream errors, Azure empty-choice content
-filter chunks, and structured output. The proxy fixture tests live under `internal/lab`
+filter chunks, and structured output. The proxy fixture tests live under `tests/proxy`
 so the MIT client module does not import proxy/server packages.
 
 See [`examples/go/weather_test.go`](../examples/go/weather_test.go) for a complete

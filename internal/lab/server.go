@@ -14,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/barzoj-co/llm-test-lab/pkg/llmtestlab"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -121,18 +120,18 @@ func (s *Server) serveProxy(w http.ResponseWriter, r *http.Request) {
 	target.RawQuery = r.URL.RawQuery
 	apiVersion, deployment := extractAPIVersionAndDeployment(target)
 	startedAt := time.Now().UTC()
-	call := llmtestlab.Call{
+	call := Call{
 		StartedAt:     startedAt,
 		Provider:      upstreamName,
 		APIFamily:     detectAPIFamily(r.Method, target.Path),
 		SessionSource: session.Source,
-		Upstream: llmtestlab.Upstream{
+		Upstream: Upstream{
 			Method:     r.Method,
 			URL:        sanitizeURL(target.String()),
 			APIVersion: apiVersion,
 			Deployment: deployment,
 		},
-		Request:    llmtestlab.Exchange{Headers: sanitizeHeaders(r.Header)},
+		Request:    Exchange{Headers: sanitizeHeaders(r.Header)},
 		RequestIDs: map[string]string{},
 		RawRequest: rawReq,
 		RetryCount: parseRetryCount(r.Header),
@@ -158,7 +157,7 @@ func (s *Server) serveProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.Header = cloneHeader(r.Header)
-	req.Header.Del(llmtestlab.SessionHeaderName)
+	req.Header.Del(SessionHeaderName)
 	s.tracing.Propagator.Inject(StripLLMTestLabBaggageFromContext(traceCtx), propagation.HeaderCarrier(req.Header))
 	stripLLMTestLabBaggage(req.Header)
 	req.Header.Set("Accept-Encoding", "identity")
@@ -204,7 +203,7 @@ func (s *Server) serveProxy(w http.ResponseWriter, r *http.Request) {
 	respHeaders := sanitizeHeaders(resp.Header)
 	parseBody := decompressIfNeeded(rawResp.Bytes(), respHeaders)
 	stream := headerSSE || isSSE(resp.Header, parseBody)
-	var events []llmtestlab.SSEEvent
+	var events []SSEEvent
 	var complete bool
 	var warnings []string
 	if recorder != nil {
@@ -212,12 +211,12 @@ func (s *Server) serveProxy(w http.ResponseWriter, r *http.Request) {
 	} else if stream {
 		events, complete, warnings = parseSSE(parseBody, startedAt)
 	}
-	var endedCall llmtestlab.Call
-	s.store.Finish(session.ID, callID, func(call *llmtestlab.Call) {
+	var endedCall Call
+	s.store.Finish(session.ID, callID, func(call *Call) {
 		call.FirstByteAt = firstByte
 		call.EndedAt = endedAt
 		call.LatencyMS = endedAt.Sub(startedAt).Milliseconds()
-		call.Response = llmtestlab.Exchange{Headers: respHeaders}
+		call.Response = Exchange{Headers: respHeaders}
 		call.RawResponse = parseBody
 		call.SSEEvents = events
 		call.Stream = stream
@@ -294,7 +293,7 @@ func (s *Server) serveSession(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, s.tracing.Processor.OTLP(sessionID))
 			return
 		}
-		var session llmtestlab.Session
+		var session Session
 		if wait {
 			quiet, _ := time.ParseDuration(defaultString(r.URL.Query().Get("quiet"), "500ms"))
 			timeout, _ := time.ParseDuration(defaultString(r.URL.Query().Get("timeout"), "30s"))
@@ -321,14 +320,14 @@ func (s *Server) serveSession(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) finishWithProxyError(sessionID, callID string, startedAt time.Time, err error, status int) llmtestlab.Call {
+func (s *Server) finishWithProxyError(sessionID, callID string, startedAt time.Time, err error, status int) Call {
 	endedAt := time.Now().UTC()
-	var endedCall llmtestlab.Call
-	s.store.Finish(sessionID, callID, func(call *llmtestlab.Call) {
+	var endedCall Call
+	s.store.Finish(sessionID, callID, func(call *Call) {
 		call.EndedAt = endedAt
 		call.LatencyMS = endedAt.Sub(startedAt).Milliseconds()
 		call.HTTPStatus = status
-		call.Normalized.Error = &llmtestlab.CallError{HTTPStatus: status, Message: err.Error(), Normalized: "network"}
+		call.Normalized.Error = &CallError{HTTPStatus: status, Message: err.Error(), Normalized: "network"}
 		call.Normalized.FinishReason = "error"
 		s.parser.Parse(call)
 		endedCall = *call
@@ -388,7 +387,7 @@ func retryAfter(h http.Header) string {
 	return h.Get("retry-after")
 }
 
-func recordRequestIDs(call *llmtestlab.Call, h http.Header) {
+func recordRequestIDs(call *Call, h http.Header) {
 	for key, values := range h {
 		lower := strings.ToLower(key)
 		if (strings.HasPrefix(lower, "x-") || strings.HasPrefix(lower, "apim-") || lower == "request-id") && len(values) > 0 {

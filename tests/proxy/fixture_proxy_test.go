@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-package lab_test
+package proxy_test
 
 import (
 	"bytes"

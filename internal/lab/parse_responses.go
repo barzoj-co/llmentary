@@ -6,8 +6,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"strings"
-
-	"github.com/barzoj-co/llm-test-lab/pkg/llmtestlab"
 )
 
 type responsesRequest struct {
@@ -19,7 +17,7 @@ type responsesRequest struct {
 	Conversation       any               `json:"conversation"`
 }
 
-func parseResponses(call *llmtestlab.Call) {
+func parseResponses(call *Call) {
 	var req responsesRequest
 	if err := json.Unmarshal(call.RawRequest, &req); err == nil {
 		call.Normalized.Model.Requested = req.Model
@@ -44,7 +42,7 @@ func parseResponses(call *llmtestlab.Call) {
 	}
 }
 
-func parseResponsesStream(call *llmtestlab.Call) {
+func parseResponsesStream(call *Call) {
 	complete := false
 	fallbackItems := map[int]json.RawMessage{}
 	argDeltas := map[string]*strings.Builder{}
@@ -130,7 +128,7 @@ func parseResponsesStream(call *llmtestlab.Call) {
 	}
 }
 
-func parseResponsesObject(call *llmtestlab.Call, raw []byte, usageSource string) {
+func parseResponsesObject(call *Call, raw []byte, usageSource string) {
 	var resp struct {
 		ID                string `json:"id"`
 		Model             string `json:"model"`
@@ -185,7 +183,7 @@ func parseResponsesObject(call *llmtestlab.Call, raw []byte, usageSource string)
 				}
 			}
 			if strings.Contains(generic.Type, "reasoning") {
-				call.Normalized.Reasoning = &llmtestlab.Reasoning{Present: true}
+				call.Normalized.Reasoning = &Reasoning{Present: true}
 			}
 		}
 	}
@@ -196,7 +194,7 @@ func parseResponsesObject(call *llmtestlab.Call, raw []byte, usageSource string)
 		call.Normalized.FinishReason = synthesizeResponsesFinish(resp.Status, resp.IncompleteDetails.Reason)
 	}
 	if resp.Error != nil {
-		call.Normalized.Error = &llmtestlab.CallError{
+		call.Normalized.Error = &CallError{
 			HTTPStatus: call.HTTPStatus,
 			Type:       resp.Error.Type,
 			Code:       resp.Error.Code,
@@ -211,7 +209,7 @@ func parseResponsesObject(call *llmtestlab.Call, raw []byte, usageSource string)
 	}
 }
 
-func toolCallFromResponsesItem(index int, raw json.RawMessage) (llmtestlab.ToolCall, bool) {
+func toolCallFromResponsesItem(index int, raw json.RawMessage) (ToolCall, bool) {
 	var item struct {
 		ID        string `json:"id"`
 		Type      string `json:"type"`
@@ -221,22 +219,22 @@ func toolCallFromResponsesItem(index int, raw json.RawMessage) (llmtestlab.ToolC
 		Input     string `json:"input"`
 	}
 	if json.Unmarshal(raw, &item) != nil {
-		return llmtestlab.ToolCall{}, false
+		return ToolCall{}, false
 	}
 	switch item.Type {
 	case "function_call":
 		args, argErr := parseJSONArguments(item.Arguments)
-		return llmtestlab.ToolCall{
+		return ToolCall{
 			Index: index, ID: item.CallID, ItemID: item.ID, Name: item.Name, Kind: "function",
 			ArgumentsRaw: item.Arguments, Arguments: args, ArgsParseError: argErr,
 		}, true
 	case "custom_tool_call":
-		return llmtestlab.ToolCall{
+		return ToolCall{
 			Index: index, ID: item.CallID, ItemID: item.ID, Name: item.Name, Kind: "custom",
 			ArgumentsRaw: item.Input,
 		}, true
 	default:
-		return llmtestlab.ToolCall{}, false
+		return ToolCall{}, false
 	}
 }
 
@@ -274,8 +272,8 @@ func responsesInputCount(input json.RawMessage) int {
 	return 0
 }
 
-func responsesTools(rawTools []json.RawMessage) []llmtestlab.ToolDecl {
-	out := make([]llmtestlab.ToolDecl, 0, len(rawTools))
+func responsesTools(rawTools []json.RawMessage) []ToolDecl {
+	out := make([]ToolDecl, 0, len(rawTools))
 	for _, raw := range rawTools {
 		var t struct {
 			Type       string          `json:"type"`
@@ -294,12 +292,12 @@ func responsesTools(rawTools []json.RawMessage) []llmtestlab.ToolDecl {
 			name = kind
 			kind = "builtin:" + kind
 		}
-		out = append(out, llmtestlab.ToolDecl{Name: name, Type: kind, SchemaHash: schemaHash(t.Parameters)})
+		out = append(out, ToolDecl{Name: name, Type: kind, SchemaHash: schemaHash(t.Parameters)})
 	}
 	return out
 }
 
-func responsesToolResults(input json.RawMessage) []llmtestlab.ToolResult {
+func responsesToolResults(input json.RawMessage) []ToolResult {
 	var items []struct {
 		Type   string          `json:"type"`
 		CallID string          `json:"call_id"`
@@ -309,12 +307,12 @@ func responsesToolResults(input json.RawMessage) []llmtestlab.ToolResult {
 	if json.Unmarshal(input, &items) != nil {
 		return nil
 	}
-	var out []llmtestlab.ToolResult
+	var out []ToolResult
 	for _, item := range items {
 		if item.Type != "function_call_output" {
 			continue
 		}
-		out = append(out, llmtestlab.ToolResult{CallID: item.CallID, Name: item.Name, OutputHash: hashBytes(item.Output)})
+		out = append(out, ToolResult{CallID: item.CallID, Name: item.Name, OutputHash: hashBytes(item.Output)})
 	}
 	return out
 }

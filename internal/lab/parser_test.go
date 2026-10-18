@@ -6,8 +6,6 @@ import (
 	"encoding/json"
 	"testing"
 	"time"
-
-	"github.com/barzoj-co/llm-test-lab/pkg/llmtestlab"
 )
 
 func TestChatStreamToleratesToolDeltasAzureAndOpenRouter(t *testing.T) {
@@ -87,9 +85,9 @@ func TestResponsesStreamParsesFunctionCallFromCompletedEvent(t *testing.T) {
 	}
 }
 
-func baseCall(family string, rawRequest, rawResponse []byte, stream bool) llmtestlab.Call {
+func baseCall(family string, rawRequest, rawResponse []byte, stream bool) Call {
 	now := time.Now()
-	return llmtestlab.Call{
+	return Call{
 		StartedAt:   now,
 		EndedAt:     now,
 		APIFamily:   family,

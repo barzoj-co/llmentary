@@ -4,9 +4,10 @@ The repository's own workflow is in `.github/workflows/ci.yml`:
 
 - `lint`: checkout, Go 1.26.x, `golangci/golangci-lint-action@v8`.
 - `test`: checkout, Go 1.26.x, `go test ./...` in the root AGPL proxy module and
-  `go test ./...` in the nested MIT Go client module at `pkg/llmtestlab`.
+  `go test ./...` in the nested MIT Go client module, proxy integration test module,
+  and Go example module.
 - `e2e`: skipped for fork pull requests; for pushes and non-fork PRs it requires
-  `OPENAI_API_KEY` and runs `go test -v -tags=e2e ./...`.
+  `OPENAI_API_KEY` and runs `go test -v -tags=e2e ./...` in `tests/e2e`.
 
 The e2e tests call the real OpenAI API and skip locally when `OPENAI_API_KEY` is unset.
 The CI workflow intentionally fails non-fork e2e runs without the secret so missing
@@ -75,6 +76,10 @@ jobs:
       - name: Run MIT Go client tests
         run: go test ./...
         working-directory: pkg/llmtestlab
+
+      - name: Run proxy integration tests
+        run: go test ./...
+        working-directory: tests/proxy
 ```
 
 Replace `VERSION` with a published release tag. Release archives are built by
@@ -111,13 +116,16 @@ The repository's e2e tests are behind the `e2e` build tag:
 ```bash
 go test ./...
 (cd pkg/llmtestlab && go test ./...)
-OPENAI_API_KEY=sk-... go test -v -tags=e2e ./...
+(cd tests/proxy && go test ./...)
+(cd examples/go && go test ./...)
+(cd tests/e2e && OPENAI_API_KEY=sk-... go test -v -tags=e2e ./...)
 ```
 
 Optional:
 
 ```bash
-OPENAI_E2E_MODEL=gpt-4.1-mini go test -v -tags=e2e ./...
+cd tests/e2e
+OPENAI_E2E_MODEL=gpt-4.1-mini OPENAI_API_KEY=sk-... go test -v -tags=e2e ./...
 ```
 
 The tests start an in-process proxy and control server with `httptest`, call OpenAI Chat

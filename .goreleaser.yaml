@@ -6,8 +6,13 @@ before:
   hooks:
     - go mod tidy
     - sh -c "cd pkg/llmtestlab && go mod tidy"
+    - sh -c "cd tests/proxy && go mod tidy"
+    - sh -c "cd tests/e2e && go mod tidy"
+    - sh -c "cd examples/go && go mod tidy"
     - go test ./...
     - sh -c "cd pkg/llmtestlab && go test ./..."
+    - sh -c "cd tests/proxy && go test ./..."
+    - sh -c "cd examples/go && go test ./..."
 
 builds:
   - id: llmtestlab
