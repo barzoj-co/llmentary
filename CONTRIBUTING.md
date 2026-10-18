@@ -207,6 +207,9 @@ bash scripts/check-pr-oidc.sh --self-test
 # README badges and cross-link block
 bash scripts/check-readme.sh
 
+# README and SECURITY.md verify commands stay identical and fail-closed
+bash scripts/check-release-verify.sh --self-test
+
 # mermaid diagrams (needs @mermaid-js/mermaid-cli@11.12.0)
 bash scripts/check-mermaid.sh --self-test
 ```

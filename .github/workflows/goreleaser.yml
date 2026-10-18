@@ -13,6 +13,7 @@ permissions:
 
 jobs:
   goreleaser:
+    if: github.repository == 'barzoj-co/llm-test-lab'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -20,6 +21,12 @@ jobs:
       id-token: write
       attestations: write
     steps:
+      - name: Restrict caller repository
+        run: |
+          if [ "${GITHUB_REPOSITORY}" != "barzoj-co/llm-test-lab" ]; then
+            echo "::error::reusable goreleaser workflow may only run from barzoj-co/llm-test-lab (caller=${GITHUB_REPOSITORY})"
+            exit 1
+          fi
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0

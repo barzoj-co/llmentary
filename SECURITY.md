@@ -48,10 +48,12 @@ GitHub Release archives are signed with cosign keyless (GitHub Actions OIDC)
 and carry SLSA provenance. After downloading `checksums.txt` and the archives:
 
 ```bash
+set -euo pipefail
 cosign verify-blob \
   --bundle checksums.txt.sigstore.json \
-  --certificate-identity-regexp '^https://github.com/barzoj-co/llm-test-lab/\.github/workflows/goreleaser\.yml@refs/tags/v.*$' \
+  --certificate-identity-regexp '^https://github.com/barzoj-co/llm-test-lab/\.github/workflows/goreleaser\.yml@refs/(heads/main|tags/v[0-9]+\.[0-9]+\.[0-9]+.*)$' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-github-workflow-repository barzoj-co/llm-test-lab \
   checksums.txt
 sha256sum -c --ignore-missing checksums.txt
 gh attestation verify llm-test-lab_<version>_linux_amd64.tar.gz --repo barzoj-co/llm-test-lab

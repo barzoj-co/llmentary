@@ -9,7 +9,9 @@ Usage: scripts/check-pr-oidc.sh [--self-test]
 
 Scan .github/workflows/*.y*ml. A workflow triggered by pull_request or
 pull_request_target must not grant id-token: write (top-level, write-all,
-or any job). OIDC minting belongs in the release workflow only.
+or any job). A workflow_call job that grants id-token: write must restrict
+the caller with if: github.repository == 'barzoj-co/llm-test-lab'.
+OIDC minting belongs in this repository's release workflow only.
 
   --self-test  also accept scripts/testdata/pr-oidc/good and reject each bad fixture
 EOF
@@ -47,6 +49,7 @@ import sys
 import yaml
 
 PR_EVENTS = {"pull_request", "pull_request_target"}
+REPO_NAME = "barzoj-co/llm-test-lab"
 
 
 def load(path: pathlib.Path):
@@ -77,6 +80,21 @@ def grants_id_token_write(perms) -> bool:
     return False
 
 
+def repo_restricted(job: dict) -> bool:
+    expr = job.get("if")
+    if expr is None:
+        return False
+    text = str(expr)
+    return "github.repository" in text and REPO_NAME in text
+
+
+def job_has_id_token_write(job: dict, top_write: bool) -> bool:
+    perms = job.get("permissions")
+    if perms is None:
+        return top_write
+    return grants_id_token_write(perms)
+
+
 def line_of(path: pathlib.Path, needle: str) -> int:
     try:
         for i, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
@@ -104,9 +122,12 @@ for raw in sys.argv[1:]:
     if on is None:
         on = doc.get(True)
     events = trigger_events(on)
-    if not (events & PR_EVENTS):
+    pr = bool(events & PR_EVENTS)
+    callable_wf = "workflow_call" in events
+    if not pr and not callable_wf:
         continue
-    if grants_id_token_write(doc.get("permissions")):
+    top_write = grants_id_token_write(doc.get("permissions"))
+    if pr and top_write:
         line = line_of(path, "id-token:") or line_of(path, "write-all") or 1
         print(f"{path}:{line}: top-level grants id-token: write on a pull_request/pull_request_target workflow")
         offending += 1
@@ -116,10 +137,17 @@ for raw in sys.argv[1:]:
     for job_id, job in jobs.items():
         if not isinstance(job, dict):
             continue
-        if grants_id_token_write(job.get("permissions")):
+        job_write = job_has_id_token_write(job, top_write)
+        if pr and grants_id_token_write(job.get("permissions")):
             line = line_of(path, "id-token:") or line_of(path, "write-all") or 1
             print(
                 f"{path}:{line}: job {job_id} grants id-token: write on a pull_request/pull_request_target workflow"
+            )
+            offending += 1
+        if callable_wf and job_write and not repo_restricted(job):
+            line = line_of(path, "id-token:") or line_of(path, "write-all") or line_of(path, "workflow_call") or 1
+            print(
+                f"{path}:{line}: job {job_id} grants id-token: write on workflow_call without github.repository restriction"
             )
             offending += 1
 sys.exit(1 if offending else 0)
@@ -142,7 +170,7 @@ fi
 if scan_files "${files[@]}"; then
   echo "check-pr-oidc: ${#files[@]} workflow(s) ok"
 else
-  echo "check-pr-oidc: pull_request/pull_request_target workflow grants id-token: write" >&2
+  echo "check-pr-oidc: PR workflow grants id-token: write, or workflow_call signing is unrestricted" >&2
   exit 1
 fi
 
@@ -175,7 +203,13 @@ if [[ "${#bad_files[@]}" -eq 0 ]]; then
 fi
 self_failed=0
 for f in "${bad_files[@]}"; do
-  out="$(scan_files "$f" 2>&1 || true)"
+  status=0
+  out="$(scan_files "$f" 2>&1)" || status=$?
+  if [[ "$status" -eq 0 ]]; then
+    echo "self-test: ${f} exited 0 (expected nonzero)" >&2
+    self_failed=1
+    continue
+  fi
   if [[ -z "$out" ]]; then
     echo "self-test: ${f} was accepted (expected reject with file:line)" >&2
     self_failed=1

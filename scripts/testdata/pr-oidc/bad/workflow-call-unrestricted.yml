@@ -1,0 +1,10 @@
+# Fixture: workflow_call + id-token write without a caller restriction must fail.
+on:
+  workflow_call:
+jobs:
+  sign:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - run: echo ok

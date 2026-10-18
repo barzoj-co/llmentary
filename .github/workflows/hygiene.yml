@@ -58,6 +58,8 @@ jobs:
         run: bash scripts/check-pinned-actions.sh --self-test
       - name: Check README badges and cross-links
         run: bash scripts/check-readme.sh
+      - name: Check release verify docs
+        run: bash scripts/check-release-verify.sh --self-test
 
   renovate-config:
     runs-on: ubuntu-latest

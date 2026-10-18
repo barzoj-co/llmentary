@@ -1,0 +1,11 @@
+# Fixture: workflow_call + id-token write is allowed with a caller repo if.
+on:
+  workflow_call:
+jobs:
+  sign:
+    if: github.repository == 'barzoj-co/llm-test-lab'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - run: echo ok
