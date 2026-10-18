@@ -122,18 +122,18 @@ OpenAI-wire calls when it can, and leaves everything else as raw passthrough.
 
 ## Licensing
 
-The owner has split the licensing by artifact:
+Only the Go proxy binary is AGPL-3.0. `pkg/llmtestlab` and the separate Python/JS
+client repos are MIT.
 
-- Proxy binary and server/proxy framework code: AGPL-3.0-only, covered by the root
-  [LICENSE](LICENSE).
-- Go/Python/JS client libraries: MIT. The Go client lives in `pkg/llmtestlab` and is
-  covered by [`pkg/llmtestlab/LICENSE`](pkg/llmtestlab/LICENSE). The planned Python and
-  JavaScript/TypeScript clients will live in their separate repositories
-  (`llm-test-lab-python` and `llm-test-lab-js`).
+- Go proxy binary (`cmd/llmtestlab` and the proxy/server implementation it ships):
+  AGPL-3.0, covered by the root [LICENSE](LICENSE).
+- Go client library (`pkg/llmtestlab`): MIT, covered by
+  [`pkg/llmtestlab/LICENSE`](pkg/llmtestlab/LICENSE).
+- Separate Python and JS client repositories (`llm-test-lab-python`,
+  `llm-test-lab-js`): MIT.
 
-Using the proxy binary in your test pipeline does not affect your application's license.
-Your app talks to the proxy over HTTP, and the MIT client libraries are designed to be
-imported without linking the AGPL proxy/server code.
+Using the proxy in your test pipeline does not affect your application's license.
+See [LICENSING.md](LICENSING.md).
 
 ## Status and roadmap
 
@@ -152,4 +152,4 @@ The current `--tls` flag is parsed by the CLI but is not wired to any TLS listen
 
 ## Repository licenses
 
-See [Licensing](#licensing).
+See [Licensing](#licensing) and [LICENSING.md](LICENSING.md).

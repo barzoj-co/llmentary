@@ -45,8 +45,9 @@ CI also runs `golangci-lint-action@v8`.
 
 Document only behavior implemented in the current code. In particular:
 
-- The root module is AGPL-3.0-only. The nested Go client module at `pkg/llmtestlab` is
-  MIT-licensed and should stay importable without proxy/server packages.
+- Only the Go proxy binary is AGPL-3.0. `pkg/llmtestlab` and the separate Python/JS
+  client repos are MIT. Keep the nested Go client module importable without
+  proxy/server packages. See [LICENSING.md](LICENSING.md).
 - The example and test modules carry their own local `replace` directives for the root
   proxy module and MIT client module. Do not add a root `require` plus local `replace`
   for the client module; versioned

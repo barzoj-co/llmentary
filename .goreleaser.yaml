@@ -45,6 +45,7 @@ archives:
           - zip
     files:
       - LICENSE
+      - LICENSING.md
       - README.md
 
 checksum:
