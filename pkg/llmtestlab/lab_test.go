@@ -64,11 +64,42 @@ func TestResponseJSONSchemaValid(t *testing.T) {
 	a.ResponseJSONValid()
 	a.ResponseJSONSchemaValid(map[string]any{
 		"type":     "object",
-		"required": []any{"answer"},
+		"required": []string{"answer"},
 		"properties": map[string]any{
 			"answer": map[string]any{"type": "string"},
 		},
 	})
+}
+
+func TestJSONPathMissingKeyDoesNotMatchNull(t *testing.T) {
+	var value any
+	if err := json.Unmarshal([]byte(`{"present":null}`), &value); err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := jsonPath(value, "missing"); ok || got != nil {
+		t.Fatalf("missing path should not match nil")
+	}
+}
+
+func TestSchemaIntegerType(t *testing.T) {
+	if err := validateBasicSchema(map[string]any{"n": "not-int"}, map[string]any{
+		"type":     "object",
+		"required": []string{"n"},
+		"properties": map[string]any{
+			"n": map[string]any{"type": "integer"},
+		},
+	}); err == nil {
+		t.Fatalf("string should not satisfy integer schema")
+	}
+	if err := validateBasicSchema(map[string]any{"n": float64(3)}, map[string]any{
+		"type":     "object",
+		"required": []string{"n"},
+		"properties": map[string]any{
+			"n": map[string]any{"type": "integer"},
+		},
+	}); err != nil {
+		t.Fatalf("integer-valued number should satisfy schema: %v", err)
+	}
 }
 
 func fixtureTrace() Trace {

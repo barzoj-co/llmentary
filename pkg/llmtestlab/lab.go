@@ -130,11 +130,16 @@ func (l *Lab) OpenAIBaseURL(upstream string) string {
 }
 
 func (l *Lab) HTTPClient() *http.Client {
-	transport := http.DefaultTransport
-	if l.httpClient != nil && l.httpClient.Transport != nil {
-		transport = l.httpClient.Transport
+	client := http.Client{}
+	if l.httpClient != nil {
+		client = *l.httpClient
 	}
-	return &http.Client{Transport: sessionTransport{sessionID: l.sessionID, base: transport}}
+	transport := http.DefaultTransport
+	if client.Transport != nil {
+		transport = client.Transport
+	}
+	client.Transport = sessionTransport{sessionID: l.sessionID, base: transport}
+	return &client
 }
 
 type sessionTransport struct {
@@ -168,11 +173,13 @@ func (l *Lab) Calls(ctx context.Context) Trace {
 }
 
 func (l *Lab) Expect(ctx context.Context) *Assertions {
+	l.t.Helper()
 	trace := l.Wait(ctx)
 	return &Assertions{t: l.t, trace: trace, fatal: true}
 }
 
 func (l *Lab) Check(ctx context.Context) *Assertions {
+	l.t.Helper()
 	trace := l.Wait(ctx)
 	return &Assertions{t: l.t, trace: trace}
 }
@@ -279,6 +286,7 @@ func (a *Assertions) fail(format string, args ...any) bool {
 }
 
 func (a *Assertions) CallCount(want int, opts ...CallCountOption) bool {
+	a.t.Helper()
 	var options CallCountOptions
 	for _, opt := range opts {
 		opt(&options)
@@ -297,6 +305,7 @@ func (a *Assertions) CallCount(want int, opts ...CallCountOption) bool {
 }
 
 func (a *Assertions) ToolCalled(name string, opts ...ToolAssertionOption) bool {
+	a.t.Helper()
 	matches := matchingTools(a.trace.Calls, name, opts...)
 	if len(matches) == 0 {
 		return a.fail("expected tool %q to be called", name)
@@ -305,6 +314,7 @@ func (a *Assertions) ToolCalled(name string, opts ...ToolAssertionOption) bool {
 }
 
 func (a *Assertions) ToolNotCalled(name string) bool {
+	a.t.Helper()
 	if len(matchingTools(a.trace.Calls, name)) > 0 {
 		return a.fail("expected tool %q not to be called", name)
 	}
@@ -312,6 +322,7 @@ func (a *Assertions) ToolNotCalled(name string) bool {
 }
 
 func (a *Assertions) ToolCalledTimes(name string, n int, opts ...ToolAssertionOption) bool {
+	a.t.Helper()
 	got := len(matchingTools(a.trace.Calls, name, opts...))
 	if got != n {
 		return a.fail("tool %q call count mismatch: got %d, want %d", name, got, n)
@@ -320,6 +331,7 @@ func (a *Assertions) ToolCalledTimes(name string, n int, opts ...ToolAssertionOp
 }
 
 func (a *Assertions) ToolOrder(names ...string) bool {
+	a.t.Helper()
 	got := toolNames(a.trace.Calls)
 	if !equalStrings(got, names) {
 		return a.fail("tool order mismatch: got %v, want %v", got, names)
@@ -328,6 +340,7 @@ func (a *Assertions) ToolOrder(names ...string) bool {
 }
 
 func (a *Assertions) ToolBefore(before, after string) bool {
+	a.t.Helper()
 	positions := map[string]int{}
 	for i, name := range toolNames(a.trace.Calls) {
 		if _, ok := positions[name]; !ok {
@@ -343,6 +356,7 @@ func (a *Assertions) ToolBefore(before, after string) bool {
 }
 
 func (a *Assertions) ParallelToolCalls(names ...string) bool {
+	a.t.Helper()
 	want := append([]string(nil), names...)
 	sort.Strings(want)
 	for _, call := range a.trace.Calls {
@@ -362,6 +376,7 @@ func (a *Assertions) ParallelToolCalls(names ...string) bool {
 }
 
 func (a *Assertions) ToolResultFedBack(callID string) bool {
+	a.t.Helper()
 	for _, call := range a.trace.Calls {
 		for _, result := range call.Normalized.ToolResultsIn {
 			if result.CallID == callID {
@@ -373,6 +388,7 @@ func (a *Assertions) ToolResultFedBack(callID string) bool {
 }
 
 func (a *Assertions) Model(model string) bool {
+	a.t.Helper()
 	for _, call := range a.trace.Calls {
 		if call.Normalized.Model.Requested == model || call.Normalized.Model.Returned == model {
 			return true
@@ -382,6 +398,7 @@ func (a *Assertions) Model(model string) bool {
 }
 
 func (a *Assertions) RequestParam(name string, want any) bool {
+	a.t.Helper()
 	for _, call := range a.trace.Calls {
 		var body map[string]any
 		if json.Unmarshal(call.RawRequest, &body) == nil && jsonDeepEqual(body[name], want) {
@@ -392,6 +409,7 @@ func (a *Assertions) RequestParam(name string, want any) bool {
 }
 
 func (a *Assertions) FinishReason(reason string) bool {
+	a.t.Helper()
 	for _, call := range a.trace.Calls {
 		if call.Normalized.FinishReason == reason || call.Normalized.NativeFinishReason == reason {
 			return true
@@ -401,28 +419,33 @@ func (a *Assertions) FinishReason(reason string) bool {
 }
 
 func (a *Assertions) TokensBelow(maxTotal int) bool {
+	a.t.Helper()
 	return a.tokenBound(maxTotal, true)
 }
 
 func (a *Assertions) TokensAtMost(maxTotal int) bool {
+	a.t.Helper()
 	return a.tokenBound(maxTotal, false)
 }
 
 func (a *Assertions) tokenBound(maxTotal int, strict bool) bool {
+	a.t.Helper()
 	total, known := 0, false
 	for _, call := range a.trace.Calls {
 		if call.Normalized.Usage == nil {
 			continue
 		}
-		known = true
 		if call.Normalized.Usage.TotalTokens != nil {
 			total += *call.Normalized.Usage.TotalTokens
+			known = true
 		} else {
 			if call.Normalized.Usage.InputTokens != nil {
 				total += *call.Normalized.Usage.InputTokens
+				known = true
 			}
 			if call.Normalized.Usage.OutputTokens != nil {
 				total += *call.Normalized.Usage.OutputTokens
+				known = true
 			}
 		}
 	}
@@ -439,6 +462,7 @@ func (a *Assertions) tokenBound(maxTotal int, strict bool) bool {
 }
 
 func (a *Assertions) LatencyBelow(d time.Duration) bool {
+	a.t.Helper()
 	for _, call := range a.trace.Calls {
 		if time.Duration(call.LatencyMS)*time.Millisecond >= d {
 			return a.fail("call #%d latency %s exceeds %s", call.Seq, time.Duration(call.LatencyMS)*time.Millisecond, d)
@@ -448,6 +472,7 @@ func (a *Assertions) LatencyBelow(d time.Duration) bool {
 }
 
 func (a *Assertions) TTFTBelow(d time.Duration) bool {
+	a.t.Helper()
 	for _, call := range a.trace.Calls {
 		if call.FirstByteAt == nil {
 			continue
@@ -461,6 +486,7 @@ func (a *Assertions) TTFTBelow(d time.Duration) bool {
 }
 
 func (a *Assertions) NoErrors() bool {
+	a.t.Helper()
 	for _, call := range a.trace.Calls {
 		if call.Normalized.Error != nil {
 			return a.fail("unexpected error in call #%d: %+v", call.Seq, call.Normalized.Error)
@@ -470,6 +496,7 @@ func (a *Assertions) NoErrors() bool {
 }
 
 func (a *Assertions) HasError() bool {
+	a.t.Helper()
 	for _, call := range a.trace.Calls {
 		if call.Normalized.Error != nil {
 			return true
@@ -479,6 +506,7 @@ func (a *Assertions) HasError() bool {
 }
 
 func (a *Assertions) MidStreamError() bool {
+	a.t.Helper()
 	for _, call := range a.trace.Calls {
 		if call.Normalized.Error != nil && call.Normalized.Error.MidStream {
 			return true
@@ -488,6 +516,7 @@ func (a *Assertions) MidStreamError() bool {
 }
 
 func (a *Assertions) SystemPromptContains(substr string) bool {
+	a.t.Helper()
 	for _, call := range a.trace.Calls {
 		if strings.Contains(call.Normalized.SystemPrompt, substr) {
 			return true
@@ -497,6 +526,7 @@ func (a *Assertions) SystemPromptContains(substr string) bool {
 }
 
 func (a *Assertions) ResponseContains(substr string) bool {
+	a.t.Helper()
 	for _, call := range a.trace.Calls {
 		if strings.Contains(call.Normalized.OutputText, substr) {
 			return true
@@ -506,6 +536,7 @@ func (a *Assertions) ResponseContains(substr string) bool {
 }
 
 func (a *Assertions) ResponseMatches(pattern string) bool {
+	a.t.Helper()
 	re, err := regexp.Compile(pattern)
 	if err != nil {
 		return a.fail("invalid response regexp %q: %v", pattern, err)
@@ -519,6 +550,7 @@ func (a *Assertions) ResponseMatches(pattern string) bool {
 }
 
 func (a *Assertions) ResponseJSONValid() bool {
+	a.t.Helper()
 	for _, call := range a.trace.Calls {
 		if json.Valid([]byte(call.Normalized.OutputText)) {
 			return true
@@ -528,6 +560,7 @@ func (a *Assertions) ResponseJSONValid() bool {
 }
 
 func (a *Assertions) ResponseJSONSchemaValid(schema map[string]any) bool {
+	a.t.Helper()
 	for _, call := range a.trace.Calls {
 		var value any
 		if json.Unmarshal([]byte(call.Normalized.OutputText), &value) == nil && validateBasicSchema(value, schema) == nil {
@@ -655,7 +688,11 @@ func jsonPath(value any, path string) (any, bool) {
 		}
 		switch typed := current.(type) {
 		case map[string]any:
-			current, _ = typed[part]
+			var ok bool
+			current, ok = typed[part]
+			if !ok {
+				return nil, false
+			}
 		case []any:
 			var idx int
 			if _, err := fmt.Sscanf(part, "%d", &idx); err != nil || idx < 0 || idx >= len(typed) {
@@ -685,10 +722,9 @@ func validateBasicSchema(value any, schema map[string]any) error {
 			return fmt.Errorf("type mismatch: got %T want %s", value, typ)
 		}
 	}
-	if required, ok := schema["required"].([]any); ok {
+	if required := requiredKeys(schema["required"]); len(required) > 0 {
 		obj, _ := value.(map[string]any)
-		for _, raw := range required {
-			key, _ := raw.(string)
+		for _, key := range required {
 			if _, ok := obj[key]; !ok {
 				return fmt.Errorf("missing required property %q", key)
 			}
@@ -710,6 +746,23 @@ func validateBasicSchema(value any, schema map[string]any) error {
 	return nil
 }
 
+func requiredKeys(value any) []string {
+	switch typed := value.(type) {
+	case []string:
+		return append([]string(nil), typed...)
+	case []any:
+		out := make([]string, 0, len(typed))
+		for _, item := range typed {
+			if key, ok := item.(string); ok {
+				out = append(out, key)
+			}
+		}
+		return out
+	default:
+		return nil
+	}
+}
+
 func matchesJSONType(value any, typ string) bool {
 	switch typ {
 	case "object":
@@ -724,6 +777,9 @@ func matchesJSONType(value any, typ string) bool {
 	case "number":
 		_, ok := value.(float64)
 		return ok
+	case "integer":
+		n, ok := value.(float64)
+		return ok && n == float64(int64(n))
 	case "boolean":
 		_, ok := value.(bool)
 		return ok
