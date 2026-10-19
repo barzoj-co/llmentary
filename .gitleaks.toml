@@ -1,0 +1,21 @@
+# Narrow allowlist for synthetic strings that are not credentials (audit §4).
+# Paths are omitted: a path+regex allowlist defaults to OR and would skip a
+# whole file. Regexes alone keep real keys (including under tests/e2e/) visible.
+
+[extend]
+useDefault = true
+
+# Placeholder OpenAI keys in docs (audit §4): the literal sk-... is not a credential.
+[[allowlists]]
+description = "sk-... placeholders in docs (audit §4)"
+regexes = ['''sk-\.\.\.''']
+
+# Synthetic 401-test key in tests/e2e (audit §4).
+[[allowlists]]
+description = "synthetic sk-invalid* in tests/e2e (audit §4)"
+regexes = ['''sk-invalid[A-Za-z0-9_-]*''']
+
+# The leak-guard searches for the "sk-" prefix (audit §4).
+[[allowlists]]
+description = "sk- leak-guard string in live_spec_test.go (audit §4)"
+regexes = ['''"sk-"''']

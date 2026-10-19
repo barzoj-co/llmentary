@@ -1,0 +1,15 @@
+# expect: missing or malformed environment on e2e job
+on: pull_request
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: go test -v -tags=e2e ./...
+  e2e-gate:
+    if: ${{ always() }}
+    needs: [e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo ok

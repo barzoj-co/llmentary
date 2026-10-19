@@ -1,0 +1,11 @@
+# Fixture: a raw secret on a test step (not an install step) must be accepted.
+on: pull_request
+jobs:
+  e2e:
+    environment: openai-e2e
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run e2e tests
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: go test -v -tags=e2e ./...

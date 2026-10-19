@@ -38,9 +38,15 @@ Triggers are `push` to `main`, `pull_request`, and `workflow_dispatch`.
   Run the same command locally after
   `npm install -g @mermaid-js/mermaid-cli@11.12.0`.
 - `e2e`: runs once per change — on `pull_request` (non-fork) and on pushes to
-  `main` only, not on both `push` and `pull_request` for PR branches. Requires
-  `OPENAI_API_KEY` and runs `go test -v -tags=e2e ./...` in `tests/e2e`. The job
-  is not optional: missing `OPENAI_API_KEY` fails the workflow.
+  `main` only, not on both `push` and `pull_request` for PR branches. Uses
+  `environment: openai-e2e` (maintainer approval). Checkout, `setup-go`,
+  `go mod download`, and `go test -c` run without the key. The presence check
+  uses the boolean form `secrets.OPENAI_API_KEY != ''`. Only `Run e2e tests`
+  has `OPENAI_API_KEY` in step `env:` and runs `go test -v -tags=e2e ./...` in
+  `tests/e2e`. Missing `OPENAI_API_KEY` fails the job.
+- `e2e-gate`: always runs, needs `e2e`, and is green only when `e2e` succeeded.
+  This is the check that should be required after the repo is public (GitHub
+  treats a skipped required `e2e` as passing).
 - `perf`: dedicated job, `GOMAXPROCS=2`, runs `go test -tags=perf` in
   `tests/proxy` for validation/lint p99 budgets (I2–I5).
 - `codegen-check` also runs `scripts/prove-a6.sh` (editing `relax-overlay.yaml`
@@ -162,6 +168,39 @@ OPENAI_E2E_MODEL=gpt-4.1-mini OPENAI_API_KEY=sk-... go test -v -tags=e2e ./...
 
 The tests start an in-process proxy and control server with `httptest`, call OpenAI Chat
 Completions and Responses, then assert against the recorded session.
+
+## CI secrets and the e2e gate
+
+`OPENAI_API_KEY` is scoped to the `Run e2e tests` step of the `e2e` job. It is
+not set at workflow or job level, and it is not present on checkout, Go setup,
+module download, or compile. `scripts/check-secret-scope.sh` enforces that
+placement on every workflow.
+
+`e2e-gate` is a separate job (`if: always()`, `needs: [e2e]`) that runs
+`scripts/e2e-gate.sh`. It exits 0 only when `needs.e2e.result` is `success`.
+On a fork PR, `e2e` is skipped and the gate fails with
+`live e2e did not run; a maintainer must run it`.
+
+The live `e2e` job is the only job that sets `environment: openai-e2e` and the
+only job that may receive `OPENAI_API_KEY`. Unit, fixture, and perf jobs do
+not reference that environment, so they run without approval.
+`scripts/check-secret-scope.sh` enforces both rules.
+
+Each non-fork PR (and each push to `main`) waits for a maintainer to approve
+the `openai-e2e` deployment before the live tests start. Denis configures
+required reviewers on that environment. If approval is rejected or times out,
+`e2e` is `failure`/`cancelled` and `e2e-gate` goes red. That is intended.
+
+To run live e2e for a fork PR, a maintainer reviews the diff, pushes the same
+commits to a same-repo branch, and opens a pull request from that branch
+(a branch push alone does not start CI). Then they approve the `openai-e2e`
+deployment on that PR. Do not use `pull_request_target` to give a fork the key.
+
+Known limitation: on `pull_request`, GitHub runs the workflow and scripts from
+the PR merge commit, so a PR that edits `ci.yml` or `scripts/e2e-gate.sh` can
+make the gate pass. The gate still catches the normal fork case (e2e skipped,
+nobody tampered with CI). Tampering is caught by review of every `.github/**`
+and `scripts/**` diff. Never "fix" this with `pull_request_target`.
 
 ## Fork safety
 

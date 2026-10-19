@@ -44,6 +44,14 @@ jobs:
         run: bash scripts/check-workflow-policy.sh
       - name: Check PR OIDC policy
         run: bash scripts/check-pr-oidc.sh --self-test
+      - name: Check secret scope
+        run: bash scripts/check-secret-scope.sh
+      - name: Secret-scope self-test
+        run: bash scripts/check-secret-scope.sh --self-test
+      - name: e2e-gate self-test
+        run: bash scripts/e2e-gate.sh --self-test
+      - name: Ref-on-main self-test
+        run: bash scripts/check-ref-on-main.sh --self-test
 
   pinned-actions:
     runs-on: ubuntu-latest

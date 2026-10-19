@@ -1,0 +1,10 @@
+# Fixture: actions/checkout token: is the only allowed secret in with:.
+on: pull_request
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - run: echo ok

@@ -76,6 +76,26 @@ Optional:
 The e2e tests use a real OpenAI key, start an in-process proxy/control server with
 `httptest`, call Chat Completions and Responses, and assert on recorded traces.
 
+## CI secrets and the e2e gate
+
+CI scopes `OPENAI_API_KEY` to the `Run e2e tests` step of the live `e2e` job.
+That job is the only one that uses `environment: openai-e2e`. Mock, fixture,
+and other integration tests do not, so they run without approval.
+
+`e2e-gate` is the always-run check that is green only when that live job
+succeeded. Fork PRs skip `e2e` and fail the gate; a maintainer reviews the
+diff, pushes it to a same-repo branch, and opens a pull request from that
+branch so e2e can run (a branch push alone does not start CI). Do not use
+`pull_request_target`.
+
+Maintainers approve the `openai-e2e` deployment on each PR (and on each push
+to `main`) before live e2e starts. Denis configures the required reviewers on
+that environment. See `docs/ci.md`.
+
+On `pull_request`, GitHub evaluates `e2e-gate` from the PR's own workflow
+files; review `.github/**` and `scripts/**` diffs. The gate is not a substitute
+for that review.
+
 Before sending code changes, format Go files:
 
 ```bash
@@ -204,6 +224,16 @@ bash scripts/check-workflow-policy.sh
 
 # no id-token: write on pull_request / pull_request_target workflows
 bash scripts/check-pr-oidc.sh --self-test
+
+# secret placement, e2e-gate job shape (requires PyYAML)
+bash scripts/check-secret-scope.sh
+bash scripts/check-secret-scope.sh --self-test
+
+# e2e-gate case table
+bash scripts/e2e-gate.sh --self-test
+
+# release tag must be an ancestor of origin/main
+bash scripts/check-ref-on-main.sh --self-test
 
 # README badges and cross-link block
 bash scripts/check-readme.sh

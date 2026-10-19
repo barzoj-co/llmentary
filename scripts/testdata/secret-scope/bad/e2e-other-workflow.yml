@@ -1,0 +1,11 @@
+# expect: secret OPENAI_API_KEY requires environment openai-e2e
+on:
+  schedule:
+    - cron: "0 0 * * *"
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: go test -v -tags=e2e ./...

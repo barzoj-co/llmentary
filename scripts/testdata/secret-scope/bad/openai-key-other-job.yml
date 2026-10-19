@@ -1,0 +1,9 @@
+# expect: secret OPENAI_API_KEY used outside job e2e
+on: pull_request
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: go test ./...
