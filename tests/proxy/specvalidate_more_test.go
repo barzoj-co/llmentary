@@ -16,8 +16,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/barzoj-co/llm-test-lab/internal/lab"
-	"github.com/barzoj-co/llm-test-lab/internal/specvalidate"
+	"github.com/barzoj-co/llmentary/internal/lab"
+	"github.com/barzoj-co/llmentary/internal/specvalidate"
 )
 
 func TestA2CLIOverridesEnv(t *testing.T) {
@@ -26,8 +26,8 @@ func TestA2CLIOverridesEnv(t *testing.T) {
 		"--spec-profile=strict",
 		"--upstream", "https://example.com",
 	}, []string{
-		"LLMTESTLAB_SPEC_VALIDATION=off",
-		"LLMTESTLAB_SPEC_PROFILE=relaxed",
+		"LLMENTARY_SPEC_VALIDATION=off",
+		"LLMENTARY_SPEC_PROFILE=relaxed",
 	})
 	cfg := getConfig(t, control)
 	if cfg["spec_validation"] != "enforce" || cfg["spec_profile"] != "strict" {
@@ -53,7 +53,7 @@ func TestA3ProfilesCompileAndCorrupted(t *testing.T) {
 		}
 	})
 	t.Run("corrupted_schema_fails_closed", func(t *testing.T) {
-		cmd := exec.Command("go", "run", "-tags", "corrupted_schema", "./cmd/llmtestlab", "--upstream", "https://example.com")
+		cmd := exec.Command("go", "run", "-tags", "corrupted_schema", "./cmd/llmentary", "--upstream", "https://example.com")
 		cmd.Dir = filepath.Join("..", "..")
 		out, err := cmd.CombinedOutput()
 		if err == nil {
@@ -578,8 +578,8 @@ func TestF8StreamUnknownRejectedAsJSON(t *testing.T) {
 	if strings.Contains(ct, "event-stream") {
 		t.Fatalf("must not be event-stream: %q", ct)
 	}
-	if hdr.Get("X-LLMTestLab-Rejected") == "" {
-		t.Fatal("missing X-LLMTestLab-Rejected")
+	if hdr.Get("X-Llmentary-Rejected") == "" {
+		t.Fatal("missing X-Llmentary-Rejected")
 	}
 	if p.upstream.Count() != 0 {
 		t.Fatal("upstream called")
@@ -813,7 +813,7 @@ func TestDocumentedResponsesContentPartsEnforce(t *testing.T) {
 				p := startSpecProxy(t, "enforce", profile, responsesOK())
 				sid := newSession()
 				status, hdr, resp, session := postRaw(t, p, "/v1/responses", sid, nil, body)
-				if hdr.Get("X-LLMTestLab-Rejected") != "" {
+				if hdr.Get("X-Llmentary-Rejected") != "" {
 					t.Fatalf("documented Responses content-part fields rejected (%s): status=%d body=%s ignored=%v violations=%v", name, status, resp, normalized(lastCall(t, session))["ignored_fields"], normalized(lastCall(t, session))["spec_violations"])
 				}
 				if status == 400 && p.upstream.Count() == 0 {

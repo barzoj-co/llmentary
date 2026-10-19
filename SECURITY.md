@@ -6,7 +6,7 @@ Do not open a public issue for a security vulnerability.
 
 Report privately through GitHub security advisories:
 
-https://github.com/barzoj-co/llm-test-lab/security/advisories/new
+https://github.com/barzoj-co/llmentary/security/advisories/new
 
 That form is available once the repository is public. Until then, contact the
 maintainers through a private GitHub channel (do not paste secrets or provider
@@ -14,7 +14,7 @@ API keys).
 
 Please include:
 
-- the proxy version (`llmtestlab --version` or the release tag);
+- the proxy version (`llmentary --version` or the release tag);
 - OS and architecture;
 - a minimal reproduction without API keys, `Authorization` / `api-key` headers,
   or private prompts;
@@ -51,10 +51,10 @@ and carry SLSA provenance. After downloading `checksums.txt` and the archives:
 set -euo pipefail
 cosign verify-blob \
   --bundle checksums.txt.sigstore.json \
-  --certificate-identity-regexp '^https://github.com/barzoj-co/llm-test-lab/\.github/workflows/goreleaser\.yml@refs/(heads/main|tags/v[0-9]+\.[0-9]+\.[0-9]+.*)$' \
+  --certificate-identity-regexp '^https://github.com/barzoj-co/llmentary/\.github/workflows/goreleaser\.yml@refs/(heads/main|tags/v[0-9]+\.[0-9]+\.[0-9]+.*)$' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  --certificate-github-workflow-repository barzoj-co/llm-test-lab \
+  --certificate-github-workflow-repository barzoj-co/llmentary \
   checksums.txt
 sha256sum -c --ignore-missing checksums.txt
-gh attestation verify llm-test-lab_<version>_linux_amd64.tar.gz --repo barzoj-co/llm-test-lab
+gh attestation verify llmentary_<version>_linux_amd64.tar.gz --repo barzoj-co/llmentary
 ```

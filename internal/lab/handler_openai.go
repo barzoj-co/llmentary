@@ -13,7 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/barzoj-co/llm-test-lab/internal/openaiapi"
+	"github.com/barzoj-co/llmentary/internal/openaiapi"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -143,8 +143,8 @@ func (ex *proxyExchange) doUpstream() (*http.Response, error) {
 	}
 	req.Header = cloneHeader(ex.r.Header)
 	req.Header.Del(SessionHeaderName)
-	ex.s.tracing.Propagator.Inject(StripLLMTestLabBaggageFromContext(ex.r.Context()), propagation.HeaderCarrier(req.Header))
-	stripLLMTestLabBaggage(req.Header)
+	ex.s.tracing.Propagator.Inject(StripLlmentaryBaggageFromContext(ex.r.Context()), propagation.HeaderCarrier(req.Header))
+	stripLlmentaryBaggage(req.Header)
 	req.Header.Set("Accept-Encoding", "identity")
 	if targetURL := req.URL; targetURL != nil {
 		req.Host = targetURL.Host
@@ -274,7 +274,7 @@ func (s *Server) rejectLocal(w http.ResponseWriter, ex *proxyExchange, rv reques
 			HTTPStatus: http.StatusBadRequest,
 			Type:       "invalid_request_error",
 			Code:       rejectCode(rv.rejectKind),
-			Message:    "llm-test-lab rejected the request",
+			Message:    "llmentary rejected the request",
 			Normalized: "bad_request",
 			Source:     "proxy",
 		}
@@ -292,9 +292,9 @@ func (s *Server) rejectLocal(w http.ResponseWriter, ex *proxyExchange, rv reques
 
 func rejectCode(kind string) string {
 	if kind == "ignored_field" {
-		return "llmtestlab_ignored_field"
+		return "llmentary_ignored_field"
 	}
-	return "llmtestlab_spec_violation"
+	return "llmentary_spec_violation"
 }
 
 func omittedStrictToolIndexes(raw []byte) []int {

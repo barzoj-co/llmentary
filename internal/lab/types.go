@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/barzoj-co/llm-test-lab/internal/schemalint"
-	"github.com/barzoj-co/llm-test-lab/internal/specvalidate"
+	"github.com/barzoj-co/llmentary/internal/schemalint"
+	"github.com/barzoj-co/llmentary/internal/specvalidate"
 )
 
 const (

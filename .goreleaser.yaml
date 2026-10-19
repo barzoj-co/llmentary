@@ -1,6 +1,6 @@
 version: 2
 
-project_name: llm-test-lab
+project_name: llmentary
 
 before:
   hooks:
@@ -11,9 +11,9 @@ before:
     - sh -c "cd tests/proxy && go test ./..."
 
 builds:
-  - id: llmtestlab
-    main: ./cmd/llmtestlab
-    binary: llmtestlab
+  - id: llmentary
+    main: ./cmd/llmentary
+    binary: llmentary
     env:
       - CGO_ENABLED=0
     goos:
@@ -27,7 +27,7 @@ builds:
 archives:
   - id: binaries
     ids:
-      - llmtestlab
+      - llmentary
     name_template: >-
       {{ .ProjectName }}_
       {{- .Version }}_

@@ -1,5 +1,5 @@
 name: Bug report
-description: Report a problem with the llm-test-lab proxy
+description: Report a problem with the llmentary proxy
 title: "[bug] "
 labels: [bug, needs-triage]
 body:
@@ -7,7 +7,7 @@ body:
     id: version
     attributes:
       label: Proxy version
-      description: Output of `llmtestlab --version`, or the GitHub release tag.
+      description: Output of `llmentary --version`, or the GitHub release tag.
       placeholder: v0.1.0
     validations:
       required: true

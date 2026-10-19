@@ -350,7 +350,7 @@ first_byte_at - started_at
 ```
 
 Clients can assert TTFT from `first_byte_at - started_at`. The Go client lives in
-[llm-test-lab-go](https://github.com/barzoj-co/llm-test-lab-go).
+[llmentary-go](https://github.com/barzoj-co/llmentary-go).
 
 ## Retries
 
@@ -359,4 +359,4 @@ request. `retry_count` is parsed from request header `x-stainless-retry-count` w
 header is present and integer-valued.
 
 Clients can count or exclude retries (`retry_count` present and greater than zero).
-The Go client lives in [llm-test-lab-go](https://github.com/barzoj-co/llm-test-lab-go).
+The Go client lives in [llmentary-go](https://github.com/barzoj-co/llmentary-go).

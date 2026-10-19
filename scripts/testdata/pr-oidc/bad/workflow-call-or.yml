@@ -3,7 +3,7 @@ on:
   workflow_call:
 jobs:
   sign:
-    if: github.repository == 'barzoj-co/llm-test-lab' || github.repository == 'other/repo'
+    if: github.repository == 'barzoj-co/llmentary' || github.repository == 'other/repo'
     runs-on: ubuntu-latest
     permissions:
       id-token: write

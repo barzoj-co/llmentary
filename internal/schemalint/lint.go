@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/barzoj-co/llm-test-lab/internal/specvalidate"
+	"github.com/barzoj-co/llmentary/internal/specvalidate"
 )
 
 type Result struct {

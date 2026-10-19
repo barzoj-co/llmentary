@@ -2,7 +2,7 @@
 
 //go:build e2e
 
-package llmtestlab_test
+package llmentary_test
 
 import (
 	"encoding/json"

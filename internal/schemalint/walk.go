@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/barzoj-co/llm-test-lab/internal/specvalidate"
+	"github.com/barzoj-co/llmentary/internal/specvalidate"
 )
 
 var structuralSkip = map[string]struct{}{

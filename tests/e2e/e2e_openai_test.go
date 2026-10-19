@@ -2,7 +2,7 @@
 
 //go:build e2e
 
-package llmtestlab_test
+package llmentary_test
 
 import (
 	"bytes"
@@ -18,8 +18,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/barzoj-co/llm-test-lab/internal/lab"
-	"github.com/barzoj-co/llm-test-lab/internal/tracetest"
+	"github.com/barzoj-co/llmentary/internal/lab"
+	"github.com/barzoj-co/llmentary/internal/tracetest"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
 	"github.com/openai/openai-go/packages/param"

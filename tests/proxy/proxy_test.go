@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/barzoj-co/llm-test-lab/internal/lab"
-	"github.com/barzoj-co/llm-test-lab/internal/tracetest"
+	"github.com/barzoj-co/llmentary/internal/lab"
+	"github.com/barzoj-co/llmentary/internal/tracetest"
 )
 
 func TestProxyPassesStreamUnchangedAndRecordsToolCall(t *testing.T) {
@@ -24,13 +24,13 @@ func TestProxyPassesStreamUnchangedAndRecordsToolCall(t *testing.T) {
 		"data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\":\\\"Paris\\\"}\"}}]},\"finish_reason\":\"tool_calls\"}]}\n\n" +
 		"data: {\"choices\":[],\"usage\":{\"prompt_tokens\":9,\"completion_tokens\":4,\"total_tokens\":13}}\n\n" +
 		"data: [DONE]\n\n")
-	var sawAuth, sawSessionHeader, sawOtherBaggage, sawLLMTestLabBaggage bool
+	var sawAuth, sawSessionHeader, sawOtherBaggage, sawLlmentaryBaggage bool
 	var upstreamTraceparent string
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sawAuth = r.Header.Get("Authorization") == "Bearer test-token"
 		sawSessionHeader = r.Header.Get(tracetest.SessionHeaderName) != ""
 		sawOtherBaggage = r.Header.Get("baggage") == "other=value"
-		sawLLMTestLabBaggage = bytes.Contains([]byte(r.Header.Get("baggage")), []byte("llmtestlab."))
+		sawLlmentaryBaggage = bytes.Contains([]byte(r.Header.Get("baggage")), []byte("llmentary."))
 		upstreamTraceparent = r.Header.Get("traceparent")
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("x-request-id", "req_fake")
@@ -74,7 +74,7 @@ func TestProxyPassesStreamUnchangedAndRecordsToolCall(t *testing.T) {
 	}
 	req.Header.Set("Authorization", "Bearer test-token")
 	req.Header.Set(tracetest.SessionHeaderName, sessionID)
-	req.Header.Set("baggage", "llmtestlab.session.id=from-baggage, other=value")
+	req.Header.Set("baggage", "llmentary.session.id=from-baggage, other=value")
 	req.Header.Set("traceparent", "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00")
 	req.Header.Set("x-stainless-retry-count", "1")
 	resp, err := http.DefaultClient.Do(req)
@@ -95,7 +95,7 @@ func TestProxyPassesStreamUnchangedAndRecordsToolCall(t *testing.T) {
 	if sawSessionHeader {
 		t.Fatalf("session header leaked upstream")
 	}
-	if !sawOtherBaggage || sawLLMTestLabBaggage {
+	if !sawOtherBaggage || sawLlmentaryBaggage {
 		t.Fatalf("baggage not stripped correctly")
 	}
 
@@ -141,10 +141,10 @@ func TestProxyPassesStreamUnchangedAndRecordsToolCall(t *testing.T) {
 	assertStringAttr(t, attrs, "gen_ai.provider.name", "openai")
 	assertStringAttr(t, attrs, "gen_ai.request.model", "gpt-test")
 	assertStringAttr(t, attrs, "openai.api.type", "chat_completions")
-	assertStringAttr(t, attrs, "llmtestlab.session.id", sessionID)
-	assertStringAttr(t, attrs, "llmtestlab.session.source", "header")
+	assertStringAttr(t, attrs, "llmentary.session.id", sessionID)
+	assertStringAttr(t, attrs, "llmentary.session.source", "header")
 	assertIntAttr(t, attrs, "http.request.resend_count", "1")
-	assertStringArrayAttr(t, attrs, "llmtestlab.tool_calls.names", []string{"lookup"})
+	assertStringArrayAttr(t, attrs, "llmentary.tool_calls.names", []string{"lookup"})
 
 	if err := client.Delete(ctx, sessionID); err != nil {
 		t.Fatal(err)

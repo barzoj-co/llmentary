@@ -1,9 +1,9 @@
-module github.com/barzoj-co/llm-test-lab/tests/e2e
+module github.com/barzoj-co/llmentary/tests/e2e
 
 go 1.26.0
 
 require (
-	github.com/barzoj-co/llm-test-lab v0.0.0
+	github.com/barzoj-co/llmentary v0.0.0
 	github.com/openai/openai-go v1.12.0
 )
 
@@ -34,4 +34,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/barzoj-co/llm-test-lab => ../..
+replace github.com/barzoj-co/llmentary => ../..

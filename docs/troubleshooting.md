@@ -5,17 +5,17 @@
 The proxy requires at least one upstream.
 
 ```bash
-llmtestlab --upstream openai=https://api.openai.com/v1
+llmentary --upstream openai=https://api.openai.com/v1
 ```
 
 Or:
 
 ```bash
-export LLMTESTLAB_UPSTREAMS='openai=https://api.openai.com/v1'
-llmtestlab
+export LLMENTARY_UPSTREAMS='openai=https://api.openai.com/v1'
+llmentary
 ```
 
-`LLMTESTLAB_UPSTREAM` is accepted as a single-value fallback when `LLMTESTLAB_UPSTREAMS`
+`LLMENTARY_UPSTREAM` is accepted as a single-value fallback when `LLMENTARY_UPSTREAMS`
 is empty.
 
 ## `control API on non-loopback address ... requires --control-token`
@@ -24,9 +24,9 @@ The control API exposes raw recorded request/response bodies. Non-loopback binds
 a token.
 
 ```bash
-llmtestlab \
+llmentary \
   --control 0.0.0.0:7778 \
-  --control-token "$LLMTESTLAB_CONTROL_TOKEN" \
+  --control-token "$LLMENTARY_CONTROL_TOKEN" \
   --upstream openai=https://api.openai.com/v1
 ```
 
@@ -36,9 +36,9 @@ Clients must send:
 Authorization: Bearer <token>
 ```
 
-The [Go client](https://github.com/barzoj-co/llm-test-lab-go) reads
-`LLMTESTLAB_CONTROL_TOKEN` automatically or can be configured with
-`llmtestlab.WithControlToken(token)` / `llmtestlab.WithLabControlToken(token)`.
+The [Go client](https://github.com/barzoj-co/llmentary-go) reads
+`LLMENTARY_CONTROL_TOKEN` automatically or can be configured with
+`llmentary.WithControlToken(token)` / `llmentary.WithLabControlToken(token)`.
 
 ## `401 unauthorized` from the control API
 
@@ -48,8 +48,8 @@ matching bearer token.
 Check:
 
 ```bash
-echo "$LLMTESTLAB_CONTROL_TOKEN"
-curl -H "Authorization: Bearer $LLMTESTLAB_CONTROL_TOKEN" \
+echo "$LLMENTARY_CONTROL_TOKEN"
+curl -H "Authorization: Bearer $LLMENTARY_CONTROL_TOKEN" \
   http://127.0.0.1:7778/sessions/default
 ```
 
@@ -87,13 +87,13 @@ http://127.0.0.1:7777/u/openai/chat/completions
 Check session tagging:
 
 - `X-Test-Session` wins and is stripped before forwarding upstream.
-- W3C baggage key `llmtestlab.session.id` is accepted when the header is absent.
+- W3C baggage key `llmentary.session.id` is accepted when the header is absent.
 - Calls with no tag land in the `default` session.
 
-For Go tests, prefer the [Go client](https://github.com/barzoj-co/llm-test-lab-go):
+For Go tests, prefer the [Go client](https://github.com/barzoj-co/llmentary-go):
 
 ```go
-lab := llmtestlab.New(t)
+lab := llmentary.New(t)
 client := openai.NewClient(
     option.WithBaseURL(lab.OpenAIBaseURL("openai")),
     option.WithHTTPClient(lab.HTTPClient()),
@@ -116,7 +116,7 @@ timeout.
 Try:
 
 ```go
-lab := llmtestlab.New(t, llmtestlab.WithWait(100*time.Millisecond, 60*time.Second)) // llm-test-lab-go
+lab := llmentary.New(t, llmentary.WithWait(100*time.Millisecond, 60*time.Second)) // llmentary-go
 ```
 
 Or inspect the current session without waiting:

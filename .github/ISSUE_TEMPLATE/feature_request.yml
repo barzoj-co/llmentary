@@ -1,5 +1,5 @@
 name: Feature request
-description: Suggest a change to the llm-test-lab proxy
+description: Suggest a change to the llmentary proxy
 title: "[feat] "
 labels: [enhancement, needs-triage]
 body:
@@ -29,9 +29,9 @@ body:
       multiple: true
       options:
         - None / proxy only
-        - Go (llm-test-lab-go)
-        - Python (llm-test-lab-python)
-        - JS/TS (llm-test-lab-js)
+        - Go (llmentary-go)
+        - Python (llmentary-python)
+        - JS/TS (llmentary-js)
         - Unsure
     validations:
       required: true

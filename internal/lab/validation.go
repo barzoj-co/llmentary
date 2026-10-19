@@ -12,8 +12,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/barzoj-co/llm-test-lab/internal/schemalint"
-	"github.com/barzoj-co/llm-test-lab/internal/specvalidate"
+	"github.com/barzoj-co/llmentary/internal/schemalint"
+	"github.com/barzoj-co/llmentary/internal/specvalidate"
 )
 
 type validationRuntime struct {
@@ -239,9 +239,9 @@ func writeEnforceReject(w http.ResponseWriter, rv requestValidation) {
 	if kind == "" {
 		kind = "spec_violation"
 	}
-	code := "llmtestlab_spec_violation"
+	code := "llmentary_spec_violation"
 	if kind == "ignored_field" {
-		code = "llmtestlab_ignored_field"
+		code = "llmentary_ignored_field"
 	}
 	param := ""
 	first := ""
@@ -271,7 +271,7 @@ func writeEnforceReject(w http.ResponseWriter, rv requestValidation) {
 			}
 		}
 	}
-	msg := fmt.Sprintf("llm-test-lab: request rejected (profile=%s): %s", rv.info.Profile, first)
+	msg := fmt.Sprintf("llmentary: request rejected (profile=%s): %s", rv.info.Profile, first)
 	if more > 0 {
 		msg += fmt.Sprintf(" (+%d more)", more)
 	}
@@ -285,7 +285,7 @@ func writeEnforceReject(w http.ResponseWriter, rv requestValidation) {
 	}
 	raw, _ := json.Marshal(body)
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("X-LLMTestLab-Rejected", kind)
+	w.Header().Set("X-Llmentary-Rejected", kind)
 	w.WriteHeader(http.StatusBadRequest)
 	_, _ = w.Write(raw)
 }

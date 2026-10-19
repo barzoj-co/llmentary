@@ -1,6 +1,6 @@
 # OTel GenAI mapping
 
-`llm-test-lab` emits one OTLP/JSON CLIENT span for each recorded upstream proxy call.
+`llmentary` emits one OTLP/JSON CLIENT span for each recorded upstream proxy call.
 The span is modeled first as a normal REST/HTTP client call using the stable OTel HTTP
 client semantic conventions. GenAI attributes from
 `open-telemetry/semantic-conventions-genai` commit `f49da22` are layered on that same span
@@ -41,8 +41,8 @@ trace/span ID fields normalized to OTLP/JSON hex strings.
   upstream request.
 - Session:
   - `X-Test-Session` wins and is stripped before forwarding.
-  - Otherwise baggage key `llmtestlab.session.id` is used.
-  - All `llmtestlab.*` baggage members are stripped before forwarding; other baggage is
+  - Otherwise baggage key `llmentary.session.id` is used.
+  - All `llmentary.*` baggage members are stripped before forwarding; other baggage is
     preserved.
 
 ## Common attributes
@@ -71,7 +71,7 @@ Chat Completions or Responses calls.
 | `gen_ai.input.messages` | structured captured input messages |
 | `gen_ai.output.messages` | structured captured assistant output/tool calls |
 | `gen_ai.tool.definitions` | type/name only |
-| `llmtestlab.*` | test/session/parser metadata |
+| `llmentary.*` | test/session/parser metadata |
 
 Selected request/response headers are also copied to span attributes with
 `http.request.header.` or `http.response.header.` prefixes:
@@ -102,28 +102,28 @@ Selected request/response headers are also copied to span attributes with
 - `previous_response_id`, `conversation`, `reasoning.effort`, `max_output_tokens`,
   service tier, stream, and output type are mapped when present.
 
-## `llmtestlab.*` attributes
+## `llmentary.*` attributes
 
 | Attribute | Meaning |
 |---|---|
-| `llmtestlab.session.id` | test session id |
-| `llmtestlab.session.source` | `header`, `baggage`, or `default` |
-| `llmtestlab.call.id` | proxy call id |
-| `llmtestlab.call.seq` | order in session |
-| `llmtestlab.prompt.chars` | normalized prompt character count |
-| `llmtestlab.prompt.message_count` | message/input item count |
-| `llmtestlab.system_prompt.hash` | SHA-256 of system/developer/instructions text |
-| `llmtestlab.tool_definitions.hash` | SHA-256 of declared tools |
-| `llmtestlab.tool_calls.names` | output tool names in order |
-| `llmtestlab.finish_reasons.normalized` | cross-API finish reason |
-| `llmtestlab.stream.chunk_count` | raw SSE event count |
-| `llmtestlab.stream.truncated` | stream ended without terminal marker |
-| `llmtestlab.client.aborted` | client copy failed/aborted |
-| `llmtestlab.error.mid_stream` | error appeared inside an HTTP-200 stream |
-| `llmtestlab.azure.api_version` | Azure `api-version` query value |
-| `llmtestlab.azure.deployment` | Azure deployment path segment |
-| `llmtestlab.parser.warnings` | parser warnings |
-| `llmtestlab.derived.version` | normalized schema version |
+| `llmentary.session.id` | test session id |
+| `llmentary.session.source` | `header`, `baggage`, or `default` |
+| `llmentary.call.id` | proxy call id |
+| `llmentary.call.seq` | order in session |
+| `llmentary.prompt.chars` | normalized prompt character count |
+| `llmentary.prompt.message_count` | message/input item count |
+| `llmentary.system_prompt.hash` | SHA-256 of system/developer/instructions text |
+| `llmentary.tool_definitions.hash` | SHA-256 of declared tools |
+| `llmentary.tool_calls.names` | output tool names in order |
+| `llmentary.finish_reasons.normalized` | cross-API finish reason |
+| `llmentary.stream.chunk_count` | raw SSE event count |
+| `llmentary.stream.truncated` | stream ended without terminal marker |
+| `llmentary.client.aborted` | client copy failed/aborted |
+| `llmentary.error.mid_stream` | error appeared inside an HTTP-200 stream |
+| `llmentary.azure.api_version` | Azure `api-version` query value |
+| `llmentary.azure.deployment` | Azure deployment path segment |
+| `llmentary.parser.warnings` | parser warnings |
+| `llmentary.derived.version` | normalized schema version |
 
 ## Deliberate deviations
 

@@ -44,14 +44,14 @@ import sys
 
 IDENTITY = (
     "--certificate-identity-regexp "
-    "'^https://github.com/barzoj-co/llm-test-lab/\\.github/workflows/"
+    "'^https://github.com/barzoj-co/llmentary/\\.github/workflows/"
     "goreleaser\\.yml@refs/(heads/main|tags/v[0-9]+\\.[0-9]+\\.[0-9]+.*)$'"
 )
 REQUIRED = (
     "set -euo pipefail",
     IDENTITY,
     "--certificate-oidc-issuer https://token.actions.githubusercontent.com",
-    "--certificate-github-workflow-repository barzoj-co/llm-test-lab",
+    "--certificate-github-workflow-repository barzoj-co/llmentary",
 )
 
 

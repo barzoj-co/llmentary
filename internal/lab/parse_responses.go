@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/barzoj-co/llm-test-lab/internal/openaiapi"
+	"github.com/barzoj-co/llmentary/internal/openaiapi"
 )
 
 func parseResponses(call *Call) {

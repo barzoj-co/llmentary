@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/barzoj-co/llm-test-lab/internal/specvalidate"
+	"github.com/barzoj-co/llmentary/internal/specvalidate"
 )
 
 func testLinter(t *testing.T) *Linter {

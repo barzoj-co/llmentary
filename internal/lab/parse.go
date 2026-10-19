@@ -19,7 +19,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/barzoj-co/llm-test-lab/internal/openaiapi"
+	"github.com/barzoj-co/llmentary/internal/openaiapi"
 )
 
 const derivedVersion = 3
@@ -101,7 +101,7 @@ func sessionFromRequest(r *http.Request) sessionInfo {
 			continue
 		}
 		switch strings.ToLower(strings.TrimSpace(key)) {
-		case "llmtestlab.session.id", "llmtestlab.session", "test-session", "x-test-session":
+		case "llmentary.session.id", "llmentary.session", "test-session", "x-test-session":
 			if value = strings.TrimSpace(value); value != "" {
 				return sessionInfo{ID: value, Source: "baggage"}
 			}
@@ -110,7 +110,7 @@ func sessionFromRequest(r *http.Request) sessionInfo {
 	return sessionInfo{ID: DefaultSessionID, Source: "default"}
 }
 
-func stripLLMTestLabBaggage(header http.Header) {
+func stripLlmentaryBaggage(header http.Header) {
 	baggage := header.Get("baggage")
 	if baggage == "" {
 		return
@@ -119,7 +119,7 @@ func stripLLMTestLabBaggage(header http.Header) {
 	for _, item := range strings.Split(baggage, ",") {
 		item = strings.TrimSpace(item)
 		key, _, _ := strings.Cut(item, "=")
-		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(key)), "llmtestlab.") {
+		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(key)), "llmentary.") {
 			continue
 		}
 		if item != "" {

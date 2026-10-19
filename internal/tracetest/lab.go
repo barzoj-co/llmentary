@@ -40,8 +40,8 @@ type labConfig struct {
 func New(t testing.TB, opts ...LabOption) *Lab {
 	t.Helper()
 	cfg := labConfig{
-		controlURL: getenvDefault("LLMTESTLAB_CONTROL_URL", defaultControlURL),
-		proxyURL:   getenvDefault("LLMTESTLAB_PROXY_URL", defaultProxyURL),
+		controlURL: getenvDefault("LLMENTARY_CONTROL_URL", defaultControlURL),
+		proxyURL:   getenvDefault("LLMENTARY_PROXY_URL", defaultProxyURL),
 		quiet:      500 * time.Millisecond,
 		timeout:    30 * time.Second,
 	}

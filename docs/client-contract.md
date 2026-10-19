@@ -1,12 +1,12 @@
 # Client assertion contract
 
 This document is the wire contract for `AssertNoSpecViolations` and
-`AssertNoIgnoredFields` in llm-test-lab-go, llm-test-lab-python, and
-llm-test-lab-js. Implementations live in those repositories. This repo only
+`AssertNoIgnoredFields` in llmentary-go, llmentary-python, and
+llmentary-js. Implementations live in those repositories. This repo only
 defines the semantics and pins them with a reference checker in
 `tests/proxy` (`TestD9aClientContract`).
 
-Do not add these APIs to `pkg/llmtestlab` here (removed by LTL-SPLIT-1).
+Do not add these APIs to `pkg/llmentary` here (removed by LTL-SPLIT-1).
 
 The Go client reads `trace.Calls[i].Normalized.Validation`, `.SpecViolations`,
 and `.IgnoredFields`. Field names in `docs/data-model.md` are the wire names.

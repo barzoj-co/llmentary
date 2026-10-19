@@ -2,7 +2,7 @@
 
 //go:build e2e
 
-package llmtestlab_test
+package llmentary_test
 
 import (
 	"bytes"
@@ -152,8 +152,8 @@ func TestLiveEnforce_RejectsWithoutUpstream(t *testing.T) {
 	if status != 400 {
 		t.Fatalf("status=%d body=%s", status, redactLiveBody(body))
 	}
-	if hdr.Get("X-LLMTestLab-Rejected") == "" {
-		t.Fatal("missing X-LLMTestLab-Rejected")
+	if hdr.Get("X-Llmentary-Rejected") == "" {
+		t.Fatal("missing X-Llmentary-Rejected")
 	}
 	if hdr.Get("x-request-id") != "" || hdr.Get("X-Request-Id") != "" {
 		t.Fatal("must not expose an OpenAI x-request-id on a local reject")
