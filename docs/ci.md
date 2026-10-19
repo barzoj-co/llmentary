@@ -94,7 +94,7 @@ jobs:
           VERSION: v0.1.0
         run: |
           curl -fsSL \
-            "https://github.com/barzoj-co/llmentary/releases/download/${VERSION}/llmentary_${VERSION}_linux_amd64.tar.gz" \
+            "https://github.com/barzoj-co/llmentary/releases/download/${VERSION}/llmentary_${VERSION#v}_linux_amd64.tar.gz" \
             -o llmentary.tar.gz
           tar -xzf llmentary.tar.gz
           chmod +x llmentary
