@@ -1,4 +1,4 @@
-module github.com/barzoj-co/llm-test-lab/tools/licensecheck
+module github.com/barzoj-co/llmentary/tools/licensecheck
 
 go 1.26.0
 

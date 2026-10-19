@@ -10,7 +10,7 @@ Usage: scripts/check-pr-oidc.sh [--self-test]
 Scan .github/workflows/*.y*ml. A workflow triggered by pull_request or
 pull_request_target must not grant id-token: write (top-level, write-all,
 or any job). A workflow_call job that grants id-token: write must restrict
-the caller with if: exactly github.repository == 'barzoj-co/llm-test-lab'
+the caller with if: exactly github.repository == 'barzoj-co/llmentary'
 (either quote style; optional ${{ }} wrap; surrounding whitespace only).
 OIDC minting belongs in this repository's release workflow only.
 
@@ -53,7 +53,7 @@ import yaml
 PR_EVENTS = {"pull_request", "pull_request_target"}
 REPO_EQ = (
     r"github\.repository\s*==\s*"
-    r"""(?:'barzoj-co/llm-test-lab'|"barzoj-co/llm-test-lab")"""
+    r"""(?:'barzoj-co/llmentary'|"barzoj-co/llmentary")"""
 )
 REPO_IF_RE = re.compile(r"^(?:\$\{\{\s*" + REPO_EQ + r"\s*\}\}|" + REPO_EQ + r")$")
 

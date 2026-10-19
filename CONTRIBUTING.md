@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for working on `llm-test-lab`.
+Thanks for working on `llmentary`.
 
 ## Requirements
 
@@ -110,9 +110,9 @@ Document only behavior implemented in the current code. In particular:
 
 - The proxy test modules carry their own local `replace` directives for the root
   proxy module. Versioned
-  `go install github.com/barzoj-co/llm-test-lab/cmd/llmtestlab@latest` ignores local
+  `go install github.com/barzoj-co/llmentary/cmd/llmentary@latest` ignores local
   replaces and must build the proxy without a nested client module.
-- CLI flags are in `cmd/llmtestlab/main.go`.
+- CLI flags are in `cmd/llmentary/main.go`.
 - Environment variables and validation are in `internal/lab/config.go`.
 - Proxy routing and control endpoints are in `internal/lab/server.go`.
 - Session tagging, redaction, SSE parsing, retry parsing, and API family detection are in
@@ -148,7 +148,7 @@ secret headers and selected URL query parameters. Raw request and response bodie
 stored in memory. Treat the control API as sensitive:
 
 - keep it bound to loopback by default;
-- require `--control-token` / `LLMTESTLAB_CONTROL_TOKEN` for non-loopback binds;
+- require `--control-token` / `LLMENTARY_CONTROL_TOKEN` for non-loopback binds;
 - do not print raw session JSON in public CI logs.
 
 ## Spec validation overlay and schema subset

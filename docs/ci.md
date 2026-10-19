@@ -34,7 +34,7 @@ Triggers are `push` to `main`, `pull_request`, and `workflow_dispatch`.
   a missing `python3` exits non-zero, that empty and mismatched `mmdc --version`
   fail, that `testdata/mermaid/fences.md` (tilde and 4-backtick fences) parses,
   and that `testdata/mermaid/bad.md` (the original README diagram from `main`,
-  with unquoted `|llmtestlab.New(t)|`) is rejected.
+  with unquoted `|llmentary.New(t)|`) is rejected.
   Run the same command locally after
   `npm install -g @mermaid-js/mermaid-cli@11.12.0`.
 - `e2e`: runs once per change — on `pull_request` (non-fork) and on pushes to
@@ -60,7 +60,7 @@ credentials are visible.
 
 This example downloads a release binary, starts the proxy in the background, and runs
 tests against the control API (for example via the
-[Go client](https://github.com/barzoj-co/llm-test-lab-go)).
+[Go client](https://github.com/barzoj-co/llmentary-go)).
 
 ```yaml
 name: LLM integration tests
@@ -79,8 +79,8 @@ jobs:
     if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork != true }}
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      LLMTESTLAB_PROXY_URL: http://127.0.0.1:7777
-      LLMTESTLAB_CONTROL_URL: http://127.0.0.1:7778
+      LLMENTARY_PROXY_URL: http://127.0.0.1:7777
+      LLMENTARY_CONTROL_URL: http://127.0.0.1:7778
     steps:
       - uses: actions/checkout@v4
 
@@ -89,29 +89,29 @@ jobs:
           go-version: "1.26.x"
           cache: true
 
-      - name: Download llm-test-lab
+      - name: Download llmentary
         env:
           VERSION: v0.1.0
         run: |
           curl -fsSL \
-            "https://github.com/barzoj-co/llm-test-lab/releases/download/${VERSION}/llm-test-lab_${VERSION}_linux_amd64.tar.gz" \
-            -o llm-test-lab.tar.gz
-          tar -xzf llm-test-lab.tar.gz
-          chmod +x llmtestlab
+            "https://github.com/barzoj-co/llmentary/releases/download/${VERSION}/llmentary_${VERSION#v}_linux_amd64.tar.gz" \
+            -o llmentary.tar.gz
+          tar -xzf llmentary.tar.gz
+          chmod +x llmentary
 
-      - name: Start llm-test-lab proxy
+      - name: Start llmentary proxy
         run: |
-          ./llmtestlab \
+          ./llmentary \
             --listen 127.0.0.1:7777 \
             --control 127.0.0.1:7778 \
             --upstream openai=https://api.openai.com/v1 \
-            >llmtestlab.log 2>&1 &
-          echo $! > llmtestlab.pid
+            >llmentary.log 2>&1 &
+          echo $! > llmentary.pid
           for i in $(seq 1 50); do
             curl -fsS http://127.0.0.1:7778/healthz && exit 0
             sleep 0.1
           done
-          cat llmtestlab.log
+          cat llmentary.log
           exit 1
 
       - name: Run proxy/root tests
@@ -126,26 +126,35 @@ Replace `VERSION` with a published release tag. Release archives are built by
 the reusable GoReleaser workflow for Linux, macOS, and Windows on amd64/arm64
 when release-please tags `main`, or when a `v*` tag is pushed.
 
+Goreleaser names each archive `llmentary_<version>_<os>_<arch>.tar.gz`
+(`.zip` on Windows). `<version>` is goreleaser's `.Version` and does **not**
+include a `v` prefix: tag `v0.1.0` produces `llmentary_0.1.0_linux_amd64.tar.gz`.
+`<os>` is `linux`, `darwin`, or `windows`. `<arch>` is `amd64` or `arm64`.
+Each archive contains the binary `llmentary` (`llmentary.exe` on Windows), plus
+`LICENSE` and `README.md`. The release also publishes `checksums.txt` and
+`checksums.txt.sigstore.json`. Clients that download GitHub release assets
+must match `llmentary_<version>_<os>_<arch>.(tar.gz|zip)` exactly.
+
 ## Use `go install` instead of a release binary
 
 For projects that are comfortable building from source during CI:
 
 ```yaml
-- name: Install llm-test-lab
-  run: go install github.com/barzoj-co/llm-test-lab/cmd/llmtestlab@latest
+- name: Install llmentary
+  run: go install github.com/barzoj-co/llmentary/cmd/llmentary@latest
 
-- name: Start llm-test-lab proxy
+- name: Start llmentary proxy
   run: |
-    llmtestlab \
+    llmentary \
       --listen 127.0.0.1:7777 \
       --control 127.0.0.1:7778 \
       --upstream openai=https://api.openai.com/v1 \
-      >llmtestlab.log 2>&1 &
+      >llmentary.log 2>&1 &
     for i in $(seq 1 50); do
       curl -fsS http://127.0.0.1:7778/healthz && exit 0
       sleep 0.1
     done
-    cat llmtestlab.log
+    cat llmentary.log
     exit 1
 ```
 
@@ -230,11 +239,11 @@ Bind the control API to loopback in CI unless you need remote access:
 If you bind to `0.0.0.0` or another non-loopback address, set a token:
 
 ```bash
-llmtestlab \
+llmentary \
   --control 0.0.0.0:7778 \
-  --control-token "$LLMTESTLAB_CONTROL_TOKEN" \
+  --control-token "$LLMENTARY_CONTROL_TOKEN" \
   --upstream openai=https://api.openai.com/v1
 ```
 
-Then configure tests with `LLMTESTLAB_CONTROL_TOKEN`. The
-[Go client](https://github.com/barzoj-co/llm-test-lab-go) reads that variable by default.
+Then configure tests with `LLMENTARY_CONTROL_TOKEN`. The
+[Go client](https://github.com/barzoj-co/llmentary-go) reads that variable by default.

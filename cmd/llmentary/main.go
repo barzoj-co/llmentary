@@ -13,7 +13,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/barzoj-co/llm-test-lab/internal/lab"
+	"github.com/barzoj-co/llmentary/internal/lab"
 )
 
 type upstreamFlags []string
@@ -58,13 +58,13 @@ func main() {
 		log.Fatal(err)
 	}
 	var upstreams upstreamFlags
-	flag.StringVar(&cfg.ListenAddr, "listen", cfg.ListenAddr, "proxy listen address (env LLMTESTLAB_LISTEN)")
-	flag.StringVar(&cfg.ControlAddr, "control", cfg.ControlAddr, "control API listen address (env LLMTESTLAB_CONTROL_LISTEN)")
-	flag.StringVar(&cfg.ControlToken, "control-token", cfg.ControlToken, "bearer token required for control API; required for non-loopback control binds (env LLMTESTLAB_CONTROL_TOKEN)")
-	flag.Var(&upstreams, "upstream", "upstream mapping name=https://host/base; repeatable (env LLMTESTLAB_UPSTREAMS)")
-	flag.Var((*enumFlag)(&cfg.SpecValidation), "spec-validation", "request spec validation mode: off, warn, enforce (env LLMTESTLAB_SPEC_VALIDATION)")
-	flag.Var((*enumFlag)(&cfg.SpecProfile), "spec-profile", "spec validation profile: strict, relaxed (env LLMTESTLAB_SPEC_PROFILE)")
-	flag.Var((*nonNegIntFlag)(&cfg.SpecValidationMaxBytes), "spec-validation-max-bytes", "max request bytes to validate (env LLMTESTLAB_SPEC_VALIDATION_MAX_BYTES)")
+	flag.StringVar(&cfg.ListenAddr, "listen", cfg.ListenAddr, "proxy listen address (env LLMENTARY_LISTEN)")
+	flag.StringVar(&cfg.ControlAddr, "control", cfg.ControlAddr, "control API listen address (env LLMENTARY_CONTROL_LISTEN)")
+	flag.StringVar(&cfg.ControlToken, "control-token", cfg.ControlToken, "bearer token required for control API; required for non-loopback control binds (env LLMENTARY_CONTROL_TOKEN)")
+	flag.Var(&upstreams, "upstream", "upstream mapping name=https://host/base; repeatable (env LLMENTARY_UPSTREAMS)")
+	flag.Var((*enumFlag)(&cfg.SpecValidation), "spec-validation", "request spec validation mode: off, warn, enforce (env LLMENTARY_SPEC_VALIDATION)")
+	flag.Var((*enumFlag)(&cfg.SpecProfile), "spec-profile", "spec validation profile: strict, relaxed (env LLMENTARY_SPEC_PROFILE)")
+	flag.Var((*nonNegIntFlag)(&cfg.SpecValidationMaxBytes), "spec-validation-max-bytes", "max request bytes to validate (env LLMENTARY_SPEC_VALIDATION_MAX_BYTES)")
 	flag.Bool("tls", false, "TODO: optional local TLS listener")
 	flag.Parse()
 	for _, spec := range upstreams {
@@ -83,7 +83,7 @@ func main() {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	log.Printf("llm-test-lab proxy listening on %s; control API on %s", cfg.ListenAddr, cfg.ControlAddr)
+	log.Printf("llmentary proxy listening on %s; control API on %s", cfg.ListenAddr, cfg.ControlAddr)
 	if err := server.ListenAndServe(ctx); err != nil {
 		log.Fatal(err)
 	}

@@ -16,7 +16,7 @@ git worktree add --detach "$tmp" HEAD
 cd "$tmp"
 printf '\n# a6-proof-stale-overlay\n' >> api/openai/relax-overlay.yaml
 git add api/openai/relax-overlay.yaml
-git -c user.email=a6-proof@llm-test-lab.invalid -c user.name=a6-proof \
+git -c user.email=a6-proof@llmentary.invalid -c user.name=a6-proof \
   commit -m "a6-proof: stale relax-overlay.yaml" >/dev/null
 if make codegen-check >"$out" 2>&1; then
   echo "A6 proof failed: make codegen-check succeeded after a committed overlay edit without regen" >&2

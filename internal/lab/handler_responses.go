@@ -5,7 +5,7 @@ package lab
 import (
 	"context"
 
-	"github.com/barzoj-co/llm-test-lab/internal/openaiapi"
+	"github.com/barzoj-co/llmentary/internal/openaiapi"
 )
 
 func (h *openAIHandlers) CreateResponse(ctx context.Context, _ openaiapi.CreateResponseRequestObject) (openaiapi.CreateResponseResponseObject, error) {

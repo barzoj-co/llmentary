@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/barzoj-co/llm-test-lab/internal/lab"
+	"github.com/barzoj-co/llmentary/internal/lab"
 )
 
 type Trace struct {

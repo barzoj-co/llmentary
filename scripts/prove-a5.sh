@@ -23,7 +23,7 @@ fi
 printf '\ncreateEmbedding\n' >> api/openai/operations.txt
 make gen
 errfile="$tmp/a5-build.err"
-if go build -o "$tmp/llmtestlab-a5-proof" ./internal/lab 2>"$errfile"; then
+if go build -o "$tmp/llmentary-a5-proof" ./internal/lab 2>"$errfile"; then
   echo "A5 proof failed: build succeeded after adding createEmbedding" >&2
   exit 1
 fi

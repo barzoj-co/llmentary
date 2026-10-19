@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/barzoj-co/llm-test-lab/internal/lab"
+	"github.com/barzoj-co/llmentary/internal/lab"
 )
 
 func assertCallCount(t testing.TB, calls []lab.Call, want int) {

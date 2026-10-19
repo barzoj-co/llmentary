@@ -12,15 +12,15 @@ if [[ ! -f "$readme" ]]; then
 fi
 
 badges=(
-  'https://github.com/barzoj-co/llm-test-lab/actions/workflows/ci.yml/badge.svg?branch=main'
-  'https://github.com/barzoj-co/llm-test-lab/actions/workflows/ci.yml'
-  'https://codecov.io/gh/barzoj-co/llm-test-lab/graph/badge.svg'
-  'https://codecov.io/gh/barzoj-co/llm-test-lab'
-  'https://api.scorecard.dev/projects/github.com/barzoj-co/llm-test-lab/badge'
-  'https://scorecard.dev/viewer/?uri=github.com/barzoj-co/llm-test-lab'
-  'https://img.shields.io/github/license/barzoj-co/llm-test-lab'
-  'https://img.shields.io/github/v/release/barzoj-co/llm-test-lab?sort=semver'
-  'https://github.com/barzoj-co/llm-test-lab/releases'
+  'https://github.com/barzoj-co/llmentary/actions/workflows/ci.yml/badge.svg?branch=main'
+  'https://github.com/barzoj-co/llmentary/actions/workflows/ci.yml'
+  'https://codecov.io/gh/barzoj-co/llmentary/graph/badge.svg'
+  'https://codecov.io/gh/barzoj-co/llmentary'
+  'https://api.scorecard.dev/projects/github.com/barzoj-co/llmentary/badge'
+  'https://scorecard.dev/viewer/?uri=github.com/barzoj-co/llmentary'
+  'https://img.shields.io/github/license/barzoj-co/llmentary'
+  'https://img.shields.io/github/v/release/barzoj-co/llmentary?sort=semver'
+  'https://github.com/barzoj-co/llmentary/releases'
 )
 
 failed=0
@@ -35,14 +35,14 @@ canonical="$(mktemp)"
 trap 'rm -f "$canonical"' EXIT
 cat >"$canonical" <<'EOF'
 <!-- ltl-repos:start -->
-## llm-test-lab repositories
+## llmentary repositories
 
 | Repository | What | License |
 |---|---|---|
-| [llm-test-lab](https://github.com/barzoj-co/llm-test-lab) | Recording proxy binary (Go) | AGPL-3.0 |
-| [llm-test-lab-go](https://github.com/barzoj-co/llm-test-lab-go) | Go client for `go test` | MIT |
-| [llm-test-lab-python](https://github.com/barzoj-co/llm-test-lab-python) | Python client and pytest plugin | MIT |
-| [llm-test-lab-js](https://github.com/barzoj-co/llm-test-lab-js) | TypeScript/JavaScript client for Vitest and Jest | MIT |
+| [llmentary](https://github.com/barzoj-co/llmentary) | Recording proxy binary (Go) | AGPL-3.0 |
+| [llmentary-go](https://github.com/barzoj-co/llmentary-go) | Go client for `go test` | MIT |
+| [llmentary-python](https://github.com/barzoj-co/llmentary-python) | Python client and pytest plugin | MIT |
+| [llmentary-js](https://github.com/barzoj-co/llmentary-js) | TypeScript/JavaScript client for Vitest and Jest | MIT |
 <!-- ltl-repos:end -->
 EOF
 

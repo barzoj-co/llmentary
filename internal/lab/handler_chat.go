@@ -5,7 +5,7 @@ package lab
 import (
 	"context"
 
-	"github.com/barzoj-co/llm-test-lab/internal/openaiapi"
+	"github.com/barzoj-co/llmentary/internal/openaiapi"
 )
 
 func (h *openAIHandlers) CreateChatCompletion(ctx context.Context, _ openaiapi.CreateChatCompletionRequestObject) (openaiapi.CreateChatCompletionResponseObject, error) {

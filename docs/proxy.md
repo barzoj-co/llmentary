@@ -1,6 +1,6 @@
 # Proxy reference
 
-`llmtestlab` starts two HTTP servers:
+`llmentary` starts two HTTP servers:
 
 - the proxy listener, which forwards SDK/provider traffic and records calls;
 - the control listener, which exposes recorded sessions and in-memory OTLP spans.
@@ -16,19 +16,19 @@ variables plus CLI flags.
 
 | CLI flag | Environment | Default | Meaning |
 |---|---|---|---|
-| `--listen` | `LLMTESTLAB_LISTEN` | `:7777` | Proxy listen address. |
-| `--control` | `LLMTESTLAB_CONTROL_LISTEN` | `127.0.0.1:7778` | Control API listen address. |
-| `--control-token` | `LLMTESTLAB_CONTROL_TOKEN` | empty | Bearer token required by the control API when set. Also required when the control listener is non-loopback. |
-| `--upstream` | `LLMTESTLAB_UPSTREAMS`, fallback `LLMTESTLAB_UPSTREAM` | none | Upstream mapping. Repeat the flag or use comma-separated environment values. |
+| `--listen` | `LLMENTARY_LISTEN` | `:7777` | Proxy listen address. |
+| `--control` | `LLMENTARY_CONTROL_LISTEN` | `127.0.0.1:7778` | Control API listen address. |
+| `--control-token` | `LLMENTARY_CONTROL_TOKEN` | empty | Bearer token required by the control API when set. Also required when the control listener is non-loopback. |
+| `--upstream` | `LLMENTARY_UPSTREAMS`, fallback `LLMENTARY_UPSTREAM` | none | Upstream mapping. Repeat the flag or use comma-separated environment values. |
 | `--tls` | none | `false` | Parsed by the CLI, but not wired to a TLS listener in the current code. |
-| `--spec-validation` | `LLMTESTLAB_SPEC_VALIDATION` | `warn` | Request spec validation mode: `off`, `warn`, or `enforce`. Invalid values exit non-zero. |
-| `--spec-profile` | `LLMTESTLAB_SPEC_PROFILE` | `relaxed` | Spec profile: `strict` (pinned spec + closed-world) or `relaxed` (strict plus `api/openai/relax-overlay.yaml`). |
-| `--spec-validation-max-bytes` | `LLMTESTLAB_SPEC_VALIDATION_MAX_BYTES` | `8388608` | Maximum request body size to validate. Larger bodies are forwarded and marked `skipped_reason: body_too_large`. |
+| `--spec-validation` | `LLMENTARY_SPEC_VALIDATION` | `warn` | Request spec validation mode: `off`, `warn`, or `enforce`. Invalid values exit non-zero. |
+| `--spec-profile` | `LLMENTARY_SPEC_PROFILE` | `relaxed` | Spec profile: `strict` (pinned spec + closed-world) or `relaxed` (strict plus `api/openai/relax-overlay.yaml`). |
+| `--spec-validation-max-bytes` | `LLMENTARY_SPEC_VALIDATION_MAX_BYTES` | `8388608` | Maximum request body size to validate. Larger bodies are forwarded and marked `skipped_reason: body_too_large`. |
 
 At least one upstream is required.
 
 ```bash
-llmtestlab \
+llmentary \
   --listen 127.0.0.1:7777 \
   --control 127.0.0.1:7778 \
   --upstream openai=https://api.openai.com/v1 \
@@ -38,10 +38,10 @@ llmtestlab \
 Equivalent environment configuration:
 
 ```bash
-export LLMTESTLAB_LISTEN=127.0.0.1:7777
-export LLMTESTLAB_CONTROL_LISTEN=127.0.0.1:7778
-export LLMTESTLAB_UPSTREAMS='openai=https://api.openai.com/v1,azure=https://my-resource.openai.azure.com'
-llmtestlab
+export LLMENTARY_LISTEN=127.0.0.1:7777
+export LLMENTARY_CONTROL_LISTEN=127.0.0.1:7778
+export LLMENTARY_UPSTREAMS='openai=https://api.openai.com/v1,azure=https://my-resource.openai.azure.com'
+llmentary
 ```
 
 `--upstream` accepts either `name=https://host/base` or a bare URL. A bare URL is stored
@@ -94,13 +94,13 @@ Each call is stored in one session:
 
 1. `X-Test-Session: <id>` wins.
 2. If the header is absent, W3C `baggage` is scanned for one of:
-   - `llmtestlab.session.id`
-   - `llmtestlab.session`
+   - `llmentary.session.id`
+   - `llmentary.session`
    - `test-session`
    - `x-test-session`
 3. If no tag is present, the call lands in the `default` session.
 
-The Go client in [llm-test-lab-go](https://github.com/barzoj-co/llm-test-lab-go)
+The Go client in [llmentary-go](https://github.com/barzoj-co/llmentary-go)
 creates a random session id and can inject `X-Test-Session` through `lab.HTTPClient()`.
 
 ## Header forwarding and stripping
@@ -108,8 +108,8 @@ creates a random session id and can inject `X-Test-Session` through `lab.HTTPCli
 Before forwarding upstream, the proxy:
 
 - removes `X-Test-Session`;
-- removes any `baggage` member whose key starts with `llmtestlab.`;
-- preserves non-`llmtestlab.*` baggage members;
+- removes any `baggage` member whose key starts with `llmentary.`;
+- preserves non-`llmentary.*` baggage members;
 - injects W3C trace context for the proxy CLIENT span;
 - sets `Accept-Encoding: identity`;
 - removes hop-by-hop headers:
@@ -165,7 +165,7 @@ current implementation. Treat the local control API as sensitive.
 
 The default control address is loopback-only: `127.0.0.1:7778`.
 
-If `--control-token` or `LLMTESTLAB_CONTROL_TOKEN` is set, every control API request must
+If `--control-token` or `LLMENTARY_CONTROL_TOKEN` is set, every control API request must
 send:
 
 ```http
@@ -281,14 +281,14 @@ curl http://127.0.0.1:7778/sessions/test-1/otlp
         "attributes": [
           {
             "key": "service.name",
-            "value": { "stringValue": "llmtestlab-proxy" }
+            "value": { "stringValue": "llmentary-proxy" }
           }
         ]
       },
       "scopeSpans": [
         {
           "scope": {
-            "name": "github.com/barzoj-co/llm-test-lab/proxy",
+            "name": "github.com/barzoj-co/llmentary/proxy",
             "version": "0.1.0-dev"
           },
           "spans": []
@@ -344,16 +344,16 @@ Local enforce 400:
 ```http
 HTTP/1.1 400 Bad Request
 Content-Type: application/json
-X-LLMTestLab-Rejected: spec_violation
+X-Llmentary-Rejected: spec_violation
 
-{"error":{"message":"llm-test-lab: request rejected (profile=relaxed): …","type":"invalid_request_error","param":"…","code":"llmtestlab_spec_violation"}}
+{"error":{"message":"llmentary: request rejected (profile=relaxed): …","type":"invalid_request_error","param":"…","code":"llmentary_spec_violation"}}
 ```
 
-`code` is `llmtestlab_spec_violation` or `llmtestlab_ignored_field`. Streamed requests still get a JSON 400, not SSE.
+`code` is `llmentary_spec_violation` or `llmentary_ignored_field`. Streamed requests still get a JSON 400, not SSE.
 
 Profiles:
 
 - `strict`: pinned spec plus the closed-world transform (`unevaluatedProperties:false` on complete object schemas; allOf fragments stay open so compositions still work; free-form payloads such as tool `parameters` stay open).
 - `relaxed`: `strict` plus `api/openai/relax-overlay.yaml`. Overlay entries are live-verified.
 
-**D5 (reworded).** In `--spec-validation=off` and `warn` modes, a request body that does not decode into the generated type (malformed JSON, valid JSON with a field of unknown type, trailing data) is **not** answered by the proxy: it goes upstream byte-for-byte, the client gets the upstream response, and `parser_warnings` contains the reason; in `warn`, `spec_violations` also records it. In `enforce` mode, and only for requests, the proxy answers a local OpenAI-shaped 400 (`code: llmtestlab_spec_violation` or `llmtestlab_ignored_field`) **without calling the upstream** if there is at least one request-side spec violation or reject-class ignored field. Responses are never rejected or altered in any mode.
+**D5 (reworded).** In `--spec-validation=off` and `warn` modes, a request body that does not decode into the generated type (malformed JSON, valid JSON with a field of unknown type, trailing data) is **not** answered by the proxy: it goes upstream byte-for-byte, the client gets the upstream response, and `parser_warnings` contains the reason; in `warn`, `spec_violations` also records it. In `enforce` mode, and only for requests, the proxy answers a local OpenAI-shaped 400 (`code: llmentary_spec_violation` or `llmentary_ignored_field`) **without calling the upstream** if there is at least one request-side spec violation or reject-class ignored field. Responses are never rejected or altered in any mode.

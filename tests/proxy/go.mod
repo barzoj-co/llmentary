@@ -1,8 +1,8 @@
-module github.com/barzoj-co/llm-test-lab/tests/proxy
+module github.com/barzoj-co/llmentary/tests/proxy
 
 go 1.26.0
 
-require github.com/barzoj-co/llm-test-lab v0.0.0
+require github.com/barzoj-co/llmentary v0.0.0
 
 require (
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
@@ -27,4 +27,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/barzoj-co/llm-test-lab => ../..
+replace github.com/barzoj-co/llmentary => ../..

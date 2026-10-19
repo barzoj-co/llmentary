@@ -14,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/barzoj-co/llm-test-lab/internal/lab"
-	"github.com/barzoj-co/llm-test-lab/internal/schemalint"
-	"github.com/barzoj-co/llm-test-lab/internal/specvalidate"
+	"github.com/barzoj-co/llmentary/internal/lab"
+	"github.com/barzoj-co/llmentary/internal/schemalint"
+	"github.com/barzoj-co/llmentary/internal/specvalidate"
 )
 
 func compileEngine(t testing.TB) (*specvalidate.Engine, *schemalint.Linter) {

@@ -3,7 +3,7 @@
 # the proxy never rejects client bodies. Every action documents why it exists.
 overlay: 1.0.0
 info:
-  title: llm-test-lab codegen fixes
+  title: llmentary codegen fixes
   version: 0.0.1
 actions:
   # why: oapi-codegen names both the `object` enum on CreateChatCompletionResponse

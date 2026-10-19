@@ -1,14 +1,16 @@
-# llm-test-lab
+# llmentary
 
-[![CI](https://github.com/barzoj-co/llm-test-lab/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/barzoj-co/llm-test-lab/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/barzoj-co/llm-test-lab/graph/badge.svg)](https://codecov.io/gh/barzoj-co/llm-test-lab)
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/barzoj-co/llm-test-lab/badge)](https://scorecard.dev/viewer/?uri=github.com/barzoj-co/llm-test-lab)
-[![License: AGPL-3.0](https://img.shields.io/github/license/barzoj-co/llm-test-lab)](LICENSE)
-[![Release](https://img.shields.io/github/v/release/barzoj-co/llm-test-lab?sort=semver)](https://github.com/barzoj-co/llm-test-lab/releases)
+Renamed from llm-test-lab (pre-release).
+
+[![CI](https://github.com/barzoj-co/llmentary/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/barzoj-co/llmentary/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/barzoj-co/llmentary/graph/badge.svg)](https://codecov.io/gh/barzoj-co/llmentary)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/barzoj-co/llmentary/badge)](https://scorecard.dev/viewer/?uri=github.com/barzoj-co/llmentary)
+[![License: AGPL-3.0](https://img.shields.io/github/license/barzoj-co/llmentary)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/barzoj-co/llmentary?sort=semver)](https://github.com/barzoj-co/llmentary/releases)
 
 Deterministic, trace-based integration testing for LLM apps, without an LLM judge.
 
-`llm-test-lab` is a Go reverse proxy. Put it between your app and an
+`llmentary` is a Go reverse proxy. Put it between your app and an
 OpenAI-compatible provider, run the real SDK call, then assert on the recorded
 trace: tool names, tool arguments, tool order, request parameters, finish
 reasons, token usage, retries, latency, TTFT, and provider errors.
@@ -20,20 +22,20 @@ Clients live in separate repositories and download or run this proxy binary.
 Install the proxy binary from a GitHub release, or install from source:
 
 ```bash
-go install github.com/barzoj-co/llm-test-lab/cmd/llmtestlab@latest
+go install github.com/barzoj-co/llmentary/cmd/llmentary@latest
 ```
 
 Run the proxy against OpenAI:
 
 ```bash
-llmtestlab \
+llmentary \
   --listen 127.0.0.1:7777 \
   --control 127.0.0.1:7778 \
   --upstream openai=https://api.openai.com/v1
 ```
 
 Then drive tests through a client in one of the [client repositories](#clients).
-The Go client lives in [`llm-test-lab-go`](https://github.com/barzoj-co/llm-test-lab-go)
+The Go client lives in [`llmentary-go`](https://github.com/barzoj-co/llmentary-go)
 and tags requests with `X-Test-Session`:
 
 ```go
@@ -44,13 +46,13 @@ import (
     "os"
     "testing"
 
-    llmtestlab "github.com/barzoj-co/llm-test-lab-go"
+    llmentary "github.com/barzoj-co/llmentary-go"
     "github.com/openai/openai-go"
     "github.com/openai/openai-go/option"
 )
 
 func TestWeatherTool(t *testing.T) {
-    lab := llmtestlab.New(t)
+    lab := llmentary.New(t)
 
     client := openai.NewClient(
         option.WithAPIKey(os.Getenv("OPENAI_API_KEY")),
@@ -67,7 +69,7 @@ func TestWeatherTool(t *testing.T) {
 
     assert := lab.Expect(context.Background())
     assert.CallCount(1)
-    assert.ToolCalled("get_weather", llmtestlab.ArgsSubset(map[string]any{"city": "Paris"}))
+    assert.ToolCalled("get_weather", llmentary.ArgsSubset(map[string]any{"city": "Paris"}))
     assert.NoRetries()
     assert.NoErrors()
     assert.TokensBelow(1000)
@@ -87,31 +89,31 @@ After downloading `checksums.txt` and an archive:
 set -euo pipefail
 cosign verify-blob \
   --bundle checksums.txt.sigstore.json \
-  --certificate-identity-regexp '^https://github.com/barzoj-co/llm-test-lab/\.github/workflows/goreleaser\.yml@refs/(heads/main|tags/v[0-9]+\.[0-9]+\.[0-9]+.*)$' \
+  --certificate-identity-regexp '^https://github.com/barzoj-co/llmentary/\.github/workflows/goreleaser\.yml@refs/(heads/main|tags/v[0-9]+\.[0-9]+\.[0-9]+.*)$' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  --certificate-github-workflow-repository barzoj-co/llm-test-lab \
+  --certificate-github-workflow-repository barzoj-co/llmentary \
   checksums.txt
 sha256sum -c --ignore-missing checksums.txt
-gh attestation verify llm-test-lab_<version>_linux_amd64.tar.gz --repo barzoj-co/llm-test-lab
+gh attestation verify llmentary_<version>_linux_amd64.tar.gz --repo barzoj-co/llmentary
 ```
 
 ## Clients
 
 This repository ships only the proxy. Use these client libraries against it:
 
-- [Go](https://github.com/barzoj-co/llm-test-lab-go)
-- [Python](https://github.com/barzoj-co/llm-test-lab-python)
-- [JS/TS](https://github.com/barzoj-co/llm-test-lab-js)
+- [Go](https://github.com/barzoj-co/llmentary-go)
+- [Python](https://github.com/barzoj-co/llmentary-python)
+- [JS/TS](https://github.com/barzoj-co/llmentary-js)
 
 <!-- ltl-repos:start -->
-## llm-test-lab repositories
+## llmentary repositories
 
 | Repository | What | License |
 |---|---|---|
-| [llm-test-lab](https://github.com/barzoj-co/llm-test-lab) | Recording proxy binary (Go) | AGPL-3.0 |
-| [llm-test-lab-go](https://github.com/barzoj-co/llm-test-lab-go) | Go client for `go test` | MIT |
-| [llm-test-lab-python](https://github.com/barzoj-co/llm-test-lab-python) | Python client and pytest plugin | MIT |
-| [llm-test-lab-js](https://github.com/barzoj-co/llm-test-lab-js) | TypeScript/JavaScript client for Vitest and Jest | MIT |
+| [llmentary](https://github.com/barzoj-co/llmentary) | Recording proxy binary (Go) | AGPL-3.0 |
+| [llmentary-go](https://github.com/barzoj-co/llmentary-go) | Go client for `go test` | MIT |
+| [llmentary-python](https://github.com/barzoj-co/llmentary-python) | Python client and pytest plugin | MIT |
+| [llmentary-js](https://github.com/barzoj-co/llmentary-js) | TypeScript/JavaScript client for Vitest and Jest | MIT |
 <!-- ltl-repos:end -->
 
 ## How it works
@@ -120,7 +122,7 @@ This repository ships only the proxy. Use these client libraries against it:
 flowchart LR
     T[Test] -->|"client session"| L["Session id"]
     L -->|"X-Test-Session or baggage"| SDK["LLM SDK / app"]
-    SDK -->|"OpenAI-compatible HTTP"| P["llmtestlab proxy"]
+    SDK -->|"OpenAI-compatible HTTP"| P["llmentary proxy"]
     P -->|"unchanged request body and auth"| U["Upstream provider"]
     U -->|"unchanged response / SSE stream"| P
     P --> S[("in-memory session store")]
@@ -135,7 +137,7 @@ OpenAI-wire calls when it can, and leaves everything else as raw passthrough.
 
 ## Features
 
-- Reverse proxy binary: `cmd/llmtestlab`.
+- Reverse proxy binary: `cmd/llmentary`.
 - Named upstreams, including `/u/{name}/...` routing and bare-path routing for a single
   upstream or a `default` upstream.
 - OpenAI Chat Completions parser for streaming and non-streaming responses.

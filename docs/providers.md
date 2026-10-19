@@ -1,6 +1,6 @@
 # Providers and SDK wiring
 
-`llm-test-lab` records any HTTP traffic it proxies. It only normalizes OpenAI-wire Chat
+`llmentary` records any HTTP traffic it proxies. It only normalizes OpenAI-wire Chat
 Completions and Responses calls. Everything else is raw passthrough.
 
 ## OpenAI Chat Completions
@@ -11,7 +11,7 @@ upstream path ends with `/chat/completions`.
 Typical upstream:
 
 ```bash
-llmtestlab --upstream openai=https://api.openai.com/v1
+llmentary --upstream openai=https://api.openai.com/v1
 ```
 
 SDK base URL for named routing:
@@ -43,7 +43,7 @@ ends with `/responses`.
 Typical upstream:
 
 ```bash
-llmtestlab --upstream openai=https://api.openai.com/v1
+llmentary --upstream openai=https://api.openai.com/v1
 ```
 
 The parser records:
@@ -88,7 +88,7 @@ Azure works as long as the final path is OpenAI-wire compatible.
 Classic dated `api-version` deployment URL:
 
 ```bash
-llmtestlab --upstream azure=https://my-resource.openai.azure.com
+llmentary --upstream azure=https://my-resource.openai.azure.com
 ```
 
 ```text
@@ -100,7 +100,7 @@ The proxy records:
 
 - `upstream.api_version` from the `api-version` query parameter;
 - `upstream.deployment` from `/deployments/{deployment}/...`;
-- `llmtestlab.azure.api_version` and `llmtestlab.azure.deployment` OTel attributes.
+- `llmentary.azure.api_version` and `llmentary.azure.deployment` OTel attributes.
 
 Routing rewrites `/openai/deployments/{id}/chat/completions`, `/openai/v1/...`,
 `/api/v1/...`, and bare `/chat/completions` or `/responses` onto the generated
@@ -112,7 +112,7 @@ Azure `/openai/v1` OpenAI-compatible URLs also work because the final path still
 `/chat/completions` or `/responses`:
 
 ```bash
-llmtestlab --upstream azure=https://my-resource.openai.azure.com/openai/v1
+llmentary --upstream azure=https://my-resource.openai.azure.com/openai/v1
 ```
 
 ```text
@@ -150,7 +150,7 @@ and `reasoning.chars`.
 Configure it as an OpenAI-compatible upstream:
 
 ```bash
-llmtestlab --upstream openrouter=https://openrouter.ai/api/v1
+llmentary --upstream openrouter=https://openrouter.ai/api/v1
 ```
 
 Use base URL:
@@ -188,20 +188,20 @@ The proxy reads `x-stainless-retry-count` into `call.retry_count` and the OTel
 `http.request.resend_count` attribute. If the header is missing or not an integer, retry
 count is omitted.
 
-In Go assertions (see [llm-test-lab-go](https://github.com/barzoj-co/llm-test-lab-go)),
-`llmtestlab.ExcludeRetries()` excludes calls whose `retry_count` is present and greater
+In Go assertions (see [llmentary-go](https://github.com/barzoj-co/llmentary-go)),
+`llmentary.ExcludeRetries()` excludes calls whose `retry_count` is present and greater
 than zero.
 
 ## SDK wiring snippets
 
 Use `X-Test-Session` for the clearest session tagging. W3C baggage with
-`llmtestlab.session.id=<id>` also works when an SDK does not expose custom headers.
+`llmentary.session.id=<id>` also works when an SDK does not expose custom headers.
 
 ### `openai-go`
 
 ```go
-// Go client: github.com/barzoj-co/llm-test-lab-go
-lab := llmtestlab.New(t)
+// Go client: github.com/barzoj-co/llmentary-go
+lab := llmentary.New(t)
 
 client := openai.NewClient(
     option.WithAPIKey(os.Getenv("OPENAI_API_KEY")),

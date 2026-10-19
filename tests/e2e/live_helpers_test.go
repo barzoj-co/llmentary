@@ -2,7 +2,7 @@
 
 //go:build e2e
 
-package llmtestlab_test
+package llmentary_test
 
 import (
 	"bytes"
@@ -19,7 +19,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/barzoj-co/llm-test-lab/internal/lab"
+	"github.com/barzoj-co/llmentary/internal/lab"
 )
 
 const liveRequestCap = 120

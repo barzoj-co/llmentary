@@ -232,7 +232,7 @@ func TestBMatrix(t *testing.T) {
 							if status != 400 {
 								t.Fatalf("status=%d body=%s", status, body)
 							}
-							if hdr.Get("X-LLMTestLab-Rejected") == "" {
+							if hdr.Get("X-Llmentary-Rejected") == "" {
 								t.Fatal("missing reject header")
 							}
 							if p.upstream.Count() != 0 {
@@ -322,9 +322,9 @@ func assertEnforceError(t *testing.T, body []byte, profile string, hasViolation 
 		t.Fatalf("enforce body: %v %s", err, body)
 	}
 	errObj, _ := env["error"].(map[string]any)
-	wantCode := "llmtestlab_ignored_field"
+	wantCode := "llmentary_ignored_field"
 	if hasViolation {
-		wantCode = "llmtestlab_spec_violation"
+		wantCode = "llmentary_spec_violation"
 	}
 	if fmt.Sprint(errObj["code"]) != wantCode {
 		t.Fatalf("enforce code=%v want %s body=%s", errObj["code"], wantCode, body)
@@ -333,7 +333,7 @@ func assertEnforceError(t *testing.T, body []byte, profile string, hasViolation 
 		t.Fatalf("enforce type=%v", errObj["type"])
 	}
 	msg := fmt.Sprint(errObj["message"])
-	if !strings.Contains(msg, "llm-test-lab: request rejected (profile="+profile+")") {
+	if !strings.Contains(msg, "llmentary: request rejected (profile="+profile+")") {
 		t.Fatalf("enforce message=%q", msg)
 	}
 	param, pointer := firstRejectLocation(n, hasViolation)
@@ -486,7 +486,7 @@ func TestD9Modes(t *testing.T) {
 			p := startSpecProxy(t, "enforce", profile, chatOK())
 			sid := newSession()
 			status, hdr, resp, session := postRaw(t, p, "/v1/chat/completions", sid, nil, body)
-			if status != 400 || hdr.Get("X-LLMTestLab-Rejected") != "ignored_field" {
+			if status != 400 || hdr.Get("X-Llmentary-Rejected") != "ignored_field" {
 				t.Fatalf("status=%d hdr=%v body=%s", status, hdr, resp)
 			}
 			if p.upstream.Count() != 0 {
@@ -495,7 +495,7 @@ func TestD9Modes(t *testing.T) {
 			var env map[string]any
 			_ = json.Unmarshal(resp, &env)
 			errObj := env["error"].(map[string]any)
-			if errObj["code"] != "llmtestlab_ignored_field" {
+			if errObj["code"] != "llmentary_ignored_field" {
 				t.Fatalf("error=%v", errObj)
 			}
 			_ = session

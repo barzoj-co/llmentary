@@ -16,7 +16,7 @@ git worktree add --detach "$tmp" HEAD
 cd "$tmp"
 printf '\n// hand-edit-should-fail-codegen-check\n' >> internal/openaiapi/gen.go
 git add internal/openaiapi/gen.go
-git -c user.email=a2-proof@llm-test-lab.invalid -c user.name=a2-proof \
+git -c user.email=a2-proof@llmentary.invalid -c user.name=a2-proof \
   commit -m "a2-proof: hand-edit gen.go" >/dev/null
 if make codegen-check >"$out" 2>&1; then
   echo "A2 proof failed: make codegen-check succeeded after a committed hand-edit of gen.go" >&2

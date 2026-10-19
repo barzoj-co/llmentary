@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// Package tracetest is a test-only control-API client for the llm-test-lab proxy.
+// Package tracetest is a test-only control-API client for the llmentary proxy.
 // It starts a session, injects X-Test-Session, and fetches or waits for traces.
 package tracetest
 
@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/barzoj-co/llm-test-lab/internal/lab"
+	"github.com/barzoj-co/llmentary/internal/lab"
 )
 
 const SessionHeaderName = lab.SessionHeaderName
@@ -38,7 +38,7 @@ func NewClient(proxyControlURL string, opts ...ClientOption) (*Client, error) {
 	if u.Scheme == "" || u.Host == "" {
 		return nil, fmt.Errorf("proxy control URL must include scheme and host")
 	}
-	c := &Client{baseURL: u, httpClient: http.DefaultClient, controlToken: os.Getenv("LLMTESTLAB_CONTROL_TOKEN")}
+	c := &Client{baseURL: u, httpClient: http.DefaultClient, controlToken: os.Getenv("LLMENTARY_CONTROL_TOKEN")}
 	for _, opt := range opts {
 		opt(c)
 	}

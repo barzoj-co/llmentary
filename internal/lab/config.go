@@ -31,24 +31,24 @@ type Config struct {
 
 func ConfigFromEnv() (Config, error) {
 	cfg := Config{
-		ListenAddr:             getenv("LLMTESTLAB_LISTEN", ":7777"),
-		ControlAddr:            getenv("LLMTESTLAB_CONTROL_LISTEN", "127.0.0.1:7778"),
-		ControlToken:           os.Getenv("LLMTESTLAB_CONTROL_TOKEN"),
+		ListenAddr:             getenv("LLMENTARY_LISTEN", ":7777"),
+		ControlAddr:            getenv("LLMENTARY_CONTROL_LISTEN", "127.0.0.1:7778"),
+		ControlToken:           os.Getenv("LLMENTARY_CONTROL_TOKEN"),
 		Upstreams:              map[string]*url.URL{},
-		SpecValidation:         getenv("LLMTESTLAB_SPEC_VALIDATION", DefaultSpecValidation),
-		SpecProfile:            getenv("LLMTESTLAB_SPEC_PROFILE", DefaultSpecProfile),
+		SpecValidation:         getenv("LLMENTARY_SPEC_VALIDATION", DefaultSpecValidation),
+		SpecProfile:            getenv("LLMENTARY_SPEC_PROFILE", DefaultSpecProfile),
 		SpecValidationMaxBytes: DefaultSpecValidationMaxBytes,
 	}
-	if raw := strings.TrimSpace(os.Getenv("LLMTESTLAB_SPEC_VALIDATION_MAX_BYTES")); raw != "" {
+	if raw := strings.TrimSpace(os.Getenv("LLMENTARY_SPEC_VALIDATION_MAX_BYTES")); raw != "" {
 		n, err := strconv.Atoi(raw)
 		if err != nil {
-			return cfg, fmt.Errorf("--spec-validation-max-bytes=%q is invalid; allowed values: non-negative byte count (env LLMTESTLAB_SPEC_VALIDATION_MAX_BYTES)", raw)
+			return cfg, fmt.Errorf("--spec-validation-max-bytes=%q is invalid; allowed values: non-negative byte count (env LLMENTARY_SPEC_VALIDATION_MAX_BYTES)", raw)
 		}
 		cfg.SpecValidationMaxBytes = n
 	}
-	raw := strings.TrimSpace(os.Getenv("LLMTESTLAB_UPSTREAMS"))
+	raw := strings.TrimSpace(os.Getenv("LLMENTARY_UPSTREAMS"))
 	if raw == "" {
-		raw = strings.TrimSpace(os.Getenv("LLMTESTLAB_UPSTREAM"))
+		raw = strings.TrimSpace(os.Getenv("LLMENTARY_UPSTREAM"))
 	}
 	if raw == "" {
 		return cfg, nil
@@ -91,10 +91,10 @@ func (c *Config) AddUpstream(spec string) error {
 
 func (c Config) Validate() error {
 	if len(c.Upstreams) == 0 {
-		return fmt.Errorf("configure at least one upstream with --upstream name=https://host/base or LLMTESTLAB_UPSTREAMS")
+		return fmt.Errorf("configure at least one upstream with --upstream name=https://host/base or LLMENTARY_UPSTREAMS")
 	}
 	if !isLoopbackListenAddr(c.ControlAddr) && c.ControlToken == "" {
-		return fmt.Errorf("control API on non-loopback address %q requires --control-token or LLMTESTLAB_CONTROL_TOKEN", c.ControlAddr)
+		return fmt.Errorf("control API on non-loopback address %q requires --control-token or LLMENTARY_CONTROL_TOKEN", c.ControlAddr)
 	}
 	if err := validateSpecSettings(orDefault(c.SpecValidation, DefaultSpecValidation), orDefault(c.SpecProfile, DefaultSpecProfile), c.SpecValidationMaxBytes); err != nil {
 		return err
@@ -113,15 +113,15 @@ func validateSpecSettings(mode, profile string, maxBytes int) error {
 	switch mode {
 	case "off", "warn", "enforce":
 	default:
-		return fmt.Errorf("--spec-validation=%q is invalid; allowed values: off, warn, enforce (env LLMTESTLAB_SPEC_VALIDATION)", mode)
+		return fmt.Errorf("--spec-validation=%q is invalid; allowed values: off, warn, enforce (env LLMENTARY_SPEC_VALIDATION)", mode)
 	}
 	switch profile {
 	case "strict", "relaxed":
 	default:
-		return fmt.Errorf("--spec-profile=%q is invalid; allowed values: strict, relaxed (env LLMTESTLAB_SPEC_PROFILE)", profile)
+		return fmt.Errorf("--spec-profile=%q is invalid; allowed values: strict, relaxed (env LLMENTARY_SPEC_PROFILE)", profile)
 	}
 	if maxBytes < 0 {
-		return fmt.Errorf("--spec-validation-max-bytes=%d is invalid; allowed values: non-negative byte count (env LLMTESTLAB_SPEC_VALIDATION_MAX_BYTES)", maxBytes)
+		return fmt.Errorf("--spec-validation-max-bytes=%d is invalid; allowed values: non-negative byte count (env LLMENTARY_SPEC_VALIDATION_MAX_BYTES)", maxBytes)
 	}
 	return nil
 }

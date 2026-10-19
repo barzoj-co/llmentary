@@ -61,7 +61,7 @@ representative at an online or offline event.
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
 reported to the community leaders responsible for enforcement via GitHub
 private vulnerability reporting at
-https://github.com/barzoj-co/llm-test-lab/security/advisories/new.
+https://github.com/barzoj-co/llmentary/security/advisories/new.
 This same private channel is used for Code of Conduct reports. It becomes
 available once the repository is public. Until then, send conduct reports in a
 private GitHub conversation to the maintainer (@barzoj). Do not open a public

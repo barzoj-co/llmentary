@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	schemaURL    = "https://llm-test-lab.invalid/openai-subspec"
+	schemaURL    = "https://llmentary.invalid/openai-subspec"
 	chatRequest  = "CreateChatCompletionRequest"
 	chatResponse = "CreateChatCompletionResponse"
 	chatStream   = "CreateChatCompletionStreamResponse"

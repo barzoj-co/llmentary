@@ -19,7 +19,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/barzoj-co/llm-test-lab/internal/lab"
+	"github.com/barzoj-co/llmentary/internal/lab"
 )
 
 type fakeUpstream struct {
@@ -249,13 +249,13 @@ var (
 func proxyBinary(t *testing.T) string {
 	t.Helper()
 	binOnce.Do(func() {
-		dir, err := os.MkdirTemp("", "llmtestlab-bin-")
+		dir, err := os.MkdirTemp("", "llmentary-bin-")
 		if err != nil {
 			binErr = err
 			return
 		}
-		binPath = filepath.Join(dir, "llmtestlab")
-		cmd := exec.Command("go", "build", "-o", binPath, "./cmd/llmtestlab")
+		binPath = filepath.Join(dir, "llmentary")
+		cmd := exec.Command("go", "build", "-o", binPath, "./cmd/llmentary")
 		cmd.Dir = filepath.Join("..", "..")
 		out, err := cmd.CombinedOutput()
 		if err != nil {

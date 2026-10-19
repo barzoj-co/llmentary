@@ -1,4 +1,4 @@
-module github.com/barzoj-co/llm-test-lab
+module github.com/barzoj-co/llmentary
 
 go 1.26.0
 

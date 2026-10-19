@@ -139,7 +139,7 @@ jobs:
           npx --yes --package "release-please@${RELEASE_PLEASE_VERSION}" release-please release-pr \
             --dry-run \
             --skip-labeling \
-            --repo-url=barzoj-co/llm-test-lab \
+            --repo-url=barzoj-co/llmentary \
             --target-branch="${TARGET_BRANCH}" \
             --config-file=release-please-config.json \
             --manifest-file=.release-please-manifest.json \
@@ -203,12 +203,12 @@ jobs:
               exit 1
             fi
           }
-          expect_one 'llm-test-lab_*_linux_amd64.tar.gz'
-          expect_one 'llm-test-lab_*_linux_arm64.tar.gz'
-          expect_one 'llm-test-lab_*_darwin_amd64.tar.gz'
-          expect_one 'llm-test-lab_*_darwin_arm64.tar.gz'
-          expect_one 'llm-test-lab_*_windows_amd64.zip'
-          expect_one 'llm-test-lab_*_windows_arm64.zip'
+          expect_one 'llmentary_*_linux_amd64.tar.gz'
+          expect_one 'llmentary_*_linux_arm64.tar.gz'
+          expect_one 'llmentary_*_darwin_amd64.tar.gz'
+          expect_one 'llmentary_*_darwin_arm64.tar.gz'
+          expect_one 'llmentary_*_windows_amd64.zip'
+          expect_one 'llmentary_*_windows_arm64.zip'
           test -f dist/checksums.txt
           (cd dist && sha256sum -c checksums.txt)
           while IFS= read -r -d '' archive; do
@@ -218,25 +218,25 @@ jobs:
               find dist -type f | sort >&2
               exit 1
             fi
-            python3 -c 'import json,sys; p=sys.argv[1]; d=json.load(open(p,encoding="utf-8")); assert "llmtestlab" in json.dumps(d), p+" does not mention llmtestlab"; print("SBOM ok:", p)' "$sbom"
+            python3 -c 'import json,sys; p=sys.argv[1]; d=json.load(open(p,encoding="utf-8")); assert "llmentary" in json.dumps(d), p+" does not mention llmentary"; print("SBOM ok:", p)' "$sbom"
             tmp=$(mktemp -d)
             case "$archive" in
               *.tar.gz)
                 tar -tzf "$archive" | sed 's#^\./##' | sort >"${tmp}/list"
                 grep -qx 'LICENSE' "${tmp}/list"
                 grep -qx 'README.md' "${tmp}/list"
-                grep -qx 'llmtestlab' "${tmp}/list"
+                grep -qx 'llmentary' "${tmp}/list"
                 ;;
               *.zip)
                 unzip -Z1 "$archive" | sed 's#^\./##' | sort >"${tmp}/list"
                 grep -qx 'LICENSE' "${tmp}/list"
                 grep -qx 'README.md' "${tmp}/list"
-                grep -qx 'llmtestlab.exe' "${tmp}/list"
+                grep -qx 'llmentary.exe' "${tmp}/list"
                 ;;
             esac
             echo "archive contents ok: ${archive}"
             rm -rf "$tmp"
-          done < <(find dist -maxdepth 1 -type f \( -name 'llm-test-lab_*.tar.gz' -o -name 'llm-test-lab_*.zip' \) -print0)
+          done < <(find dist -maxdepth 1 -type f \( -name 'llmentary_*.tar.gz' -o -name 'llmentary_*.zip' \) -print0)
           echo "goreleaser snapshot assertions passed"
           find dist -type f | sort
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

@@ -19,9 +19,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/barzoj-co/llm-test-lab/internal/lab"
-	"github.com/barzoj-co/llm-test-lab/internal/openaiapi"
-	"github.com/barzoj-co/llm-test-lab/internal/tracetest"
+	"github.com/barzoj-co/llmentary/internal/lab"
+	"github.com/barzoj-co/llmentary/internal/openaiapi"
+	"github.com/barzoj-co/llmentary/internal/tracetest"
 )
 
 type capturedUpstream struct {
