@@ -516,9 +516,23 @@ func requireAPIKey(t *testing.T) string {
 
 func postOpenAIStatus(t *testing.T, apiKey string, lm *tracetest.Session, path string, body []byte) (int, http.Header, []byte) {
 	t.Helper()
-	req, err := http.NewRequest(http.MethodPost, lm.OpenAIBaseURL("openai")+path, bytes.NewReader(body))
+	status, hdr, raw, err := doPostOpenAI(apiKey, lm, path, body)
 	if err != nil {
 		t.Fatal(err)
+	}
+	return status, hdr, raw
+}
+
+func postOpenAIStatusErr(t *testing.T, apiKey string, lm *tracetest.Session, path string, body []byte) (int, error) {
+	t.Helper()
+	status, _, _, err := doPostOpenAI(apiKey, lm, path, body)
+	return status, err
+}
+
+func doPostOpenAI(apiKey string, lm *tracetest.Session, path string, body []byte) (int, http.Header, []byte, error) {
+	req, err := http.NewRequest(http.MethodPost, lm.OpenAIBaseURL("openai")+path, bytes.NewReader(body))
+	if err != nil {
+		return 0, nil, nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	req.Header.Set("Content-Type", "application/json")
@@ -526,14 +540,14 @@ func postOpenAIStatus(t *testing.T, apiKey string, lm *tracetest.Session, path s
 	req.Header.Set(key, value)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		t.Fatal(err)
+		return 0, nil, nil, err
 	}
 	raw, err := io.ReadAll(resp.Body)
 	_ = resp.Body.Close()
 	if err != nil {
-		t.Fatal(err)
+		return 0, nil, nil, err
 	}
-	return resp.StatusCode, resp.Header.Clone(), raw
+	return resp.StatusCode, resp.Header.Clone(), raw, nil
 }
 
 func assertNoParserWarnings(t *testing.T, calls []proxy.Call) {

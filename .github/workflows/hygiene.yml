@@ -237,6 +237,17 @@ jobs:
             echo "archive contents ok: ${archive}"
             rm -rf "$tmp"
           done < <(find dist -maxdepth 1 -type f \( -name 'llmentary_*.tar.gz' -o -name 'llmentary_*.zip' \) -print0)
+          archive="$(find dist -maxdepth 1 -type f -name 'llmentary_*_linux_amd64.tar.gz' | head -n 1)"
+          ver="${archive##*/}"
+          ver="${ver#llmentary_}"
+          ver="${ver%_linux_amd64.tar.gz}"
+          snap=$(mktemp -d)
+          tar -xzf "$archive" -C "$snap"
+          out="$("$snap/llmentary" --version)"
+          echo "snapshot --version: ${out}"
+          echo "$out" | grep -F "llmentary ${ver} "
+          "$snap/llmentary" -version | grep -F "llmentary ${ver} "
+          rm -rf "$snap"
           echo "goreleaser snapshot assertions passed"
           find dist -type f | sort
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

@@ -1,0 +1,336 @@
+openapi: 3.1.0
+info:
+  title: llmentary control API
+  version: 0.1.0
+  description: >
+    Local control API for session traces. Success bodies for session detail match
+    the Session/Call shapes in docs/data-model.md. Errors use
+    {"error":{"type","message"}}.
+paths:
+  /healthz:
+    get:
+      summary: Liveness
+      responses:
+        "200":
+          description: ok
+          content:
+            text/plain:
+              schema:
+                type: string
+        "400":
+          $ref: "#/components/responses/InvalidParameter"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+  /config:
+    get:
+      summary: Effective proxy configuration
+      responses:
+        "200":
+          description: config
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Config"
+        "400":
+          $ref: "#/components/responses/InvalidParameter"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+  /version:
+    get:
+      summary: Clean version and commit
+      responses:
+        "200":
+          description: version
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Version"
+        "400":
+          $ref: "#/components/responses/InvalidParameter"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+  /sessions:
+    get:
+      summary: List sessions without call bodies
+      parameters:
+        - name: source
+          in: query
+          schema:
+            type: string
+            enum: [default, header, baggage, path]
+      responses:
+        "200":
+          description: session summaries
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionList"
+        "400":
+          $ref: "#/components/responses/InvalidParameter"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+  /sessions/{id}:
+    parameters:
+      - $ref: "#/components/parameters/SessionID"
+    get:
+      summary: Session detail
+      responses:
+        "200":
+          description: session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "400":
+          $ref: "#/components/responses/InvalidParameter"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/SessionNotFound"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+    delete:
+      summary: Delete a session (idempotent)
+      responses:
+        "204":
+          description: deleted or already absent
+        "400":
+          $ref: "#/components/responses/InvalidParameter"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+  /sessions/{id}/wait:
+    parameters:
+      - $ref: "#/components/parameters/SessionID"
+      - name: timeout
+        in: query
+        schema:
+          type: string
+        description: Go duration or plain seconds. Default 30s. Cap 10m.
+      - name: quiet
+        in: query
+        schema:
+          type: string
+        description: Go duration or plain seconds. Default 500ms. Cap 10m.
+      - name: min_calls
+        in: query
+        schema:
+          type: integer
+          minimum: 0
+        description: Minimum finished calls before a successful return. Default 0.
+    get:
+      summary: Wait until the session is quiet and has min_calls
+      responses:
+        "200":
+          description: session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "400":
+          $ref: "#/components/responses/InvalidParameter"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+        "504":
+          $ref: "#/components/responses/WaitTimeout"
+  /sessions/{id}/otlp:
+    parameters:
+      - $ref: "#/components/parameters/SessionID"
+    get:
+      summary: OTLP/JSON spans for the session
+      responses:
+        "200":
+          description: OTLP export
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          $ref: "#/components/responses/InvalidParameter"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/SessionNotFound"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+components:
+  parameters:
+    SessionID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+  schemas:
+    Error:
+      type: object
+      required: [type, message]
+      properties:
+        type:
+          type: string
+          enum:
+            - invalid_parameter
+            - unauthorized
+            - not_found
+            - session_not_found
+            - method_not_allowed
+            - wait_timeout
+        message:
+          type: string
+        param:
+          type: string
+        calls_seen:
+          type: integer
+        min_calls:
+          type: integer
+    ErrorBody:
+      type: object
+      required: [error]
+      properties:
+        error:
+          $ref: "#/components/schemas/Error"
+    Config:
+      type: object
+      properties:
+        spec_validation:
+          type: string
+        spec_profile:
+          type: string
+        spec_sha:
+          type: string
+        schema_subset_retrieved:
+          type: string
+        upstreams:
+          type: object
+          additionalProperties:
+            type: string
+        version:
+          type: string
+    Version:
+      type: object
+      required: [version]
+      properties:
+        version:
+          type: string
+        commit:
+          type: string
+        date:
+          type: string
+    SessionList:
+      type: object
+      required: [sessions]
+      properties:
+        sessions:
+          type: array
+          items:
+            $ref: "#/components/schemas/SessionSummary"
+    SessionSummary:
+      type: object
+      required: [id, calls, active, sources]
+      properties:
+        id:
+          type: string
+        calls:
+          type: integer
+        active:
+          type: integer
+        sources:
+          type: array
+          items:
+            type: string
+        first_started_at:
+          type: string
+          format: date-time
+        last_ended_at:
+          type: string
+          format: date-time
+    Session:
+      type: object
+      required: [id, calls]
+      description: Full session trace. Call fields follow docs/data-model.md.
+      properties:
+        id:
+          type: string
+        calls:
+          type: array
+          items:
+            $ref: "#/components/schemas/Call"
+    Call:
+      type: object
+      description: Recorded LLM call. See docs/data-model.md for the full field set.
+      additionalProperties: true
+      properties:
+        id:
+          type: string
+        session_id:
+          type: string
+        session_source:
+          type: string
+        seq:
+          type: integer
+        started_at:
+          type: string
+          format: date-time
+        ended_at:
+          type: string
+          format: date-time
+        latency_ms:
+          type: integer
+        provider:
+          type: string
+        api_family:
+          type: string
+        http_status:
+          type: integer
+        stream:
+          type: boolean
+        normalized:
+          type: object
+          additionalProperties: true
+  responses:
+    InvalidParameter:
+      description: Unknown or unparsable query parameter
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorBody"
+    Unauthorized:
+      description: Missing or wrong bearer token
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorBody"
+    MethodNotAllowed:
+      description: Unsupported method
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorBody"
+    SessionNotFound:
+      description: No calls recorded for this session
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorBody"
+    WaitTimeout:
+      description: Wait timed out before min_calls and quiet were satisfied
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: "#/components/schemas/Session"
+              - type: object
+                properties:
+                  error:
+                    $ref: "#/components/schemas/Error"

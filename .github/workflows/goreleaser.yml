@@ -34,6 +34,22 @@ jobs:
           ref: ${{ inputs.tag || github.ref }}
       - name: Released commit must be on main
         run: bash scripts/check-ref-on-main.sh HEAD
+      - name: Release from a clean vX.Y.Z tag only
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          tag="${RELEASE_TAG}"
+          tag="${tag#refs/tags/}"
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::releases must be from a clean vX.Y.Z tag (got ${tag})"
+            exit 1
+          fi
+          git describe --tags --exact-match --match 'v[0-9]*.[0-9]*.[0-9]*' HEAD
+          if [[ -n "$(git status --porcelain)" ]]; then
+            echo "::error::working tree is dirty; refusing to release"
+            exit 1
+          fi
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version: "1.26.x"

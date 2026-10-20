@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -150,11 +151,11 @@ func TestProxyPassesStreamUnchangedAndRecordsToolCall(t *testing.T) {
 		t.Fatal(err)
 	}
 	rawOTLP, err = client.OTLP(ctx, sessionID)
-	if err != nil {
-		t.Fatal(err)
+	if err == nil {
+		t.Fatal("expected 404 session_not_found after delete")
 	}
-	if got := spanCount(t, rawOTLP); got != 0 {
-		t.Fatalf("spans after delete = %d, want 0", got)
+	if !strings.Contains(err.Error(), "404") {
+		t.Fatalf("after delete: %v", err)
 	}
 }
 
@@ -347,10 +348,24 @@ func TestControlClientSendsBearerToken(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := authorized.Calls(context.Background(), "s"); err != nil {
+	if _, err := authorized.Calls(context.Background(), "s"); err == nil {
+		t.Fatal("authorized GET of unknown session should be 404")
+	} else if !strings.Contains(err.Error(), "404") {
 		t.Fatalf("authorized client failed: %v", err)
 	}
 
 	lm := tracetest.New(t, tracetest.WithControlURL(control.URL), tracetest.WithSessionControlToken("secret"), tracetest.WithWait(time.Millisecond, time.Second))
-	_ = lm.Calls(context.Background())
+	req, err := http.NewRequest(http.MethodGet, lm.ControlURL()+"/sessions", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Authorization", "Bearer secret")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("authorized GET /sessions status=%d", res.StatusCode)
+	}
 }
