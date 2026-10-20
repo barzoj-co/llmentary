@@ -72,7 +72,8 @@ func recordChatJSONError(call *Call, raw json.RawMessage, errRaw json.RawMessage
 		return
 	}
 	if call.HTTPStatus >= 400 {
-		call.Normalized.Error = errorFromHTTP(call.HTTPStatus, raw)
+		wrapped, _ := json.Marshal(map[string]json.RawMessage{"error": errRaw})
+		call.Normalized.Error = errorFromHTTP(call.HTTPStatus, wrapped)
 		return
 	}
 	wrapped, _ := json.Marshal(map[string]json.RawMessage{"error": errRaw})

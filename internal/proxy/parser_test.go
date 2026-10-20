@@ -79,6 +79,23 @@ func TestHTTP401JSONErrorNotMidStream(t *testing.T) {
 	}
 }
 
+func TestHTTP401ChoiceErrorNotMidStream(t *testing.T) {
+	body := []byte(`{"choices":[{"error":{"type":"invalid_request_error","code":"invalid_api_key","message":"Incorrect API key provided"}}]}`)
+	call := baseCall("openai.chat", []byte(`{"model":"x"}`), body, false)
+	call.HTTPStatus = 401
+	TolerantParser{}.Parse(&call)
+	err := call.Normalized.Error
+	if err == nil {
+		t.Fatal("expected recorded HTTP error")
+	}
+	if err.MidStream {
+		t.Fatalf("mid_stream=%v want false: %+v", err.MidStream, err)
+	}
+	if err.HTTPStatus != 401 || err.Code != "invalid_api_key" {
+		t.Fatalf("error=%+v", err)
+	}
+}
+
 func TestChatStreamCapturesMidStreamError(t *testing.T) {
 	rawStream := []byte("data: {\"error\":{\"type\":\"too_many_requests\",\"code\":\"no_capacity\",\"message\":\"try later\"},\"finish_reason\":\"error\"}\n\n")
 	call := baseCall("openai.chat", []byte(`{"model":"x"}`), rawStream, true)
