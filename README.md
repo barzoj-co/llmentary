@@ -11,8 +11,9 @@ Deterministic, trace-based integration testing for LLM apps, without an LLM judg
 `llmentary` is a Go reverse proxy. Put it between your app and an OpenAI-compatible
 provider, run the real SDK call, then assert on the recorded trace: tool names, tool
 arguments, tool order, request parameters, finish reasons, token usage, retries,
-latency, TTFT, and provider errors. Clients live in separate repositories and
-download or run this proxy binary.
+latency, TTFT, and provider errors. It works with unmodified services via a
+`/s/{session}/` path prefix or `--default-session`. Clients live in separate
+repositories and download or run this proxy binary.
 
 ## Install
 

@@ -143,13 +143,14 @@ func (ex *proxyExchange) doUpstream() (*http.Response, error) {
 	}
 	req.Header = cloneHeader(ex.r.Header)
 	req.Header.Del(SessionHeaderName)
-	ex.s.tracing.Propagator.Inject(StripLlmentaryBaggageFromContext(ex.r.Context()), propagation.HeaderCarrier(req.Header))
 	stripLlmentaryBaggage(req.Header)
-	req.Header.Set("Accept-Encoding", "identity")
+	removeHopByHopHeaders(req.Header)
+	if ex.s.cfg.PropagateTrace == PropagateTraceAuto {
+		ex.s.tracing.Propagator.Inject(StripLlmentaryBaggageFromContext(ex.r.Context()), propagation.HeaderCarrier(req.Header))
+	}
 	if targetURL := req.URL; targetURL != nil {
 		req.Host = targetURL.Host
 	}
-	removeHopByHopHeaders(req.Header)
 	UpstreamCallCount.Add(1)
 	return ex.s.client.Do(req)
 }
@@ -166,9 +167,10 @@ func (ex *proxyExchange) copyAndFinish(w http.ResponseWriter, resp *http.Respons
 
 	var rawResp bytes.Buffer
 	headerSSE := strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "text/event-stream")
-	gzipEncoded := strings.EqualFold(resp.Header.Get("Content-Encoding"), "gzip")
+	encoding := strings.TrimSpace(resp.Header.Get("Content-Encoding"))
+	compressed := encoding != "" && !strings.EqualFold(encoding, "identity")
 	var recorder *sseRecorder
-	if headerSSE && !gzipEncoded {
+	if headerSSE && !compressed {
 		recorder = newSSERecorder(ex.startedAt)
 	}
 	_, copyErr := copyAndFlush(w, resp.Body, func(chunk []byte) {
@@ -192,7 +194,7 @@ func (ex *proxyExchange) finishCall(resp *http.Response, rawBody []byte, firstBy
 	ex.finished = true
 	endedAt := time.Now().UTC()
 	respHeaders := sanitizeHeaders(resp.Header)
-	parseBody := decompressIfNeeded(rawBody, respHeaders)
+	parseBody := decompressIfNeeded(rawBody, respHeaders, ex.s.logger())
 	stream := headerSSE || isSSE(resp.Header, parseBody)
 	var events []SSEEvent
 	var complete bool

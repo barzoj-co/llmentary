@@ -133,9 +133,9 @@ func TestProxyPassesStreamUnchangedAndRecordsToolCall(t *testing.T) {
 	if span["parentSpanId"] != "00f067aa0ba902b7" {
 		t.Fatalf("parent span id = %v", span["parentSpanId"])
 	}
-	spanID, _ := span["spanId"].(string)
-	if upstreamTraceparent == "" || !bytes.Contains([]byte(upstreamTraceparent), []byte(spanID)) {
-		t.Fatalf("upstream traceparent %q does not contain proxy span id %s", upstreamTraceparent, spanID)
+	const clientTraceparent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00"
+	if upstreamTraceparent != clientTraceparent {
+		t.Fatalf("default propagate-trace=off must forward the client traceparent unchanged: got %q want %q", upstreamTraceparent, clientTraceparent)
 	}
 	attrs := attrsByKey(span)
 	assertStringAttr(t, attrs, "gen_ai.operation.name", "chat")
@@ -296,12 +296,22 @@ func TestGzipSSEIsDecompressedForParsing(t *testing.T) {
 		t.Fatal(err)
 	}
 	req.Header.Set(tracetest.SessionHeaderName, sessionID)
-	resp, err := http.DefaultClient.Do(req)
+	httpClient := &http.Client{Transport: &http.Transport{DisableCompression: true}}
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, _ = io.ReadAll(resp.Body)
+	got, err := io.ReadAll(resp.Body)
 	_ = resp.Body.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, gz.Bytes()) {
+		t.Fatalf("client must receive gzip bytes unchanged")
+	}
+	if !strings.EqualFold(resp.Header.Get("Content-Encoding"), "gzip") {
+		t.Fatalf("client Content-Encoding=%q want gzip", resp.Header.Get("Content-Encoding"))
+	}
 	calls, err := client.Wait(context.Background(), sessionID, time.Millisecond, time.Second)
 	if err != nil {
 		t.Fatal(err)
@@ -309,6 +319,9 @@ func TestGzipSSEIsDecompressedForParsing(t *testing.T) {
 	assertToolCalled(t, calls, "lookup", map[string]any{})
 	if calls[0].Normalized.StreamTruncated {
 		t.Fatalf("gzip SSE marked truncated")
+	}
+	if !bytes.Equal(calls[0].RawResponse, stream) {
+		t.Fatalf("recorded body must be decompressed")
 	}
 }
 

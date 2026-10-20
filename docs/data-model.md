@@ -15,7 +15,7 @@ JSON shape and normalization rules.
 
 | Field | Type | Meaning |
 |---|---|---|
-| `id` | string | Session id from `X-Test-Session`, baggage, or `default`. |
+| `id` | string | Session id from `X-Test-Session`, baggage, `/s/{session}` path, or `default`. |
 | `calls` | array of `Call` | Calls recorded for the session in sequence order. |
 
 ## Call
@@ -62,7 +62,7 @@ JSON shape and normalization rules.
 |---|---|---|
 | `id` | string | Proxy-generated id, currently `call_` plus base-36 counter. |
 | `session_id` | string | Session bucket. |
-| `session_source` | string | `header`, `baggage`, or `default`. |
+| `session_source` | string | `header`, `baggage`, `path`, or `default`. |
 | `seq` | number | 1-based order within the session. |
 | `started_at` | timestamp | UTC time before the upstream request starts. |
 | `first_byte_at` | timestamp, optional | UTC time when the first upstream response byte is copied to the client. |
@@ -90,10 +90,11 @@ bytes used for parsing, **not** always the bytes delivered to the client:
 
 - The client always receives the upstream envelope unchanged, including
   `Content-Encoding: gzip`.
-- When the upstream body is gzip, the recorded `raw_response` is the
-  **decompressed** payload. Parsing (and therefore normalization) cannot run on
-  the compressed envelope, and a later test that hashes `raw_response` would
-  otherwise fail to match the JSON the provider actually produced.
+- When the upstream body is gzip, deflate, brotli (`br`), or zstd, the recorded
+  `raw_response` is the **decompressed** payload. Parsing (and therefore
+  normalization) cannot run on the compressed envelope, and a later test that
+  hashes `raw_response` would otherwise fail to match the JSON the provider
+  actually produced. Unknown `Content-Encoding` values stay raw and a WARN is logged.
 
 `TestE6GoldenRawHashes` therefore asserts `sha256(raw_request) == sha256(upstream request body)`
 and `sha256(raw_response) == sha256(decompressed upstream body)` for every fixture,

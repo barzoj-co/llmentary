@@ -58,11 +58,12 @@ func NewServer(cfg Config, store Store, parser Parser) (*Server, error) {
 		tracing:    tracing,
 		validation: validation,
 		client: &http.Client{Transport: &http.Transport{
-			Proxy:             http.ProxyFromEnvironment,
-			DialContext:       (&net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
-			ForceAttemptHTTP2: true,
-			MaxIdleConns:      100,
-			IdleConnTimeout:   90 * time.Second,
+			Proxy:              http.ProxyFromEnvironment,
+			DialContext:        (&net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
+			ForceAttemptHTTP2:  true,
+			MaxIdleConns:       100,
+			IdleConnTimeout:    90 * time.Second,
+			DisableCompression: true, // do not inject Accept-Encoding; keep upstream bytes unchanged
 		}},
 	}
 	handlers := &openAIHandlers{s: s}
@@ -122,19 +123,39 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 }
 
 func (s *Server) serveProxy(w http.ResponseWriter, r *http.Request) {
-	upstreamName, restPath, targetBase, err := s.route(r.URL.Path)
+	origPath := r.URL.Path
+	pathID, restPath, hasPath, err := splitSessionPrefix(origPath, r.URL.EscapedPath())
+	if err != nil {
+		writeLocalOpenAIError(w, http.StatusBadRequest, errTypeSessionRequired, err.Error())
+		return
+	}
+	wirePath := stripNamedUpstreamPath(restPath)
+	if !s.cfg.allowedWirePath(wirePath) {
+		s.logger().Warn("unknown path", "method", r.Method, "path", origPath)
+		msg := fmt.Sprintf("unknown path %q", origPath)
+		if hint := unknownPathHint(origPath); hint != "" {
+			msg += "; did you mean " + hint + "?"
+		}
+		writeLocalOpenAIError(w, http.StatusNotFound, errTypeUnknownPath, msg)
+		return
+	}
+	session, err := s.resolveSession(r, pathID, hasPath)
+	if err != nil {
+		writeLocalOpenAIError(w, http.StatusBadRequest, errTypeSessionRequired, err.Error())
+		return
+	}
+	upstreamName, joinRest, targetBase, err := s.route(restPath)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
 	}
-	session := sessionFromRequest(r)
 	rawReq, err := drainAndRestore(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	target := cleanJoin(targetBase, restPath)
+	target := cleanJoin(targetBase, joinRest)
 	target.RawQuery = r.URL.RawQuery
 	apiVersion, deployment := extractAPIVersionAndDeployment(target)
 	startedAt := time.Now().UTC()
@@ -160,7 +181,7 @@ func (s *Server) serveProxy(w http.ResponseWriter, r *http.Request) {
 	call.SessionID = session.ID
 	s.logger().Info("proxy request",
 		"method", r.Method,
-		"path", r.URL.Path,
+		"path", origPath,
 		"session", session.ID,
 		"call_id", callID,
 		"upstream", call.Upstream.URL,
@@ -185,7 +206,7 @@ func (s *Server) serveProxy(w http.ResponseWriter, r *http.Request) {
 		target:    target.String(),
 	}
 
-	if rewritten, ok := matchSpecOperation(r.Method, r.URL.Path); ok {
+	if rewritten, ok := matchSpecOperation(r.Method, restPath); ok {
 		rv := s.validation.checkRequest(call.APIFamily, r.Header.Get("Content-Type"), r.Header.Get("Content-Encoding"), rawReq)
 		ex.requestVal = rv
 		if s.validation != nil && s.validation.mode == "enforce" && rv.reject {
@@ -279,6 +300,13 @@ func copyAndFlush(w http.ResponseWriter, r io.Reader, onChunk func([]byte)) (int
 }
 
 func removeHopByHopHeaders(h http.Header) {
+	for _, v := range h.Values("Connection") {
+		for _, tok := range strings.Split(v, ",") {
+			if tok = strings.TrimSpace(tok); tok != "" {
+				h.Del(tok)
+			}
+		}
+	}
 	for _, key := range []string{"Connection", "Proxy-Connection", "Keep-Alive", "Proxy-Authenticate", "Proxy-Authorization", "Te", "Trailer", "Transfer-Encoding", "Upgrade"} {
 		h.Del(key)
 	}

@@ -86,12 +86,31 @@ func main() {
 		specLogMax = *cfg.SpecLogMax
 	}
 	flag.IntVar(&specLogMax, "spec-log-max", specLogMax, "max per-finding WARN lines after the summary; 0 = summary only (env LLMENTARY_SPEC_LOG_MAX)")
+	sessionFrom := strings.Join(cfg.SessionFrom, ",")
+	if sessionFrom == "" {
+		sessionFrom = proxy.DefaultSessionFrom
+	}
+	flag.StringVar(&sessionFrom, "session-from", sessionFrom, "ordered session sources: header,baggage,path,default (env LLMENTARY_SESSION_FROM)")
+	flag.StringVar(&cfg.DefaultSession, "default-session", cfg.DefaultSession, "session id for untagged calls when default is in --session-from (env LLMENTARY_DEFAULT_SESSION)")
+	var allowPrefixes upstreamFlags
+	flag.Var(&allowPrefixes, "allow-path-prefix", "extra first path segment allowed after /s and /u are stripped; repeatable (env LLMENTARY_ALLOW_PATH_PREFIXES)")
+	flag.StringVar(&cfg.PropagateTrace, "propagate-trace", cfg.PropagateTrace, "outbound traceparent: off (default, pass client headers through) or auto (inject/continue) (env LLMENTARY_PROPAGATE_TRACE)")
 	flag.Bool("tls", false, "TODO: optional local TLS listener")
 	flag.Parse()
 	cfg.SpecLogMax = &specLogMax
 	if *showVersion {
 		fmt.Println(proxy.VersionLine())
 		os.Exit(0)
+	}
+	sources, err := proxy.ParseSessionFrom(sessionFrom)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		flag.Usage()
+		os.Exit(2)
+	}
+	cfg.SessionFrom = sources
+	for _, p := range allowPrefixes {
+		cfg.AllowPathPrefixes = append(cfg.AllowPathPrefixes, proxy.ParseAllowPathPrefixes(p)...)
 	}
 	for _, spec := range upstreams {
 		if err := cfg.AddUpstream(spec); err != nil {

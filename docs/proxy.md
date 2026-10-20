@@ -46,6 +46,10 @@ variables plus CLI flags.
 | `--spec-profile` | `LLMENTARY_SPEC_PROFILE` | `relaxed` | Spec profile: `strict` (pinned spec + closed-world) or `relaxed` (strict plus `api/openai/relax-overlay.yaml`). |
 | `--spec-validation-max-bytes` | `LLMENTARY_SPEC_VALIDATION_MAX_BYTES` | `8388608` | Maximum request body size to validate. Larger bodies are forwarded and marked `skipped_reason: body_too_large`. |
 | `--spec-log-max` | `LLMENTARY_SPEC_LOG_MAX` | `5` | After the summary WARN, log at most this many per-finding WARN lines. `0` logs the summary only. |
+| `--session-from` | `LLMENTARY_SESSION_FROM` | `header,baggage,path,default` | Ordered session sources. Invalid values exit non-zero. |
+| `--default-session` | `LLMENTARY_DEFAULT_SESSION` | `default` | Session id used when `default` is in `--session-from` and the call has no other marker. |
+| `--allow-path-prefix` | `LLMENTARY_ALLOW_PATH_PREFIXES` | empty | Extra first path segments allowed after `/s/{session}` and `/u/{name}` are stripped. Repeatable, or comma-separated in the env var. |
+| `--propagate-trace` | `LLMENTARY_PROPAGATE_TRACE` | `off` | `off` forwards the client's `traceparent` / `tracestate` unchanged (and adds none). `auto` injects or continues a W3C `traceparent` for the proxy CLIENT span. |
 
 With no `--upstream` and no `LLMENTARY_UPSTREAMS` / `LLMENTARY_UPSTREAM`, the proxy
 defaults to `openai=https://api.openai.com/v1`. `GET /config` reports the effective
@@ -147,33 +151,68 @@ finish reasons.
 Azure `api-version` is extracted from the upstream query string. Azure deployment is
 extracted from `/deployments/{deployment}/...` path segments.
 
-## Session tagging
+## Session attribution
 
-Each call is stored in one session:
+Each call is stored in one session. `--session-from` is an ordered list of sources
+(default `header,baggage,path,default`):
 
-1. `X-Test-Session: <id>` wins.
-2. If the header is absent, W3C `baggage` is scanned for one of:
-   - `llmentary.session.id`
-   - `llmentary.session`
-   - `test-session`
-   - `x-test-session`
-3. If no tag is present, the call lands in the `default` session.
+1. `header`: `X-Test-Session: <id>`.
+2. `baggage`: W3C `baggage` keys `llmentary.session.id`, `llmentary.session`,
+   `test-session`, or `x-test-session`.
+3. `path`: `/s/{session}/...` on the proxy listener. `{session}` is one path
+   segment, percent-decoded, max 256 bytes, no `/` or control characters.
+   The prefix is stripped before routing and forwarding. It composes with named
+   upstreams: `/s/{session}/u/{name}/...`. Recorded calls get `session_source:"path"`.
+4. `default`: `--default-session` (default `default`). This is the sidecar recipe:
+   `--default-session=livekit-e2e` records every untagged call on that session.
+
+When `default` is not in `--session-from` and a call has no usable marker, the
+proxy answers locally with `400` and an OpenAI-shaped JSON error
+(`type`/`code` `llmentary_session_required`). It is never forwarded.
+
+`--session-from=path` is how an unmodified service attributes calls: set its
+base URL to `{proxy}/s/{id}/v1` (or `{proxy}/s/{id}/u/{name}`).
+
+### No leaks of unknown prefixes
+
+After `/s/{session}` and `/u/{name}` are stripped, the first remaining segment
+must be one of: `v1`, `openai`, `api`, `chat`, `responses`, `completions`,
+`embeddings`, `models`, `files`, `audio`, `images`, `moderations`, `batches`,
+`uploads`, `vector_stores`, `assistants`, `threads`, `realtime`.
+`--allow-path-prefix` extends that list.
+
+Anything else gets a local `404` JSON error (`type`/`code` `llmentary_unknown_path`)
+and is **not** forwarded. The message includes `did you mean /s/<segment>/...?`
+when the request had a single extra leading segment (`/dogfood/v1/...` suggests
+`/s/dogfood/v1/...`). One WARN line is written (`method`, `path`; no header values).
 
 The Go client in [llmentary-go](https://github.com/barzoj-co/llmentary-go)
 creates a random session id and can inject `X-Test-Session` through `lm.HTTPClient()`.
+Unmodified services that cannot send headers should use the path prefix instead.
 
-## Header forwarding and stripping
+## What the proxy changes on the way upstream
 
-Before forwarding upstream, the proxy:
+Default is **pure pass-through**. Method, query string, body bytes, and all
+request headers (including `Authorization` and unknown `x-*`) are forwarded
+byte-identical, except llmentary's own markers and HTTP hop-by-hop headers.
 
-- removes `X-Test-Session`;
-- removes any `baggage` member whose key starts with `llmentary.`;
-- preserves non-`llmentary.*` baggage members;
-- injects W3C trace context for the proxy CLIENT span;
-- sets `Accept-Encoding: identity`;
-- removes hop-by-hop headers:
-  `Connection`, `Proxy-Connection`, `Keep-Alive`, `Proxy-Authenticate`,
-  `Proxy-Authorization`, `Te`, `Trailer`, `Transfer-Encoding`, and `Upgrade`.
+| Change | When | Why |
+|---|---|---|
+| Strip `X-Test-Session` | always | Our session header; not an upstream header. |
+| Strip `llmentary.*` baggage members | always | Our markers. Other baggage is preserved. |
+| Strip `/s/{session}` and `/u/{name}` prefixes | always | Routing wrappers; the upstream must see the wire path. |
+| Remove hop-by-hop headers (`Connection`, `Proxy-Connection`, `Keep-Alive`, `Proxy-Authenticate`, `Proxy-Authorization`, `Te`, `Trailer`, `Transfer-Encoding`, `Upgrade`, and any header named by `Connection`) | always | RFC 7230: hop-by-hop headers are not forwarded. |
+| Set `Host` to the upstream host | always | Required to send the request to that host. |
+| Inject `traceparent` / `tracestate` | only `--propagate-trace=auto` | Continue or start a W3C trace for the proxy CLIENT span. Default `off` forwards the client's `traceparent` unchanged and adds none. |
+| `Accept-Encoding: identity` | **never** (removed) | The proxy no longer forces identity encoding. |
+
+The proxy does **not** set `Accept-Encoding: identity`. If the client sends
+`Accept-Encoding: gzip` (or any other value), that header is forwarded unchanged.
+
+If the upstream returns a compressed body (`gzip`, `deflate`, `br`, `zstd`),
+the proxy decompresses a **copy** for recording and parsing, and returns the
+original bytes and headers to the client unchanged. Unknown encodings are
+recorded as raw bytes with a WARN.
 
 Auth headers are forwarded to the provider. They are only redacted in the recorded copy.
 
@@ -467,7 +506,8 @@ Profiles:
 - OpenRouter/OpenAI-compatible stream tolerance, including keep-alive comments and final
   usage chunks.
 - Raw passthrough recording for unrecognized APIs.
-- Per-test sessions via `X-Test-Session` or W3C baggage.
+- Per-test sessions via `X-Test-Session`, W3C baggage, `/s/{session}/` path prefix, or `--default-session`.
+- Works with unmodified services (path-prefix or fixed-session sidecar mode).
 - Control API for health, session fetch, wait-until-quiet, OTLP/JSON export, and delete.
 - Secret redaction in recorded headers and selected URL query parameters.
 - Clients (separate repos) with trace queries and assertions for tools, JSON args, retries,

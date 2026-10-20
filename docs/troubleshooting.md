@@ -200,9 +200,10 @@ untrusted networks or users.
 
 ## Gzip responses
 
-The proxy asks upstreams for identity encoding with `Accept-Encoding: identity`. If an
-upstream still returns gzip, the SDK receives the gzip response unchanged and the recorded
-copy is decompressed for parsing.
+The proxy forwards the client's `Accept-Encoding` unchanged (it does not force
+`identity`). If an upstream returns gzip, deflate, brotli, or zstd, the SDK receives
+those bytes unchanged and the recorded copy is decompressed for parsing. Unknown
+encodings are stored raw and a WARN is logged.
 
 ## Real-provider e2e tests skip locally
 
