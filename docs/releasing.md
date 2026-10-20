@@ -24,7 +24,8 @@ cosign verify-blob \
   --certificate-github-workflow-repository barzoj-co/llmentary \
   checksums.txt
 sha256sum -c --ignore-missing checksums.txt
-gh attestation verify llmentary_<version>_linux_amd64.tar.gz --repo barzoj-co/llmentary
+VERSION=0.1.0 # downloaded release version, without the v prefix
+gh attestation verify "llmentary_${VERSION}_linux_amd64.tar.gz" --repo barzoj-co/llmentary
 ```
 
 Archive names and contents are documented in [Binaries](binaries.md).
