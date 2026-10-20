@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -101,20 +102,24 @@ func TestU5OpenRouterFixture(t *testing.T) {
 }
 
 func TestU1DefaultUpstreamBinaryAndConfig(t *testing.T) {
-	var logBuf bytes.Buffer
+	logBuf := &syncBuffer{}
 	pPort, cPort := freePort(t), freePort(t)
 	cmd := exec.Command(proxyBinary(t),
 		"--listen", "127.0.0.1:"+strconv.Itoa(pPort),
 		"--control", "127.0.0.1:"+strconv.Itoa(cPort),
 	)
 	cmd.Env = envWithout("LLMENTARY_UPSTREAMS", "LLMENTARY_UPSTREAM")
-	cmd.Stderr = &logBuf
+	cmd.Stderr = logBuf
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
 	controlURL := "http://127.0.0.1:" + strconv.Itoa(cPort)
 	waitHealthy(t, controlURL)
+	deadline := time.Now().Add(2 * time.Second)
+	for !strings.Contains(logBuf.String(), proxy.DefaultUpstreamLog) && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
 	if !strings.Contains(logBuf.String(), proxy.DefaultUpstreamLog) {
 		t.Fatalf("startup log %q does not contain %q", logBuf.String(), proxy.DefaultUpstreamLog)
 	}
@@ -328,4 +333,43 @@ func waitHealthy(t *testing.T, controlURL string) {
 func stringVal(v any) string {
 	s, _ := v.(string)
 	return s
+}
+
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
+func TestConfigJSONRedactsUpstreamUserinfo(t *testing.T) {
+	cfg := proxy.Config{ListenAddr: ":0", ControlAddr: "127.0.0.1:0"}
+	if err := cfg.AddUpstream("litellm=http://user:secret@127.0.0.1:9/v1"); err != nil {
+		t.Fatal(err)
+	}
+	server, err := proxy.NewServer(cfg, proxy.NewMemoryStore(), proxy.TolerantParser{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	control := httptest.NewServer(server.ControlHandler())
+	t.Cleanup(control.Close)
+	got := getConfig(t, control.URL)
+	upstreams, _ := got["upstreams"].(map[string]any)
+	raw := stringVal(upstreams["litellm"])
+	if strings.Contains(raw, "secret") {
+		t.Fatalf("userinfo leaked in /config: %q", raw)
+	}
+	if !strings.Contains(raw, "xxxxx") {
+		t.Fatalf("expected redacted userinfo in /config, got %q", raw)
+	}
 }

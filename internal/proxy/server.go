@@ -89,7 +89,7 @@ func (s *Server) configJSON() map[string]any {
 			if u == nil {
 				continue
 			}
-			upstreams[name] = sanitizeURL(u.String())
+			upstreams[name] = sanitizeURL(u.Redacted())
 		}
 	}
 	out["upstreams"] = upstreams
