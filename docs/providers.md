@@ -8,7 +8,7 @@ Completions and Responses calls. Everything else is raw passthrough.
 Chat Completions calls are parsed when the upstream request is `POST` and the final
 upstream path ends with `/chat/completions`.
 
-Typical upstream:
+Typical upstream (this is also the default when `--upstream` is omitted):
 
 ```bash
 llmentary --upstream openai=https://api.openai.com/v1
@@ -19,6 +19,11 @@ SDK base URL for named routing:
 ```text
 http://127.0.0.1:7777/u/openai
 ```
+
+OpenAI-style SDK bases (`{proxy}/v1`) work with the same upstream. The proxy overlaps
+shared path prefixes so `https://api.openai.com/v1` plus `{proxy}/v1/chat/completions`
+forwards to `https://api.openai.com/v1/chat/completions` once, without repeating the
+API version segment.
 
 The parser records:
 
@@ -133,38 +138,75 @@ or CI topologies that access the proxy through a non-loopback HTTP hostname may 
 different wiring strategy, such as an OpenAI-compatible Azure `/openai/v1` client pointed
 at the proxy or a future TLS listener.
 
+## Pick one: upstream form × client base
+
+The proxy owns the path-join rule. Both upstream styles and both client styles are
+correct; pick any cell.
+
+| Upstream form | Client base URL | Final URL |
+|---|---|---|
+| `https://api.openai.com/v1` | `{proxy}/v1` | `https://api.openai.com/v1/chat/completions` |
+| `https://api.openai.com/v1` | `{proxy}/u/openai` | `https://api.openai.com/v1/chat/completions` |
+| `https://api.openai.com` | `{proxy}/v1` | `https://api.openai.com/v1/chat/completions` |
+| `https://api.openai.com` | `{proxy}/u/openai/v1` | `https://api.openai.com/v1/chat/completions` |
+| `https://openrouter.ai/api/v1` | `{proxy}/u/openrouter` | `https://openrouter.ai/api/v1/chat/completions` |
+| `https://openrouter.ai/api/v1` | `{proxy}/v1` | `https://openrouter.ai/api/v1/chat/completions` |
+| `https://openrouter.ai/api/v1` | `{proxy}/s/{id}/u/openrouter` | `https://openrouter.ai/api/v1/chat/completions` |
+| `https://my-resource.openai.azure.com/openai/v1` | `{proxy}/u/azure` | `https://my-resource.openai.azure.com/openai/v1/chat/completions` |
+
+`{proxy}/s/{id}/...` is the path-prefix session form. The proxy strips `/s/{id}` and
+`/u/{name}` before applying the join. Model names and auth headers pass through
+unchanged.
+
 ## OpenRouter
 
-OpenRouter uses an OpenAI-compatible Chat Completions stream shape. Extra fields
-absent from the OpenAI spec (`provider`, `native_finish_reason`, `usage.cost`,
-`delta.reasoning`) are read by a thin extension layer from raw JSON. The parser
-also tolerates:
-
-- SSE keep-alive comments such as `: OPENROUTER PROCESSING`;
-- chunks with `choices: []`;
-- final usage chunks.
-
-Those extras appear as `served_by`, `native_finish_reason`, `usage.cost_usd`,
-and `reasoning.chars`.
-
-Configure it as an OpenAI-compatible upstream:
+**Recipe**
 
 ```bash
 llmentary --upstream openrouter=https://openrouter.ai/api/v1
 ```
 
-Use base URL:
+App / SDK base URL:
 
 ```text
-http://127.0.0.1:7777/u/openrouter
+{proxy}/u/openrouter
+{proxy}/s/{id}/u/openrouter
 ```
+
+- Model names such as `openai/gpt-4.1-mini` pass through unchanged.
+- The `Authorization` header passes through unchanged. The proxy never needs the
+  OpenRouter key.
+- OpenRouter adds or omits fields the OpenAI spec does not require:
+  - `provider` on chunks (recorded as `served_by`);
+  - `native_finish_reason`;
+  - `usage` (including `cost`) on the final SSE chunk, recorded as `usage` /
+    `usage.cost_usd`;
+  - keep-alive comments such as `: OPENROUTER PROCESSING` (recorded as SSE comments,
+    ignored by the normalizer);
+  - `delta.reasoning` (recorded as `reasoning.chars`).
+- Chunks with `choices: []` are tolerated.
+
+**Verified status:** fixture-verified (`tests/proxy/testdata/openrouter/`,
+`TestU5OpenRouterFixture`). Not live-verified (no OpenRouter key in this project).
 
 ## Other OpenAI-compatible providers
 
-Providers that expose OpenAI-compatible `/chat/completions` or `/responses` endpoints can
-be routed the same way. The normalizer is tolerant, not exhaustive: unknown fields are
-preserved only in raw bodies, and provider-specific fields are parsed only when the code
-knows them.
+Anything that speaks OpenAI-wire HTTP can be a named upstream. For the normalizer to
+fill tool calls, usage, and finish reasons, the request path must end in
+`/chat/completions` or `/responses` and the stream (if any) must use OpenAI SSE
+framing (`data: {json}` chunks, Chat Completions ending with `data: [DONE]`).
+
+| Provider | Typical upstream | Verified |
+|---|---|---|
+| Azure OpenAI | `https://{resource}.openai.azure.com` or `.../openai/v1` | fixture-verified (classic deployment paths, `/openai/v1`, content-filter streams). Not live-verified here. |
+| Groq | `https://api.groq.com/openai/v1` | expected to work, not verified |
+| Together | `https://api.together.xyz/v1` | expected to work, not verified |
+| vLLM | `http://{host}:8000/v1` | expected to work, not verified |
+| LiteLLM | `http://{host}:4000/v1` | expected to work, not verified |
+| Ollama | `http://{host}:11434/v1` | expected to work, not verified |
+
+The normalizer is tolerant, not exhaustive: unknown fields stay in the raw body, and
+provider-specific fields are parsed only when the code knows them.
 
 Provider name in OTel is inferred from the upstream host for a few hosts
 (`api.openai.com`, Azure OpenAI host suffixes, Groq, DeepSeek, Mistral, xAI, and Gemini);

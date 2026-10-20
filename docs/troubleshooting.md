@@ -2,10 +2,14 @@
 
 ## `configure at least one upstream`
 
-The proxy requires at least one upstream.
+This error is gone. With no `--upstream` and no `LLMENTARY_UPSTREAMS` /
+`LLMENTARY_UPSTREAM`, the proxy defaults to `openai=https://api.openai.com/v1` and
+logs `no upstream configured; defaulting to openai=https://api.openai.com/v1`.
+
+To set a different provider:
 
 ```bash
-llmentary --upstream openai=https://api.openai.com/v1
+llmentary --upstream openrouter=https://openrouter.ai/api/v1
 ```
 
 Or:
@@ -17,6 +21,13 @@ llmentary
 
 `LLMENTARY_UPSTREAM` is accepted as a single-value fallback when `LLMENTARY_UPSTREAMS`
 is empty.
+
+## `upstream ... points at the proxy listen address ... refusing to start a proxy loop`
+
+The configured upstream host:port is the proxy itself (`localhost`, `127.0.0.1`,
+`0.0.0.0`, or `[::1]` with the same port as `--listen`). Point `--upstream` at the
+real provider, not at the proxy URL. Do not set the upstream from `OPENAI_BASE_URL`
+when that variable already points at llmentary.
 
 ## `control API on non-loopback address ... requires --control-token`
 

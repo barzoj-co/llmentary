@@ -27,13 +27,13 @@ How release archives are named and verified is in [Binaries](docs/binaries.md).
 
 ## Quickstart
 
-Start the proxy against OpenAI:
+Start the proxy. With no `--upstream`, it defaults to
+`openai=https://api.openai.com/v1`:
 
 ```bash
 llmentary \
   --listen 127.0.0.1:7777 \
-  --control 127.0.0.1:7778 \
-  --upstream openai=https://api.openai.com/v1
+  --control 127.0.0.1:7778
 ```
 
 Then drive a real SDK call through the [Go client](https://github.com/barzoj-co/llmentary-go):

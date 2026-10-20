@@ -81,6 +81,21 @@ func (s *Server) logger() *slog.Logger {
 	return slog.Default()
 }
 
+func (s *Server) configJSON() map[string]any {
+	out := s.validation.configJSON()
+	upstreams := map[string]string{}
+	if s != nil {
+		for name, u := range s.cfg.Upstreams {
+			if u == nil {
+				continue
+			}
+			upstreams[name] = sanitizeURL(u.String())
+		}
+	}
+	out["upstreams"] = upstreams
+	return out
+}
+
 func (s *Server) ProxyHandler() http.Handler {
 	return http.HandlerFunc(s.serveProxy)
 }
@@ -92,7 +107,7 @@ func (s *Server) ControlHandler() http.Handler {
 		_, _ = w.Write([]byte("ok\n"))
 	})
 	mux.HandleFunc("/config", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, s.validation.configJSON())
+		writeJSON(w, s.configJSON())
 	})
 	mux.HandleFunc("/sessions/", s.serveSession)
 	return s.controlAuth(mux)

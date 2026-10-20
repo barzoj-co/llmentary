@@ -660,19 +660,63 @@ func errorFromHTTP(status int, raw []byte) *CallError {
 	return err
 }
 
+// JoinUpstreamURL joins an upstream base URL with a request path, overlapping
+// trailing base segments with a matching request-path prefix so
+// /v1 + /v1/chat/completions becomes /v1/chat/completions, not /v1/v1/....
+func JoinUpstreamURL(base *url.URL, rest string) *url.URL {
+	return cleanJoin(base, rest)
+}
+
 func cleanJoin(base *url.URL, rest string) *url.URL {
 	u := *base
-	basePath := strings.TrimRight(base.Path, "/")
-	rest = "/" + strings.TrimLeft(rest, "/")
-	if basePath == "" {
-		u.Path = rest
-	} else {
-		u.Path = path.Clean(basePath + rest)
+	trailingSlash := strings.HasSuffix(rest, "/") && rest != "/"
+	joined := overlapJoin(base.Path, rest)
+	if trailingSlash && !strings.HasSuffix(joined, "/") {
+		joined += "/"
 	}
-	if strings.HasSuffix(rest, "/") && !strings.HasSuffix(u.Path, "/") {
-		u.Path += "/"
-	}
+	u.Path = joined
 	return &u
+}
+
+func overlapJoin(basePath, restPath string) string {
+	baseSegs := pathSegments(basePath)
+	restSegs := pathSegments(restPath)
+	overlap := 0
+	maxK := len(baseSegs)
+	if len(restSegs) < maxK {
+		maxK = len(restSegs)
+	}
+	for k := maxK; k >= 1; k-- {
+		if pathSegmentsEqual(baseSegs[len(baseSegs)-k:], restSegs[:k]) {
+			overlap = k
+			break
+		}
+	}
+	joined := append(append([]string{}, baseSegs...), restSegs[overlap:]...)
+	if len(joined) == 0 {
+		return "/"
+	}
+	return path.Clean("/" + strings.Join(joined, "/"))
+}
+
+func pathSegments(p string) []string {
+	p = strings.Trim(p, "/")
+	if p == "" {
+		return nil
+	}
+	return strings.Split(p, "/")
+}
+
+func pathSegmentsEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func cloneHeader(h http.Header) http.Header {

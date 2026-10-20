@@ -72,6 +72,9 @@ func main() {
 			log.Fatal(err)
 		}
 	}
+	if len(cfg.Upstreams) == 0 {
+		log.Print(proxy.DefaultUpstreamLog)
+	}
 	if err := cfg.Validate(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		flag.Usage()
