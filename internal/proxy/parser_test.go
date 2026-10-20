@@ -4,6 +4,7 @@ package proxy
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -44,6 +45,40 @@ func TestChatStreamToleratesToolDeltasAzureAndOpenRouter(t *testing.T) {
 	}
 }
 
+func TestHTTP401JSONErrorNotMidStream(t *testing.T) {
+	body := []byte(`{"error":{"type":"invalid_request_error","code":"invalid_api_key","message":"Incorrect API key provided"}}`)
+	for _, stream := range []bool{false, true} {
+		t.Run(fmt.Sprintf("stream_%v", stream), func(t *testing.T) {
+			req := []byte(`{"model":"x"}`)
+			if stream {
+				req = []byte(`{"model":"x","stream":true}`)
+			}
+			call := baseCall("openai.chat", req, body, stream)
+			call.HTTPStatus = 401
+			TolerantParser{}.Parse(&call)
+			err := call.Normalized.Error
+			if err == nil {
+				t.Fatal("expected recorded HTTP error")
+			}
+			if err.MidStream {
+				t.Fatalf("mid_stream=%v want false for 401 JSON: %+v", err.MidStream, err)
+			}
+			if err.HTTPStatus != 401 {
+				t.Fatalf("http_status=%d want 401", err.HTTPStatus)
+			}
+			if err.Code != "invalid_api_key" {
+				t.Fatalf("code=%q want invalid_api_key", err.Code)
+			}
+			if err.Type != "invalid_request_error" {
+				t.Fatalf("type=%q want invalid_request_error", err.Type)
+			}
+			if err.Normalized != "auth" {
+				t.Fatalf("normalized=%q want auth", err.Normalized)
+			}
+		})
+	}
+}
+
 func TestChatStreamCapturesMidStreamError(t *testing.T) {
 	rawStream := []byte("data: {\"error\":{\"type\":\"too_many_requests\",\"code\":\"no_capacity\",\"message\":\"try later\"},\"finish_reason\":\"error\"}\n\n")
 	call := baseCall("openai.chat", []byte(`{"model":"x"}`), rawStream, true)
@@ -51,6 +86,24 @@ func TestChatStreamCapturesMidStreamError(t *testing.T) {
 	TolerantParser{}.Parse(&call)
 	if call.Normalized.Error == nil || !call.Normalized.Error.MidStream {
 		t.Fatalf("mid-stream error not captured: %+v", call.Normalized.Error)
+	}
+}
+
+func TestChatStreamErrorAfterChunksIsMidStream(t *testing.T) {
+	rawStream := []byte("data: {\"choices\":[{\"delta\":{\"content\":\"partial\"}}]}\n\n" +
+		"data: {\"error\":{\"type\":\"too_many_requests\",\"code\":\"no_capacity\",\"message\":\"try later\"}}\n\n")
+	call := baseCall("openai.chat", []byte(`{"model":"x","stream":true}`), rawStream, true)
+	call.SSEEvents, _, _ = parseSSE(rawStream, call.StartedAt)
+	TolerantParser{}.Parse(&call)
+	err := call.Normalized.Error
+	if err == nil || !err.MidStream {
+		t.Fatalf("mid-stream error after chunks not captured: %+v", err)
+	}
+	if err.Code != "no_capacity" || err.Type != "too_many_requests" {
+		t.Fatalf("error=%+v", err)
+	}
+	if call.Normalized.OutputText != "partial" {
+		t.Fatalf("output_text=%q want partial", call.Normalized.OutputText)
 	}
 }
 

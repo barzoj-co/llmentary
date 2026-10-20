@@ -704,6 +704,9 @@ func TestD1ErrorStatuses(t *testing.T) {
 						rt.call.Normalized.Error.Message != tc.message {
 						t.Fatalf("error=%+v want type=%q message=%q", rt.call.Normalized.Error, tc.typ, tc.message)
 					}
+					if rt.call.Normalized.Error.MidStream {
+						t.Fatalf("mid_stream must be false for HTTP %d JSON error: %+v", tc.status, rt.call.Normalized.Error)
+					}
 					if containsWarning(rt.call.Normalized.ParserWarnings, "missing required field") {
 						t.Fatalf("error bodies must not warn about missing success fields: %v", rt.call.Normalized.ParserWarnings)
 					}

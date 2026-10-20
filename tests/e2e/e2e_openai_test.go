@@ -419,7 +419,34 @@ func TestE2EUnauthorized401(t *testing.T) {
 	if call.Normalized.Error == nil || call.Normalized.Error.Normalized != "auth" || call.HTTPStatus != 401 {
 		t.Fatalf("error=%+v status=%d", call.Normalized.Error, call.HTTPStatus)
 	}
+	if call.Normalized.Error.MidStream {
+		t.Fatal("normalized.error.mid_stream must be false for a 401 JSON error")
+	}
 	t.Logf("live OpenAI 401 body shape: %s", resp)
+	assertNoParserWarnings(t, trace.Calls)
+}
+
+func TestE2EUnauthorized401Stream(t *testing.T) {
+	_ = requireAPIKey(t)
+	model := e2eModel()
+	lm := newE2E(t)
+	body := []byte(`{"model":` + strconv.Quote(model) + `,"messages":[{"role":"user","content":"hi"}],"stream":true}`)
+	status, _, resp := postOpenAIStatus(t, "sk-invalid-e2e-key", lm, "/chat/completions", body)
+	if status != http.StatusUnauthorized {
+		t.Fatalf("status=%d body=%s", status, resp)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	trace := lm.Wait(ctx)
+	assertHasError(t, trace.Calls)
+	call := trace.Calls[0]
+	if call.Normalized.Error == nil || call.Normalized.Error.Normalized != "auth" || call.HTTPStatus != 401 {
+		t.Fatalf("error=%+v status=%d", call.Normalized.Error, call.HTTPStatus)
+	}
+	if call.Normalized.Error.MidStream {
+		t.Fatal("normalized.error.mid_stream must be false for a 401 JSON error with stream:true")
+	}
+	t.Logf("live OpenAI 401 stream request body shape: %s", resp)
 	assertNoParserWarnings(t, trace.Calls)
 }
 

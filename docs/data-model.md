@@ -293,7 +293,9 @@ for JSON `error` fields in stream chunks and set:
 ```
 
 HTTP status errors (`>=400`) are also normalized from response body `error` objects when
-possible. Network/proxy errors are recorded with a proxy HTTP status and
+possible, with `mid_stream: false`. `mid_stream` is true only when the error arrived
+after an HTTP 200 stream had already started (an SSE error event or error chunk).
+Network/proxy errors are recorded with a proxy HTTP status and
 `normalized: "network"`.
 
 Error normalization categories are:
