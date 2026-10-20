@@ -207,7 +207,7 @@ func (s *Server) logValidationFindings(call Call) {
 	if mode != specvalidate.ModeWarn && mode != specvalidate.ModeEnforce {
 		return
 	}
-	logMax := s.validation.specLogMax
+	remaining := s.validation.specLogMax
 	logger := s.logger()
 
 	var violations []specvalidate.Violation
@@ -225,17 +225,17 @@ func (s *Server) logValidationFindings(call Call) {
 			"first", first.Pointer+" "+first.Keyword,
 			"mode", mode,
 		)
-		limit := logMax
-		if limit > len(violations) {
-			limit = len(violations)
-		}
-		for i := 0; i < limit; i++ {
-			v := violations[i]
+		for _, v := range violations {
+			if remaining <= 0 {
+				break
+			}
+			remaining--
 			logger.Warn("spec violation",
+				"call_id", call.ID,
 				"side", v.Side,
 				"pointer", v.Pointer,
 				"keyword", v.Keyword,
-				"message", v.Message,
+				"message", warnViolationMessage(v),
 			)
 		}
 	}
@@ -258,19 +258,26 @@ func (s *Server) logValidationFindings(call Call) {
 			"first", first.Kind+" "+first.Path,
 			"mode", mode,
 		)
-		limit := logMax
-		if limit > len(ignored) {
-			limit = len(ignored)
-		}
-		for i := 0; i < limit; i++ {
-			f := ignored[i]
+		for _, f := range ignored {
+			if remaining <= 0 {
+				break
+			}
+			remaining--
 			logger.Warn("ignored field",
+				"call_id", call.ID,
 				"kind", f.Kind,
 				"path", f.Path,
 				"pointer", f.Pointer,
 			)
 		}
 	}
+}
+
+func warnViolationMessage(v specvalidate.Violation) string {
+	if v.Keyword == "format" {
+		return "format validation failed"
+	}
+	return v.Message
 }
 
 func applyRequestValidation(call *Call, rv requestValidation) {

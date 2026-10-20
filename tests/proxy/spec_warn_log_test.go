@@ -72,6 +72,9 @@ func TestP1SpecWarnLoggedUnknownField(t *testing.T) {
 	if !strings.Contains(lines[1], `msg="spec violation"`) {
 		t.Fatalf("detail=%s", lines[1])
 	}
+	if !strings.Contains(lines[1], "call_id=") {
+		t.Fatalf("detail missing call_id: %s", lines[1])
+	}
 	if !strings.Contains(lines[1], "pointer=/foo") || !strings.Contains(lines[1], "keyword=unevaluatedProperties") {
 		t.Fatalf("detail fields: %s", lines[1])
 	}
@@ -179,6 +182,31 @@ func TestEnforceRejectLogsWarn(t *testing.T) {
 	}
 	if !strings.Contains(lines[1], "pointer=/foo") || !strings.Contains(lines[1], "keyword=unevaluatedProperties") {
 		t.Fatalf("detail=%s", lines[1])
+	}
+}
+
+func TestSpecLogMaxSharedAcrossCategories(t *testing.T) {
+	logBuf := &syncLogBuf{}
+	p := startSpecProxy(t, "warn", "relaxed", chatOK(), func(cfg *proxy.Config) {
+		cfg.Logger = slog.New(slog.NewTextHandler(logBuf, &slog.HandlerOptions{Level: slog.LevelInfo}))
+		cfg.SpecLogMax = proxy.IntPtr(1)
+	})
+	body := []byte(`{"model":"m","messages":[{"role":"user","content":"hi"}],"foo":1,"tools":[{"type":"function","function":{"name":"shirt","parameters":{"type":"object","properties":{"color":{"type":"string","enum":["red"],"enumDescriptions":{"red":"warm"}}}}}}]}`)
+	postRaw(t, p, "/v1/chat/completions", newSession(), nil, body)
+	var summaries, details int
+	for _, line := range warnLines(logBuf.String()) {
+		switch {
+		case strings.Contains(line, `msg="spec violations"`) || strings.Contains(line, `msg="ignored fields"`):
+			summaries++
+		case strings.Contains(line, `msg="spec violation"`) || strings.Contains(line, `msg="ignored field"`):
+			details++
+		}
+	}
+	if summaries != 2 {
+		t.Fatalf("summaries=%d want 2\n%s", summaries, logBuf.String())
+	}
+	if details != 1 {
+		t.Fatalf("detail lines=%d want 1 shared budget\n%s", details, logBuf.String())
 	}
 }
 
