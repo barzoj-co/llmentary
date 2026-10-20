@@ -38,13 +38,25 @@ variables plus CLI flags.
 | `--listen` | `LLMENTARY_LISTEN` | `:7777` | Proxy listen address. |
 | `--control` | `LLMENTARY_CONTROL_LISTEN` | `127.0.0.1:7778` | Control API listen address. |
 | `--control-token` | `LLMENTARY_CONTROL_TOKEN` | empty | Bearer token required by the control API when set. Also required when the control listener is non-loopback. |
-| `--upstream` | `LLMENTARY_UPSTREAMS`, fallback `LLMENTARY_UPSTREAM` | none | Upstream mapping. Repeat the flag or use comma-separated environment values. |
+| `--upstream` | `LLMENTARY_UPSTREAMS`, fallback `LLMENTARY_UPSTREAM` | `openai=https://api.openai.com/v1` | Upstream mapping. Repeat the flag or use comma-separated environment values. When omitted, the proxy logs `no upstream configured; defaulting to openai=https://api.openai.com/v1`. |
 | `--tls` | none | `false` | Parsed by the CLI, but not wired to a TLS listener in the current code. |
 | `--spec-validation` | `LLMENTARY_SPEC_VALIDATION` | `warn` | Request spec validation mode: `off`, `warn`, or `enforce`. Invalid values exit non-zero. |
 | `--spec-profile` | `LLMENTARY_SPEC_PROFILE` | `relaxed` | Spec profile: `strict` (pinned spec + closed-world) or `relaxed` (strict plus `api/openai/relax-overlay.yaml`). |
 | `--spec-validation-max-bytes` | `LLMENTARY_SPEC_VALIDATION_MAX_BYTES` | `8388608` | Maximum request body size to validate. Larger bodies are forwarded and marked `skipped_reason: body_too_large`. |
 
-At least one upstream is required.
+With no `--upstream` and no `LLMENTARY_UPSTREAMS` / `LLMENTARY_UPSTREAM`, the proxy
+defaults to `openai=https://api.openai.com/v1`. `GET /config` reports the effective
+upstreams (names and sanitized URLs). An upstream whose host:port is the proxy listen
+address (including `localhost`, `127.0.0.1`, `0.0.0.0`, and `[::1]` on the same port)
+is refused at startup so the proxy cannot loop on itself.
+
+```bash
+llmentary \
+  --listen 127.0.0.1:7777 \
+  --control 127.0.0.1:7778
+```
+
+Equivalent explicit configuration, plus a second named Azure upstream:
 
 ```bash
 llmentary \
@@ -85,10 +97,35 @@ named `default` exists:
 
 ```text
 http://127.0.0.1:7777/v1/chat/completions
+  -> https://api.openai.com/v1/chat/completions
 ```
+
+That combination used to repeat the version segment. The join rule below overlaps
+shared path prefixes, so both `https://api.openai.com` and `https://api.openai.com/v1`
+work with both `{proxy}/v1` and `{proxy}/u/openai`.
 
 With multiple upstreams and no `default`, a bare path returns `502 Bad Gateway` with
 `bare proxy path requires exactly one upstream or a default upstream`.
+
+## Path join
+
+Joining the configured upstream base to the request path is proxy routing, not a rewrite
+of the client's request body or headers. When the upstream base path ends with segments
+that the request path starts with, those segments are used once:
+
+| Upstream form | Client base URL | Final URL |
+|---|---|---|
+| `https://api.openai.com/v1` | `{proxy}/v1` | `https://api.openai.com/v1/chat/completions` |
+| `https://api.openai.com/v1` | `{proxy}/u/openai` | `https://api.openai.com/v1/chat/completions` |
+| `https://api.openai.com` | `{proxy}/v1` | `https://api.openai.com/v1/chat/completions` |
+| `https://api.openai.com` | `{proxy}/u/openai/v1` | `https://api.openai.com/v1/chat/completions` |
+| `https://openrouter.ai/api/v1` | `{proxy}/v1` | `https://openrouter.ai/api/v1/chat/completions` |
+| `https://openrouter.ai/api/v1` | `{proxy}/u/openrouter` | `https://openrouter.ai/api/v1/chat/completions` |
+| `https://my-resource.openai.azure.com/openai/v1` | `{proxy}/u/azure` | `https://my-resource.openai.azure.com/openai/v1/chat/completions` |
+| `https://my-resource.openai.azure.com` | `{proxy}/u/azure/openai/deployments/my-dep/chat/completions` | `https://my-resource.openai.azure.com/openai/deployments/my-dep/chat/completions` |
+
+A `/s/{session}` prefix (session attribution) is stripped before this join; remaining
+`/u/{name}` is stripped the same way.
 
 ## API type detection
 
@@ -345,7 +382,7 @@ Allow: GET, DELETE
 Returns the effective spec-validation settings so clients can tell "validated, clean" from "not validated":
 
 ```json
-{"spec_validation":"warn","spec_profile":"relaxed","spec_sha":"…","schema_subset_retrieved":"2026-10-18"}
+{"spec_validation":"warn","spec_profile":"relaxed","spec_sha":"…","schema_subset_retrieved":"2026-10-18","upstreams":{"openai":"https://api.openai.com/v1"}}
 ```
 
 ## Spec validation

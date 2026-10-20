@@ -18,6 +18,11 @@ const (
 	DefaultSpecValidation         = "warn"
 	DefaultSpecProfile            = "relaxed"
 	DefaultSpecValidationMaxBytes = 8 << 20
+	DefaultUpstreamName           = "openai"
+	DefaultUpstreamURL            = "https://api.openai.com/v1"
+	DefaultUpstreamSpec           = DefaultUpstreamName + "=" + DefaultUpstreamURL
+	// DefaultUpstreamLog is the startup line written when no --upstream / env mapping is set.
+	DefaultUpstreamLog = "no upstream configured; defaulting to openai=https://api.openai.com/v1"
 )
 
 type Config struct {
@@ -91,9 +96,30 @@ func (c *Config) AddUpstream(spec string) error {
 	return nil
 }
 
-func (c Config) Validate() error {
-	if len(c.Upstreams) == 0 {
-		return fmt.Errorf("configure at least one upstream with --upstream name=https://host/base or LLMENTARY_UPSTREAMS")
+// ApplyDefaultUpstream sets openai=https://api.openai.com/v1 when no upstream is configured.
+// It returns true when the default was applied.
+func (c *Config) ApplyDefaultUpstream() bool {
+	if c == nil || len(c.Upstreams) > 0 {
+		return false
+	}
+	if err := c.AddUpstream(DefaultUpstreamSpec); err != nil {
+		return false
+	}
+	logger := slog.Default()
+	if c.Logger != nil {
+		logger = c.Logger
+	}
+	logger.Info(DefaultUpstreamLog)
+	return true
+}
+
+func (c *Config) Validate() error {
+	if c == nil {
+		return fmt.Errorf("config is nil")
+	}
+	c.ApplyDefaultUpstream()
+	if err := c.validateNoUpstreamLoop(); err != nil {
+		return err
 	}
 	if !isLoopbackListenAddr(c.ControlAddr) && c.ControlToken == "" {
 		return fmt.Errorf("control API on non-loopback address %q requires --control-token or LLMENTARY_CONTROL_TOKEN", c.ControlAddr)
@@ -102,6 +128,79 @@ func (c Config) Validate() error {
 		return err
 	}
 	return nil
+}
+
+func (c Config) validateNoUpstreamLoop() error {
+	for name, u := range c.Upstreams {
+		if u == nil {
+			continue
+		}
+		if !isSelfUpstream(c.ListenAddr, u) {
+			continue
+		}
+		return fmt.Errorf("upstream %q (%s) points at the proxy listen address %s; refusing to start a proxy loop", name, u.Redacted(), c.ListenAddr)
+	}
+	return nil
+}
+
+func isSelfUpstream(listenAddr string, upstream *url.URL) bool {
+	if upstream == nil {
+		return false
+	}
+	listenAddr = strings.TrimSpace(listenAddr)
+	if listenAddr == "" {
+		return false
+	}
+	lHost, lPort, err := net.SplitHostPort(listenAddr)
+	if err != nil {
+		return false
+	}
+	if lPort == "" || lPort == "0" {
+		return false
+	}
+	uHost := upstream.Hostname()
+	uPort := upstream.Port()
+	if uPort == "" {
+		switch strings.ToLower(upstream.Scheme) {
+		case "https":
+			uPort = "443"
+		default:
+			uPort = "80"
+		}
+	}
+	if lPort != uPort {
+		return false
+	}
+	if sameListenHost(lHost, uHost) {
+		return true
+	}
+	// Only treat loop aliases as the same listener when the proxy itself
+	// is bound to a loop/unspecified host. A LAN listen (10.0.0.5:7777)
+	// plus http://localhost:7777 is not a self-loop.
+	return isLoopAliasHost(lHost) && isLoopAliasHost(uHost)
+}
+
+func sameListenHost(listenHost, upstreamHost string) bool {
+	a := canonicalHost(listenHost)
+	b := canonicalHost(upstreamHost)
+	if a == b {
+		return true
+	}
+	return isLoopAliasHost(listenHost) && isLoopAliasHost(upstreamHost)
+}
+
+func canonicalHost(host string) string {
+	return strings.ToLower(strings.Trim(strings.TrimSpace(host), "[]"))
+}
+
+func isLoopAliasHost(host string) bool {
+	h := canonicalHost(host)
+	switch h {
+	case "", "localhost", "0.0.0.0", "::", "*":
+		return true
+	}
+	ip := net.ParseIP(h)
+	return ip != nil && (ip.IsLoopback() || ip.IsUnspecified())
 }
 
 func orDefault(value, fallback string) string {
