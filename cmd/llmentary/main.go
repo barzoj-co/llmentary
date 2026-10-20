@@ -65,8 +65,14 @@ func main() {
 	flag.Var((*enumFlag)(&cfg.SpecValidation), "spec-validation", "request spec validation mode: off, warn, enforce (env LLMENTARY_SPEC_VALIDATION)")
 	flag.Var((*enumFlag)(&cfg.SpecProfile), "spec-profile", "spec validation profile: strict, relaxed (env LLMENTARY_SPEC_PROFILE)")
 	flag.Var((*nonNegIntFlag)(&cfg.SpecValidationMaxBytes), "spec-validation-max-bytes", "max request bytes to validate (env LLMENTARY_SPEC_VALIDATION_MAX_BYTES)")
+	specLogMax := proxy.DefaultSpecLogMax
+	if cfg.SpecLogMax != nil {
+		specLogMax = *cfg.SpecLogMax
+	}
+	flag.IntVar(&specLogMax, "spec-log-max", specLogMax, "max per-finding WARN lines after the summary; 0 = summary only (env LLMENTARY_SPEC_LOG_MAX)")
 	flag.Bool("tls", false, "TODO: optional local TLS listener")
 	flag.Parse()
+	cfg.SpecLogMax = &specLogMax
 	for _, spec := range upstreams {
 		if err := cfg.AddUpstream(spec); err != nil {
 			log.Fatal(err)

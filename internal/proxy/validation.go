@@ -17,11 +17,12 @@ import (
 )
 
 type validationRuntime struct {
-	mode     string
-	profile  string
-	maxBytes int
-	engine   *specvalidate.Engine
-	linter   *schemalint.Linter
+	mode       string
+	profile    string
+	maxBytes   int
+	specLogMax int
+	engine     *specvalidate.Engine
+	linter     *schemalint.Linter
 }
 
 type requestValidation struct {
@@ -35,9 +36,10 @@ type requestValidation struct {
 
 func newValidationRuntime(cfg Config) (*validationRuntime, error) {
 	rt := &validationRuntime{
-		mode:     cfg.SpecValidation,
-		profile:  cfg.SpecProfile,
-		maxBytes: cfg.SpecValidationMaxBytes,
+		mode:       cfg.SpecValidation,
+		profile:    cfg.SpecProfile,
+		maxBytes:   cfg.SpecValidationMaxBytes,
+		specLogMax: specLogMaxValue(cfg),
 	}
 	if rt.mode == "" {
 		rt.mode = DefaultSpecValidation
@@ -195,6 +197,92 @@ func shouldReject(violations []specvalidate.Violation, ignored []schemalint.Find
 		}
 	}
 	return false, ""
+}
+
+func (s *Server) logValidationFindings(call Call) {
+	if s == nil || s.validation == nil {
+		return
+	}
+	mode := s.validation.mode
+	if mode != specvalidate.ModeWarn && mode != specvalidate.ModeEnforce {
+		return
+	}
+	remaining := s.validation.specLogMax
+	logger := s.logger()
+
+	var violations []specvalidate.Violation
+	if call.Normalized.SpecViolations != nil {
+		violations = *call.Normalized.SpecViolations
+	}
+	if len(violations) > 0 {
+		first := violations[0]
+		logger.Warn("spec violations",
+			"call_id", call.ID,
+			"session", call.SessionID,
+			"api_family", call.APIFamily,
+			"side", first.Side,
+			"count", len(violations),
+			"first", first.Pointer+" "+first.Keyword,
+			"mode", mode,
+		)
+		for _, v := range violations {
+			if remaining <= 0 {
+				break
+			}
+			remaining--
+			logger.Warn("spec violation",
+				"call_id", call.ID,
+				"side", v.Side,
+				"pointer", v.Pointer,
+				"keyword", v.Keyword,
+				"message", warnViolationMessage(v),
+			)
+		}
+	}
+
+	var ignored []schemalint.Finding
+	if call.Normalized.IgnoredFields != nil {
+		for _, f := range *call.Normalized.IgnoredFields {
+			if f.Severity == schemalint.SeverityWarning {
+				ignored = append(ignored, f)
+			}
+		}
+	}
+	if len(ignored) > 0 {
+		first := ignored[0]
+		logger.Warn("ignored fields",
+			"call_id", call.ID,
+			"session", call.SessionID,
+			"api_family", call.APIFamily,
+			"count", len(ignored),
+			"first", first.Kind+" "+first.Path,
+			"mode", mode,
+		)
+		for _, f := range ignored {
+			if remaining <= 0 {
+				break
+			}
+			remaining--
+			logger.Warn("ignored field",
+				"call_id", call.ID,
+				"kind", f.Kind,
+				"path", f.Path,
+				"pointer", f.Pointer,
+			)
+		}
+	}
+}
+
+func warnViolationMessage(v specvalidate.Violation) string {
+	switch v.Keyword {
+	case "format":
+		return "format validation failed"
+	case "pattern", "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf",
+		"enum", "minLength", "maxLength", "minItems", "maxItems":
+		return "schema validation failed"
+	default:
+		return v.Message
+	}
 }
 
 func applyRequestValidation(call *Call, rv requestValidation) {

@@ -309,7 +309,7 @@ func (s *Server) serveSession(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) finishWithProxyError(sessionID, callID string, startedAt time.Time, err error, status int) Call {
+func (s *Server) finishWithProxyError(sessionID, callID string, startedAt time.Time, err error, status int, rv requestValidation) Call {
 	endedAt := time.Now().UTC()
 	var endedCall Call
 	s.store.Finish(sessionID, callID, func(call *Call) {
@@ -319,8 +319,10 @@ func (s *Server) finishWithProxyError(sessionID, callID string, startedAt time.T
 		call.Normalized.Error = &CallError{HTTPStatus: status, Message: err.Error(), Normalized: "network"}
 		call.Normalized.FinishReason = "error"
 		s.parser.Parse(call)
+		applyRequestValidation(call, rv)
 		endedCall = *call
 	})
+	s.logValidationFindings(endedCall)
 	return endedCall
 }
 
