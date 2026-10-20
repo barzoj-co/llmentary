@@ -61,6 +61,7 @@ func TestUpstreamLoopGuardTable(t *testing.T) {
 		{name: "ipv6_loopback_same_port", listen: "[::1]:7777", upstream: "http://[::1]:7777/v1", wantError: true},
 		{name: "listen_unspecified_loop_upstream", listen: ":7777", upstream: "http://127.0.0.1:7777/v1", wantError: true},
 		{name: "exact_listen_host", listen: "10.0.0.5:7777", upstream: "http://10.0.0.5:7777/v1", wantError: true},
+		{name: "lan_listen_localhost_upstream_allowed", listen: "10.0.0.5:7777", upstream: "http://localhost:7777/v1", wantError: false},
 		{name: "different_port_allowed", listen: "127.0.0.1:7777", upstream: "http://127.0.0.1:8888/v1", wantError: false},
 		{name: "openai_allowed", listen: ":7777", upstream: DefaultUpstreamURL, wantError: false},
 		{name: "ephemeral_listen_skips", listen: ":0", upstream: "http://127.0.0.1:0/v1", wantError: false},

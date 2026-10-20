@@ -174,8 +174,10 @@ func isSelfUpstream(listenAddr string, upstream *url.URL) bool {
 	if sameListenHost(lHost, uHost) {
 		return true
 	}
-	// localhost / 127.0.0.1 / 0.0.0.0 / [::1] on the same port would loop.
-	return isLoopAliasHost(uHost)
+	// Only treat loop aliases as the same listener when the proxy itself
+	// is bound to a loop/unspecified host. A LAN listen (10.0.0.5:7777)
+	// plus http://localhost:7777 is not a self-loop.
+	return isLoopAliasHost(lHost) && isLoopAliasHost(uHost)
 }
 
 func sameListenHost(listenHost, upstreamHost string) bool {
