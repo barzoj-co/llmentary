@@ -154,7 +154,10 @@ func (c *Client) resolve(path string) *url.URL {
 		u.RawPath = joined
 		return &u
 	}
-	return c.baseURL.ResolveReference(ref)
+	u := *c.baseURL
+	u.Path = strings.TrimRight(c.baseURL.Path, "/") + ref.Path
+	u.RawPath = strings.TrimRight(c.baseURL.EscapedPath(), "/") + ref.EscapedPath()
+	return &u
 }
 
 func (c *Client) authorize(req *http.Request) {
