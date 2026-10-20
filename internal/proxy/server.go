@@ -93,37 +93,12 @@ func (s *Server) configJSON() map[string]any {
 		}
 	}
 	out["upstreams"] = upstreams
+	out["version"] = VersionString()
 	return out
 }
 
 func (s *Server) ProxyHandler() http.Handler {
 	return http.HandlerFunc(s.serveProxy)
-}
-
-func (s *Server) ControlHandler() http.Handler {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("ok\n"))
-	})
-	mux.HandleFunc("/config", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, s.configJSON())
-	})
-	mux.HandleFunc("/sessions/", s.serveSession)
-	return s.controlAuth(mux)
-}
-
-func (s *Server) controlAuth(next http.Handler) http.Handler {
-	if s.cfg.ControlToken == "" {
-		return next
-	}
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Authorization") != "Bearer "+s.cfg.ControlToken {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
 }
 
 func (s *Server) ListenAndServe(ctx context.Context) error {
@@ -252,61 +227,6 @@ func (s *Server) route(requestPath string) (string, string, *url.URL, error) {
 		return "default", requestPath, base, nil
 	}
 	return "", "", nil, fmt.Errorf("bare proxy path requires exactly one upstream or a default upstream")
-}
-
-func (s *Server) serveSession(w http.ResponseWriter, r *http.Request) {
-	rest := strings.TrimPrefix(r.URL.Path, "/sessions/")
-	if rest == "" {
-		http.NotFound(w, r)
-		return
-	}
-	wait := false
-	otlp := false
-	if strings.HasSuffix(rest, "/wait") {
-		wait = true
-		rest = strings.TrimSuffix(rest, "/wait")
-		rest = strings.TrimSuffix(rest, "/")
-	} else if strings.HasSuffix(rest, "/otlp") {
-		otlp = true
-		rest = strings.TrimSuffix(rest, "/otlp")
-		rest = strings.TrimSuffix(rest, "/")
-	}
-	sessionID, err := url.PathUnescape(rest)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	switch r.Method {
-	case http.MethodGet:
-		if otlp {
-			writeJSON(w, s.tracing.Processor.OTLP(sessionID))
-			return
-		}
-		var session Session
-		if wait {
-			quiet, _ := time.ParseDuration(defaultString(r.URL.Query().Get("quiet"), "500ms"))
-			timeout, _ := time.ParseDuration(defaultString(r.URL.Query().Get("timeout"), "30s"))
-			session, err = s.store.WaitQuiet(r.Context(), sessionID, quiet, timeout)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusGatewayTimeout)
-				return
-			}
-		} else {
-			session = s.store.Session(sessionID)
-		}
-		writeJSON(w, session)
-	case http.MethodDelete:
-		if wait || otlp {
-			http.NotFound(w, r)
-			return
-		}
-		s.store.Delete(sessionID)
-		s.tracing.Processor.Delete(sessionID)
-		w.WriteHeader(http.StatusNoContent)
-	default:
-		w.Header().Set("Allow", "GET, DELETE")
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-	}
 }
 
 func (s *Server) finishWithProxyError(sessionID, callID string, startedAt time.Time, err error, status int, rv requestValidation) Call {

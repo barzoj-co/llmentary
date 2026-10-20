@@ -16,6 +16,14 @@ import (
 	"github.com/barzoj-co/llmentary/internal/proxy"
 )
 
+// Set by GoReleaser -X ldflags on tagged releases. go build / go install
+// fall back to debug.ReadBuildInfo (devel + vcs revision).
+var (
+	version = "devel"
+	commit  = ""
+	date    = ""
+)
+
 type upstreamFlags []string
 
 func (u *upstreamFlags) String() string {
@@ -53,11 +61,13 @@ func (f *nonNegIntFlag) Set(value string) error {
 }
 
 func main() {
+	proxy.SetBuildInfo(version, commit, date)
 	cfg, err := proxy.ConfigFromEnv()
 	if err != nil {
 		log.Fatal(err)
 	}
 	var upstreams upstreamFlags
+	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.StringVar(&cfg.ListenAddr, "listen", cfg.ListenAddr, "proxy listen address (env LLMENTARY_LISTEN)")
 	flag.StringVar(&cfg.ControlAddr, "control", cfg.ControlAddr, "control API listen address (env LLMENTARY_CONTROL_LISTEN)")
 	flag.StringVar(&cfg.ControlToken, "control-token", cfg.ControlToken, "bearer token required for control API; required for non-loopback control binds (env LLMENTARY_CONTROL_TOKEN)")
@@ -73,6 +83,10 @@ func main() {
 	flag.Bool("tls", false, "TODO: optional local TLS listener")
 	flag.Parse()
 	cfg.SpecLogMax = &specLogMax
+	if *showVersion {
+		fmt.Println(proxy.VersionLine())
+		os.Exit(0)
+	}
 	for _, spec := range upstreams {
 		if err := cfg.AddUpstream(spec); err != nil {
 			log.Fatal(err)
@@ -89,7 +103,7 @@ func main() {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	log.Printf("llmentary proxy listening on %s; control API on %s", cfg.ListenAddr, cfg.ControlAddr)
+	log.Printf("llmentary %s proxy listening on %s; control API on %s", proxy.VersionString(), cfg.ListenAddr, cfg.ControlAddr)
 	if err := server.ListenAndServe(ctx); err != nil {
 		log.Fatal(err)
 	}

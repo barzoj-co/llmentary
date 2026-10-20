@@ -63,6 +63,10 @@ func (c *Client) NewSession() string {
 	return NewSessionID()
 }
 
+func (c *Client) ControlURL() string {
+	return strings.TrimRight(c.baseURL.String(), "/")
+}
+
 func (c *Client) Session(ctx context.Context, sessionID string) (proxy.Session, error) {
 	var session proxy.Session
 	if err := c.getJSON(ctx, "/sessions/"+url.PathEscape(sessionID), nil, &session); err != nil {

@@ -98,6 +98,8 @@ func WithWait(quiet, timeout time.Duration) Option {
 
 func (s *Session) SessionID() string { return s.sessionID }
 
+func (s *Session) ControlURL() string { return s.client.ControlURL() }
+
 func (s *Session) Header() (string, string) { return Header(s.sessionID) }
 
 func (s *Session) HTTPClient() *http.Client {

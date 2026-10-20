@@ -20,6 +20,7 @@ flowchart LR
     U -->|"unchanged response / SSE stream"| P
     P --> S[("in-memory session store")]
     P --> O[("in-memory OTLP spans")]
+    T -->|"GET /sessions"| S
     T -->|"GET /sessions/{id}/wait"| S
     T --> A["Client assertions"]
     T -->|"GET /sessions/{id}/otlp"| O
@@ -36,6 +37,7 @@ variables plus CLI flags.
 | CLI flag | Environment | Default | Meaning |
 |---|---|---|---|
 | `--listen` | `LLMENTARY_LISTEN` | `:7777` | Proxy listen address. |
+| `--version` / `-version` | none | n/a | Print `llmentary <semver> (<commit>, <date>, <go version>, <os>/<arch>)` and exit 0. Release binaries use the clean tag version. |
 | `--control` | `LLMENTARY_CONTROL_LISTEN` | `127.0.0.1:7778` | Control API listen address. |
 | `--control-token` | `LLMENTARY_CONTROL_TOKEN` | empty | Bearer token required by the control API when set. Also required when the control listener is non-loopback. |
 | `--upstream` | `LLMENTARY_UPSTREAMS`, fallback `LLMENTARY_UPSTREAM` | `openai=https://api.openai.com/v1` | Upstream mapping. Repeat the flag or use comma-separated environment values. When omitted, the proxy logs `no upstream configured; defaulting to openai=https://api.openai.com/v1`. |
@@ -235,7 +237,12 @@ If the control address is non-loopback, validation fails unless a control token 
 
 ## Control endpoints
 
-All endpoints are on the control listener, not the proxy listener.
+All endpoints are on the control listener, not the proxy listener. The machine-readable
+contract is `api/control/openapi.yaml`. Unknown query parameters and unparsable values
+return `400` `{"error":{"type":"invalid_parameter","param":"…","message":"…"}}`.
+`timeout` and `quiet` accept Go durations (`30s`, `500ms`) and plain seconds (`90`,
+`0.2`). Values `<= 0` or above 10 minutes are `400`. Every error response
+(`400`/`401`/`404`/`405`/`504`) is `application/json` with `error.type`.
 
 ### `GET /healthz`
 
@@ -251,9 +258,21 @@ HTTP/1.1 200 OK
 ok
 ```
 
+### `GET /sessions` and `GET /sessions/`
+
+Both return `200 application/json` with no redirect. Cheap: no call bodies.
+
+```json
+{"sessions":[{"id":"default","calls":3,"active":0,"sources":["default"],"first_started_at":"…","last_ended_at":"…"}]}
+```
+
+Sorted by `first_started_at`. Optional `?source=default|header|baggage|path` filters
+the list. Zero sessions: `{"sessions":[]}`.
+
 ### `GET /sessions/{id}`
 
-Returns the current session immediately.
+Returns the current session immediately. Unknown ids (never recorded, or deleted)
+return `404` `{"error":{"type":"session_not_found","message":"no calls recorded for session \"{id}\"; known sessions: GET /sessions"}}`. GETs never create sessions.
 
 ```bash
 curl http://127.0.0.1:7778/sessions/test-1
@@ -307,24 +326,30 @@ as base64 strings in JSON.
 
 ### `GET /sessions/{id}/wait`
 
-Waits until the session has no active calls and stays unchanged for a quiet period.
+Waits until the session has at least `min_calls` **finished** calls, no active calls,
+and has been quiet for `quiet`. A session that does not exist yet is waited for until
+it appears. `min_calls=0` on a never-created session is not success: after `quiet` it
+returns `504` `wait_timeout` with `calls_seen:0` (not `200` with an empty trace).
 
 Query parameters:
 
 | Name | Default | Meaning |
 |---|---|---|
-| `quiet` | `500ms` | Required quiet period after the last version change. Parsed by Go `time.ParseDuration`. |
-| `timeout` | `30s` | Maximum wait before returning `504 Gateway Timeout`. Parsed by Go `time.ParseDuration`. |
+| `quiet` | `500ms` | Required quiet period after the last version change. |
+| `timeout` | `30s` | Maximum wait before `504`. |
+| `min_calls` | `0` | Minimum finished calls. |
 
 ```bash
-curl 'http://127.0.0.1:7778/sessions/test-1/wait?quiet=100ms&timeout=5s'
+curl 'http://127.0.0.1:7778/sessions/test-1/wait?quiet=100ms&timeout=5s&min_calls=2'
 ```
 
-Response body is the same session JSON shape as `GET /sessions/{id}`.
+`200` is the same session JSON as `GET /sessions/{id}`. `504` includes the partial
+session plus `{"error":{"type":"wait_timeout","calls_seen":k,"min_calls":N}}`.
 
 ### `GET /sessions/{id}/otlp`
 
-Returns OTLP/JSON trace data for spans recorded in the session.
+Returns OTLP/JSON trace data for spans recorded in the session. Unknown sessions are
+`404` `session_not_found`.
 
 ```bash
 curl http://127.0.0.1:7778/sessions/test-1/otlp
@@ -360,7 +385,8 @@ See [OTel GenAI mapping](otel.md) for span attributes.
 
 ### `DELETE /sessions/{id}`
 
-Deletes the session calls and OTLP spans.
+Deletes the session calls and OTLP spans. Unknown ids still return `204` (reset is
+idempotent). After delete, `GET` is `404` again.
 
 ```bash
 curl -i -X DELETE http://127.0.0.1:7778/sessions/test-1
@@ -372,18 +398,22 @@ HTTP/1.1 204 No Content
 
 ### Unsupported methods
 
-Unsupported methods under `/sessions/{id}` return `405 Method Not Allowed` with:
-
-```http
-Allow: GET, DELETE
-```
+Unsupported methods return `405` `{"error":{"type":"method_not_allowed"}}` with `Allow`.
 
 ### `GET /config`
 
-Returns the effective spec-validation settings so clients can tell "validated, clean" from "not validated":
+Returns the effective spec-validation settings so clients can tell "validated, clean" from "not validated", plus the clean binary version:
 
 ```json
-{"spec_validation":"warn","spec_profile":"relaxed","spec_sha":"…","schema_subset_retrieved":"2026-10-18","upstreams":{"openai":"https://api.openai.com/v1"}}
+{"spec_validation":"warn","spec_profile":"relaxed","spec_sha":"…","schema_subset_retrieved":"2026-10-18","upstreams":{"openai":"https://api.openai.com/v1"},"version":"0.1.0"}
+```
+
+### `GET /version`
+
+Returns the clean version and commit (no `v` prefix):
+
+```json
+{"version":"0.1.0","commit":"…","date":"…"}
 ```
 
 ## Spec validation

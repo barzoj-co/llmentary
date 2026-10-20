@@ -7,8 +7,10 @@ to that existing release. Later versions come from conventional commits
 needs an explicit maintainer decision.
 
 In an emergency, push an annotated tag `vX.Y.Z` to `main`'s commit. The
-`Release` workflow calls the same reusable GoReleaser job. Do not create a
-second changelog on the GitHub Release.
+`Release` workflow calls the same reusable GoReleaser job. Official releases
+are built from a clean `vX.Y.Z` tag only (no dirty working tree, no extra
+pre-release suffix). `--version` and `GET /version` print that clean version
+and the commit. Do not create a second changelog on the GitHub Release.
 
 ## Provenance
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Bug Fixes
+
+* `GET /sessions/{id}/wait` on a session that does not exist yet returns `504`
+  `wait_timeout` after `quiet` when `min_calls=0`, instead of `200` with an
+  empty trace. Unknown-id `GET`s no longer create phantom sessions.
+
 ## 0.1.0 (2026-10-19)
 
 
