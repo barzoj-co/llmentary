@@ -214,6 +214,14 @@ from an Azure-style `/deployments/{deployment}/...` path segment.
 
 In `off` mode the three keys are missing. In `warn`/`enforce` the two arrays are always present.
 
+Where findings show up: trace (`normalized.spec_violations`), proxy log (WARN), client assertions.
+
+| Field | What it is | Empty vs absent |
+|---|---|---|
+| `validation` | Metadata: was the call checked, and how (`mode`, `profile`, `spec_sha`, checked flags, `skipped_reason`). Not a list of problems. | Absent when validation was not run (`off`). Present in `warn`/`enforce` even when the call is clean. |
+| `spec_violations` | Findings from the spec validator. | `[]` means checked and clean. Absent means not checked. |
+| `ignored_fields` | Silently ignored request content (unknown schema keywords, unknown request fields, strict fallback). | Same empty-vs-absent rule as `spec_violations`. |
+
 ## Tools
 
 Declared tool:

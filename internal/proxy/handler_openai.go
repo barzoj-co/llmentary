@@ -107,7 +107,7 @@ func (s *Server) handleResponseError(w http.ResponseWriter, r *http.Request, err
 }
 
 func (s *Server) writeProxyError(w http.ResponseWriter, ex *proxyExchange, err error) {
-	ended := s.finishWithProxyError(ex.session.ID, ex.callID, ex.startedAt, err, http.StatusBadGateway)
+	ended := s.finishWithProxyError(ex.session.ID, ex.callID, ex.startedAt, err, http.StatusBadGateway, ex.requestVal)
 	if ex.span != nil {
 		finishSpan(ex.span, ended, ended.EndedAt)
 	}
@@ -246,6 +246,7 @@ func (ex *proxyExchange) finishCall(resp *http.Response, rawBody []byte, firstBy
 		"session", ex.session.ID,
 		"api_family", endedCall.APIFamily,
 	)
+	ex.s.logValidationFindings(endedCall)
 	if ex.span != nil {
 		finishSpan(ex.span, endedCall, endedAt)
 	}
@@ -284,6 +285,7 @@ func (s *Server) rejectLocal(w http.ResponseWriter, ex *proxyExchange, rv reques
 		call.Normalized.Error.HTTPStatus = http.StatusBadRequest
 		endedCall = *call
 	})
+	s.logValidationFindings(endedCall)
 	if ex.span != nil {
 		finishSpan(ex.span, endedCall, endedAt)
 	}

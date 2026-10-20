@@ -92,6 +92,15 @@ func TestUpstreamLoopGuardTable(t *testing.T) {
 	}
 }
 
+func TestValidateRejectsNegativeSpecLogMax(t *testing.T) {
+	t.Parallel()
+	cfg := Config{ListenAddr: "127.0.0.1:7777", ControlAddr: "127.0.0.1:7778", SpecLogMax: IntPtr(-1)}
+	err := cfg.Validate()
+	if err == nil || !strings.Contains(err.Error(), "--spec-log-max") {
+		t.Fatalf("error=%v", err)
+	}
+}
+
 func TestIsSelfUpstreamPorts(t *testing.T) {
 	t.Parallel()
 	u, err := url.Parse("https://api.openai.com/v1")

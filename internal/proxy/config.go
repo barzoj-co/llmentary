@@ -18,6 +18,7 @@ const (
 	DefaultSpecValidation         = "warn"
 	DefaultSpecProfile            = "relaxed"
 	DefaultSpecValidationMaxBytes = 8 << 20
+	DefaultSpecLogMax             = 5
 	DefaultUpstreamName           = "openai"
 	DefaultUpstreamURL            = "https://api.openai.com/v1"
 	DefaultUpstreamSpec           = DefaultUpstreamName + "=" + DefaultUpstreamURL
@@ -34,6 +35,9 @@ type Config struct {
 	SpecValidation         string
 	SpecProfile            string
 	SpecValidationMaxBytes int
+	// SpecLogMax is the number of per-finding WARN lines after the summary.
+	// nil means DefaultSpecLogMax. 0 means the summary line only.
+	SpecLogMax *int
 }
 
 func ConfigFromEnv() (Config, error) {
@@ -52,6 +56,13 @@ func ConfigFromEnv() (Config, error) {
 			return cfg, fmt.Errorf("--spec-validation-max-bytes=%q is invalid; allowed values: non-negative byte count (env LLMENTARY_SPEC_VALIDATION_MAX_BYTES)", raw)
 		}
 		cfg.SpecValidationMaxBytes = n
+	}
+	if raw := strings.TrimSpace(os.Getenv("LLMENTARY_SPEC_LOG_MAX")); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 0 {
+			return cfg, fmt.Errorf("--spec-log-max=%q is invalid; allowed values: non-negative count (env LLMENTARY_SPEC_LOG_MAX)", raw)
+		}
+		cfg.SpecLogMax = &n
 	}
 	raw := strings.TrimSpace(os.Getenv("LLMENTARY_UPSTREAMS"))
 	if raw == "" {
@@ -124,7 +135,7 @@ func (c *Config) Validate() error {
 	if !isLoopbackListenAddr(c.ControlAddr) && c.ControlToken == "" {
 		return fmt.Errorf("control API on non-loopback address %q requires --control-token or LLMENTARY_CONTROL_TOKEN", c.ControlAddr)
 	}
-	if err := validateSpecSettings(orDefault(c.SpecValidation, DefaultSpecValidation), orDefault(c.SpecProfile, DefaultSpecProfile), c.SpecValidationMaxBytes); err != nil {
+	if err := validateSpecSettings(orDefault(c.SpecValidation, DefaultSpecValidation), orDefault(c.SpecProfile, DefaultSpecProfile), c.SpecValidationMaxBytes, specLogMaxValue(*c)); err != nil {
 		return err
 	}
 	return nil
@@ -210,7 +221,16 @@ func orDefault(value, fallback string) string {
 	return value
 }
 
-func validateSpecSettings(mode, profile string, maxBytes int) error {
+func specLogMaxValue(c Config) int {
+	if c.SpecLogMax == nil {
+		return DefaultSpecLogMax
+	}
+	return *c.SpecLogMax
+}
+
+func IntPtr(n int) *int { return &n }
+
+func validateSpecSettings(mode, profile string, maxBytes, specLogMax int) error {
 	switch mode {
 	case "off", "warn", "enforce":
 	default:
@@ -223,6 +243,9 @@ func validateSpecSettings(mode, profile string, maxBytes int) error {
 	}
 	if maxBytes < 0 {
 		return fmt.Errorf("--spec-validation-max-bytes=%d is invalid; allowed values: non-negative byte count (env LLMENTARY_SPEC_VALIDATION_MAX_BYTES)", maxBytes)
+	}
+	if specLogMax < 0 {
+		return fmt.Errorf("--spec-log-max=%d is invalid; allowed values: non-negative count (env LLMENTARY_SPEC_LOG_MAX)", specLogMax)
 	}
 	return nil
 }
