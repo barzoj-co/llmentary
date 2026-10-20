@@ -30,11 +30,12 @@ type Session struct {
 type Option func(*sessionConfig)
 
 type sessionConfig struct {
-	controlURL string
-	proxyURL   string
-	httpClient *http.Client
-	quiet      time.Duration
-	timeout    time.Duration
+	controlURL   string
+	proxyURL     string
+	controlToken string
+	httpClient   *http.Client
+	quiet        time.Duration
+	timeout      time.Duration
 }
 
 func New(t testing.TB, opts ...Option) *Session {
@@ -51,6 +52,9 @@ func New(t testing.TB, opts ...Option) *Session {
 	clientOpts := []ClientOption{}
 	if cfg.httpClient != nil {
 		clientOpts = append(clientOpts, WithHTTPClient(cfg.httpClient))
+	}
+	if cfg.controlToken != "" {
+		clientOpts = append(clientOpts, WithControlToken(cfg.controlToken))
 	}
 	client, err := NewClient(cfg.controlURL, clientOpts...)
 	if err != nil {
@@ -79,6 +83,10 @@ func WithControlURL(rawURL string) Option {
 
 func WithProxyURL(rawURL string) Option {
 	return func(c *sessionConfig) { c.proxyURL = rawURL }
+}
+
+func WithSessionControlToken(token string) Option {
+	return func(c *sessionConfig) { c.controlToken = token }
 }
 
 func WithWait(quiet, timeout time.Duration) Option {

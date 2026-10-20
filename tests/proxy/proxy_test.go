@@ -350,4 +350,7 @@ func TestControlClientSendsBearerToken(t *testing.T) {
 	if _, err := authorized.Calls(context.Background(), "s"); err != nil {
 		t.Fatalf("authorized client failed: %v", err)
 	}
+
+	lm := tracetest.New(t, tracetest.WithControlURL(control.URL), tracetest.WithSessionControlToken("secret"), tracetest.WithWait(time.Millisecond, time.Second))
+	_ = lm.Calls(context.Background())
 }
