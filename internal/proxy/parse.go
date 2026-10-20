@@ -195,19 +195,6 @@ func extractAPIVersionAndDeployment(u *url.URL) (string, string) {
 	return apiVersion, ""
 }
 
-func headerHas(headers map[string][]string, name, value string) bool {
-	for key, values := range headers {
-		if strings.EqualFold(key, name) {
-			for _, got := range values {
-				if strings.EqualFold(got, value) {
-					return true
-				}
-			}
-		}
-	}
-	return false
-}
-
 func parseSSE(raw []byte, startedAt time.Time) ([]SSEEvent, bool, []string) {
 	scanner := bufio.NewScanner(bytes.NewReader(raw))
 	scanner.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
