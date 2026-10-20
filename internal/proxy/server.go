@@ -300,6 +300,13 @@ func copyAndFlush(w http.ResponseWriter, r io.Reader, onChunk func([]byte)) (int
 }
 
 func removeHopByHopHeaders(h http.Header) {
+	for _, v := range h.Values("Connection") {
+		for _, tok := range strings.Split(v, ",") {
+			if tok = strings.TrimSpace(tok); tok != "" {
+				h.Del(tok)
+			}
+		}
+	}
 	for _, key := range []string{"Connection", "Proxy-Connection", "Keep-Alive", "Proxy-Authenticate", "Proxy-Authorization", "Te", "Trailer", "Transfer-Encoding", "Upgrade"} {
 		h.Del(key)
 	}

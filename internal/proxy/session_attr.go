@@ -106,15 +106,19 @@ func splitSessionPrefix(requestPath, escapedPath string) (id, rest string, prese
 		return "", "/", true, fmt.Errorf("session id is empty")
 	}
 	esc := "/" + strings.TrimLeft(escapedPath, "/")
+	escSeg := ""
 	if strings.HasPrefix(esc, "/s/") {
-		escSeg, _, _ := strings.Cut(strings.TrimPrefix(esc, "/s/"), "/")
+		escSeg, _, _ = strings.Cut(strings.TrimPrefix(esc, "/s/"), "/")
 		if strings.Contains(strings.ToLower(escSeg), "%2f") {
 			return "", "/", true, fmt.Errorf("session id cannot contain '/'")
 		}
 	}
 	after := strings.TrimPrefix(p, "/s/")
-	seg, more, found := strings.Cut(after, "/")
-	decoded, decErr := url.PathUnescape(seg)
+	_, more, found := strings.Cut(after, "/")
+	if escSeg == "" {
+		escSeg, _, _ = strings.Cut(after, "/")
+	}
+	decoded, decErr := url.PathUnescape(escSeg)
 	if decErr != nil {
 		return "", "/", true, fmt.Errorf("session id is invalid")
 	}

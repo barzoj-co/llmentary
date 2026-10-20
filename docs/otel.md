@@ -110,7 +110,7 @@ Selected request/response headers are also copied to span attributes with
 | Attribute | Meaning |
 |---|---|
 | `llmentary.session.id` | test session id |
-| `llmentary.session.source` | `header`, `baggage`, or `default` |
+| `llmentary.session.source` | `header`, `baggage`, `path`, or `default` |
 | `llmentary.call.id` | proxy call id |
 | `llmentary.call.seq` | order in session |
 | `llmentary.prompt.chars` | normalized prompt character count |

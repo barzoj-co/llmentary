@@ -201,7 +201,7 @@ byte-identical, except llmentary's own markers and HTTP hop-by-hop headers.
 | Strip `X-Test-Session` | always | Our session header; not an upstream header. |
 | Strip `llmentary.*` baggage members | always | Our markers. Other baggage is preserved. |
 | Strip `/s/{session}` and `/u/{name}` prefixes | always | Routing wrappers; the upstream must see the wire path. |
-| Remove hop-by-hop headers (`Connection`, `Proxy-Connection`, `Keep-Alive`, `Proxy-Authenticate`, `Proxy-Authorization`, `Te`, `Trailer`, `Transfer-Encoding`, `Upgrade`) | always | RFC 7230: hop-by-hop headers are not forwarded. |
+| Remove hop-by-hop headers (`Connection`, `Proxy-Connection`, `Keep-Alive`, `Proxy-Authenticate`, `Proxy-Authorization`, `Te`, `Trailer`, `Transfer-Encoding`, `Upgrade`, and any header named by `Connection`) | always | RFC 7230: hop-by-hop headers are not forwarded. |
 | Set `Host` to the upstream host | always | Required to send the request to that host. |
 | Inject `traceparent` / `tracestate` | only `--propagate-trace=auto` | Continue or start a W3C trace for the proxy CLIENT span. Default `off` forwards the client's `traceparent` unchanged and adds none. |
 | `Accept-Encoding: identity` | **never** (removed) | The proxy no longer forces identity encoding. |

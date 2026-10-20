@@ -20,6 +20,8 @@ func TestSplitSessionPrefix(t *testing.T) {
 		{name: "basic", path: "/s/t1/v1/chat/completions", id: "t1", rest: "/v1/chat/completions", present: true},
 		{name: "with_u", path: "/s/t1/u/openrouter/chat/completions", id: "t1", rest: "/u/openrouter/chat/completions", present: true},
 		{name: "space", path: "/s/test one/v1/x", escaped: "/s/test%20one/v1/x", id: "test one", rest: "/v1/x", present: true},
+		{name: "percent", path: "/s/50%/v1/x", escaped: "/s/50%25/v1/x", id: "50%", rest: "/v1/x", present: true},
+		{name: "double_encoded_space", path: "/s/test%20one/v1/x", escaped: "/s/test%2520one/v1/x", id: "test%20one", rest: "/v1/x", present: true},
 		{name: "empty", path: "/s//v1/x", present: true, wantErr: true},
 		{name: "encoded_slash", path: "/s/%2F/v1/x", escaped: "/s/%2F/v1/x", present: true, wantErr: true},
 	}
@@ -93,6 +95,22 @@ func TestUnknownPathHint(t *testing.T) {
 	hint := unknownPathHint("/dogfood/v1/chat/completions")
 	if !strings.Contains(hint, "/s/dogfood/v1/") {
 		t.Fatalf("hint=%q", hint)
+	}
+}
+
+func TestRemoveHopByHopHeadersStripsConnectionNamed(t *testing.T) {
+	t.Parallel()
+	h := http.Header{}
+	h.Set("Connection", "X-Internal, Keep-Alive")
+	h.Set("X-Internal", "secret")
+	h.Set("Authorization", "Bearer test-token")
+	h.Set("Keep-Alive", "timeout=5")
+	removeHopByHopHeaders(h)
+	if h.Get("Connection") != "" || h.Get("X-Internal") != "" || h.Get("Keep-Alive") != "" {
+		t.Fatalf("hop-by-hop headers remain: %v", h)
+	}
+	if h.Get("Authorization") != "Bearer test-token" {
+		t.Fatalf("Authorization was stripped: %v", h)
 	}
 }
 

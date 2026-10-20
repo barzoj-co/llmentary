@@ -206,6 +206,18 @@ func TestA2PathPrefixNamedUpstream(t *testing.T) {
 }
 
 func TestA3PercentEncodedAndEmptySession(t *testing.T) {
+	t.Run("percent", func(t *testing.T) {
+		echo := &echoUpstream{}
+		proxyURL, controlURL := startPathProxy(t, echo)
+		status, _, _ := postJSON(t, proxyURL+"/s/50%25/v1/chat/completions", nil, []byte(`{"model":"gpt-fixture"}`))
+		if status != http.StatusOK {
+			t.Fatalf("status=%d", status)
+		}
+		calls := waitCalls(t, controlURL, "50%")
+		if len(calls) != 1 || calls[0].SessionID != "50%" || calls[0].SessionSource != "path" {
+			t.Fatalf("%+v", calls)
+		}
+	})
 	t.Run("space", func(t *testing.T) {
 		echo := &echoUpstream{}
 		proxyURL, controlURL := startPathProxy(t, echo)
@@ -375,6 +387,26 @@ func TestC2AllowlistedFirstSegments(t *testing.T) {
 	hits, _, _, _, _ := echo.snapshot()
 	if hits != len(prefixes) {
 		t.Fatalf("hits=%d want %d", hits, len(prefixes))
+	}
+}
+
+func TestHopByHopConnectionNamedNotForwarded(t *testing.T) {
+	echo := &echoUpstream{}
+	proxyURL, _ := startPathProxy(t, echo)
+	status, _, _ := postJSON(t, proxyURL+"/v1/chat/completions", map[string]string{
+		"Connection":    "X-Internal",
+		"X-Internal":    "secret",
+		"Authorization": "Bearer test-token",
+	}, []byte(`{"model":"gpt-fixture"}`))
+	if status != http.StatusOK {
+		t.Fatalf("status=%d", status)
+	}
+	_, _, _, headers, _ := echo.snapshot()
+	if headers.Get("X-Internal") != "" || headers.Get("Connection") != "" {
+		t.Fatalf("Connection-named hop-by-hop leaked: %v", headers)
+	}
+	if headers.Get("Authorization") != "Bearer test-token" {
+		t.Fatalf("Authorization=%q", headers.Get("Authorization"))
 	}
 }
 
