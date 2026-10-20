@@ -107,8 +107,9 @@ func splitSessionPrefix(requestPath, escapedPath string) (id, rest string, prese
 	}
 	esc := "/" + strings.TrimLeft(escapedPath, "/")
 	escSeg := ""
-	if strings.HasPrefix(esc, "/s/") {
-		escSeg, _, _ = strings.Cut(strings.TrimPrefix(esc, "/s/"), "/")
+	escapedFirst, escapedRest, _ := strings.Cut(strings.TrimPrefix(esc, "/"), "/")
+	if first, firstErr := url.PathUnescape(escapedFirst); firstErr == nil && first == "s" {
+		escSeg, _, _ = strings.Cut(escapedRest, "/")
 		if strings.Contains(strings.ToLower(escSeg), "%2f") {
 			return "", "/", true, fmt.Errorf("session id cannot contain '/'")
 		}

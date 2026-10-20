@@ -24,6 +24,8 @@ func TestSplitSessionPrefix(t *testing.T) {
 		{name: "double_encoded_space", path: "/s/test%20one/v1/x", escaped: "/s/test%2520one/v1/x", id: "test%20one", rest: "/v1/x", present: true},
 		{name: "empty", path: "/s//v1/x", present: true, wantErr: true},
 		{name: "encoded_slash", path: "/s/%2F/v1/x", escaped: "/s/%2F/v1/x", present: true, wantErr: true},
+		{name: "encoded_s_and_slash", path: "/s/a/v1/chat/completions", escaped: "/%73/a%2Fv1/chat/completions", present: true, wantErr: true},
+		{name: "encoded_s_ok", path: "/s/t1/v1/x", escaped: "/%73/t1/v1/x", id: "t1", rest: "/v1/x", present: true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
