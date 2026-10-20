@@ -62,6 +62,12 @@ func (f *nonNegIntFlag) Set(value string) error {
 
 func main() {
 	proxy.SetBuildInfo(version, commit, date)
+	for _, arg := range os.Args[1:] {
+		if arg == "-version" || arg == "--version" {
+			fmt.Println(proxy.VersionLine())
+			os.Exit(0)
+		}
+	}
 	cfg, err := proxy.ConfigFromEnv()
 	if err != nil {
 		log.Fatal(err)

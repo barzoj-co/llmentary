@@ -5,9 +5,12 @@ package proxy_test
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"os"
 	"os/exec"
 	"strings"
 	"testing"
@@ -61,21 +64,35 @@ func getJSON(t *testing.T, url string) (int, http.Header, map[string]any) {
 
 func postCall(t *testing.T, proxyURL, session string) {
 	t.Helper()
+	if err := doPostCall(proxyURL, session); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func postCallErr(t *testing.T, proxyURL, session string) {
+	t.Helper()
+	if err := doPostCall(proxyURL, session); err != nil {
+		t.Errorf("%v", err)
+	}
+}
+
+func doPostCall(proxyURL, session string) error {
 	req, err := http.NewRequest(http.MethodPost, proxyURL+"/v1/chat/completions", strings.NewReader(`{"model":"gpt-fixture","messages":[{"role":"user","content":"hi"}]}`))
 	if err != nil {
-		t.Fatal(err)
+		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set(proxy.SessionHeaderName, session)
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
-		t.Fatal(err)
+		return err
 	}
 	_, _ = io.ReadAll(res.Body)
 	_ = res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		t.Fatalf("proxy status=%d", res.StatusCode)
+		return fmt.Errorf("proxy status=%d", res.StatusCode)
 	}
+	return nil
 }
 
 func TestP1SessionList(t *testing.T) {
@@ -159,11 +176,14 @@ func TestP3DeleteUnknownAndKnown(t *testing.T) {
 
 func TestP4WaitMinCalls(t *testing.T) {
 	proxyURL, control, _ := startControl(t)
+	done := make(chan struct{})
 	go func() {
-		postCall(t, proxyURL, "async")
+		defer close(done)
+		postCallErr(t, proxyURL, "async")
 		time.Sleep(time.Second)
-		postCall(t, proxyURL, "async")
+		postCallErr(t, proxyURL, "async")
 	}()
+	t.Cleanup(func() { <-done })
 	started := time.Now()
 	status, _, body := getJSON(t, control+"/sessions/async/wait?min_calls=2&quiet=100ms&timeout=5s")
 	if status != http.StatusOK {
@@ -181,21 +201,13 @@ func TestP4WaitMinCalls(t *testing.T) {
 func TestP5WaitUnknownAppearsOrTimeout(t *testing.T) {
 	proxyURL, control, _ := startControl(t)
 	t.Run("arrives", func(t *testing.T) {
+		done := make(chan struct{})
 		go func() {
+			defer close(done)
 			time.Sleep(time.Second)
-			req, err := http.NewRequest(http.MethodPost, proxyURL+"/v1/chat/completions", strings.NewReader(`{"model":"gpt-fixture","messages":[{"role":"user","content":"hi"}]}`))
-			if err != nil {
-				return
-			}
-			req.Header.Set("Content-Type", "application/json")
-			req.Header.Set(proxy.SessionHeaderName, "late")
-			res, err := http.DefaultClient.Do(req)
-			if err != nil {
-				return
-			}
-			_, _ = io.ReadAll(res.Body)
-			_ = res.Body.Close()
+			postCallErr(t, proxyURL, "late")
 		}()
+		t.Cleanup(func() { <-done })
 		status, _, body := getJSON(t, control+"/sessions/late/wait?min_calls=1&quiet=50ms&timeout=5s")
 		if status != http.StatusOK {
 			t.Fatalf("status=%d body=%v", status, body)
@@ -359,6 +371,7 @@ func TestP8VersionFlagAndConfig(t *testing.T) {
 	}
 	for _, flag := range []string{"--version", "-version"} {
 		cmd := exec.Command(proxyBinary(t), flag)
+		cmd.Env = append(os.Environ(), "LLMENTARY_SPEC_LOG_MAX=-1")
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			t.Fatalf("%s: %v\n%s", flag, err, out)
@@ -369,6 +382,24 @@ func TestP8VersionFlagAndConfig(t *testing.T) {
 		if !strings.HasPrefix(string(out), "llmentary ") {
 			t.Fatalf("%s output=%q", flag, out)
 		}
+	}
+}
+
+func TestControlSessionIDEscapedOnce(t *testing.T) {
+	proxyURL, control, _ := startControl(t)
+	id := "team/a%b"
+	postCall(t, proxyURL, id)
+	escaped := url.PathEscape(id)
+	status, _, body := getJSON(t, control+"/sessions/"+escaped)
+	if status != http.StatusOK {
+		t.Fatalf("GET escaped session status=%d body=%v", status, body)
+	}
+	if fmtString(body["id"]) != id {
+		t.Fatalf("session id=%v want %q", body["id"], id)
+	}
+	status, _, _ = getJSON(t, control+"/sessions/team/a%25b")
+	if status != http.StatusNotFound {
+		t.Fatalf("literal slash path should 404, got %d", status)
 	}
 }
 

@@ -35,9 +35,11 @@ jobs:
       - name: Released commit must be on main
         run: bash scripts/check-ref-on-main.sh HEAD
       - name: Release from a clean vX.Y.Z tag only
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           set -euo pipefail
-          tag="${{ inputs.tag || github.ref_name }}"
+          tag="${RELEASE_TAG}"
           tag="${tag#refs/tags/}"
           if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "::error::releases must be from a clean vX.Y.Z tag (got ${tag})"

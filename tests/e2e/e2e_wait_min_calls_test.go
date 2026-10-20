@@ -20,19 +20,30 @@ func TestE2EWaitMinCallsAsync(t *testing.T) {
 	lm := newE2E(t)
 	session := lm.SessionID()
 
+	done := make(chan struct{})
 	go func() {
+		defer close(done)
 		time.Sleep(1500 * time.Millisecond)
 		chatBody := []byte(`{"model":` + strconv.Quote(model) + `,"messages":[{"role":"user","content":"Reply with the single word pong."}],"stream":true,"stream_options":{"include_usage":true},"temperature":0,"max_tokens":16}`)
-		status, _, _ := postOpenAIStatus(t, apiKey, lm, "/chat/completions", chatBody)
+		status, err := postOpenAIStatusErr(t, apiKey, lm, "/chat/completions", chatBody)
+		if err != nil {
+			t.Errorf("chat stream: %v", err)
+			return
+		}
 		if status != http.StatusOK {
 			t.Errorf("chat stream status=%d", status)
 		}
 		respBody := []byte(`{"model":` + strconv.Quote(model) + `,"input":"Reply with the single word pong.","stream":false,"temperature":0}`)
-		status, _, _ = postOpenAIStatus(t, apiKey, lm, "/responses", respBody)
+		status, err = postOpenAIStatusErr(t, apiKey, lm, "/responses", respBody)
+		if err != nil {
+			t.Errorf("responses: %v", err)
+			return
+		}
 		if status != http.StatusOK {
 			t.Errorf("responses status=%d", status)
 		}
 	}()
+	t.Cleanup(func() { <-done })
 
 	req, err := http.NewRequest(http.MethodGet, lm.ControlURL()+"/sessions/"+session+"/wait?min_calls=2&quiet=100ms&timeout=30s", nil)
 	if err != nil {

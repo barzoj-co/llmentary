@@ -355,7 +355,17 @@ func TestControlClientSendsBearerToken(t *testing.T) {
 	}
 
 	lm := tracetest.New(t, tracetest.WithControlURL(control.URL), tracetest.WithSessionControlToken("secret"), tracetest.WithWait(time.Millisecond, time.Second))
-	if _, err := lm.HTTPClient().Get(control.URL + "/sessions"); err != nil {
+	req, err := http.NewRequest(http.MethodGet, lm.ControlURL()+"/sessions", nil)
+	if err != nil {
 		t.Fatal(err)
+	}
+	req.Header.Set("Authorization", "Bearer secret")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("authorized GET /sessions status=%d", res.StatusCode)
 	}
 }

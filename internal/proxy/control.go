@@ -119,7 +119,7 @@ func (s *Server) serveSessionList(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) serveSession(w http.ResponseWriter, r *http.Request) {
-	rest := strings.TrimPrefix(r.URL.Path, "/sessions/")
+	rest := strings.TrimPrefix(r.URL.EscapedPath(), "/sessions/")
 	if rest == "" {
 		s.serveSessionList(w, r)
 		return
