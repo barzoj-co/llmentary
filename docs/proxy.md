@@ -9,6 +9,25 @@ The proxy does not translate request or response formats. It forwards the upstre
 request body, response body, and streaming bytes unchanged, while recording a tee copy for
 tests.
 
+## How it works
+
+```mermaid
+flowchart LR
+    T[Test] -->|"client session"| L["Session id"]
+    L -->|"X-Test-Session or baggage"| SDK["LLM SDK / app"]
+    SDK -->|"OpenAI-compatible HTTP"| P["llmentary proxy"]
+    P -->|"unchanged request body and auth"| U["Upstream provider"]
+    U -->|"unchanged response / SSE stream"| P
+    P --> S[("in-memory session store")]
+    P --> O[("in-memory OTLP spans")]
+    T -->|"GET /sessions/{id}/wait"| S
+    T --> A["Client assertions"]
+    T -->|"GET /sessions/{id}/otlp"| O
+```
+
+The proxy forwards the provider protocol unchanged. It records a tee copy, parses
+OpenAI-wire calls when it can, and leaves everything else as raw passthrough.
+
 ## CLI flags, environment, and config
 
 There is no config file format in the current code. Configuration comes from environment
@@ -101,7 +120,7 @@ Each call is stored in one session:
 3. If no tag is present, the call lands in the `default` session.
 
 The Go client in [llmentary-go](https://github.com/barzoj-co/llmentary-go)
-creates a random session id and can inject `X-Test-Session` through `lab.HTTPClient()`.
+creates a random session id and can inject `X-Test-Session` through `lm.HTTPClient()`.
 
 ## Header forwarding and stripping
 
@@ -357,3 +376,34 @@ Profiles:
 - `relaxed`: `strict` plus `api/openai/relax-overlay.yaml`. Overlay entries are live-verified.
 
 **D5 (reworded).** In `--spec-validation=off` and `warn` modes, a request body that does not decode into the generated type (malformed JSON, valid JSON with a field of unknown type, trailing data) is **not** answered by the proxy: it goes upstream byte-for-byte, the client gets the upstream response, and `parser_warnings` contains the reason; in `warn`, `spec_violations` also records it. In `enforce` mode, and only for requests, the proxy answers a local OpenAI-shaped 400 (`code: llmentary_spec_violation` or `llmentary_ignored_field`) **without calling the upstream** if there is at least one request-side spec violation or reject-class ignored field. Responses are never rejected or altered in any mode.
+
+## Features
+
+- Reverse proxy binary: `cmd/llmentary`.
+- Named upstreams, including `/u/{name}/...` routing and bare-path routing for a single
+  upstream or a `default` upstream.
+- OpenAI Chat Completions parser for streaming and non-streaming responses.
+- OpenAI Responses parser for streaming and non-streaming responses.
+- Azure OpenAI paths with dated `api-version` query strings, deployment extraction, and
+  `/openai/v1`-style OpenAI-compatible URLs.
+- OpenRouter/OpenAI-compatible stream tolerance, including keep-alive comments and final
+  usage chunks.
+- Raw passthrough recording for unrecognized APIs.
+- Per-test sessions via `X-Test-Session` or W3C baggage.
+- Control API for health, session fetch, wait-until-quiet, OTLP/JSON export, and delete.
+- Secret redaction in recorded headers and selected URL query parameters.
+- Clients (separate repos) with trace queries and assertions for tools, JSON args, retries,
+  errors, usage, response content, latency, and TTFT.
+- One in-memory OTel CLIENT span per proxied attempt, using stable HTTP attributes plus
+  pinned GenAI attributes.
+
+## Status and roadmap
+
+The session store and OTLP span store are in memory. Clients live in their own
+repos. Planned in later versions of the proxy:
+
+- Anthropic Messages parsing in v2.
+- External OTLP export and stricter content-capture controls.
+- Record/replay cassettes, fault injection, packaging polish, and local TLS.
+
+The current `--tls` flag is parsed by the CLI but is not wired to any TLS listener.

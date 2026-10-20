@@ -113,13 +113,13 @@ Document only behavior implemented in the current code. In particular:
   `go install github.com/barzoj-co/llmentary/cmd/llmentary@latest` ignores local
   replaces and must build the proxy without a nested client module.
 - CLI flags are in `cmd/llmentary/main.go`.
-- Environment variables and validation are in `internal/lab/config.go`.
-- Proxy routing and control endpoints are in `internal/lab/server.go`.
+- Environment variables and validation are in `internal/proxy/config.go`.
+- Proxy routing and control endpoints are in `internal/proxy/server.go`.
 - Session tagging, redaction, SSE parsing, retry parsing, and API family detection are in
-  `internal/lab/parse.go`.
-- Chat Completions parsing is in `internal/lab/parse_chat.go`.
-- Responses parsing is in `internal/lab/parse_responses.go`.
-- OTel attributes are in `internal/lab/otel.go` and `internal/semconv/genai`.
+  `internal/proxy/parse.go`.
+- Chat Completions parsing is in `internal/proxy/parse_chat.go`.
+- Responses parsing is in `internal/proxy/parse_responses.go`.
+- OTel attributes are in `internal/proxy/otel.go` and `internal/semconv/genai`.
 - Public client APIs live in the separate client repositories.
 
 Avoid documenting planned flags, endpoints, or APIs as if they already exist.
@@ -181,6 +181,8 @@ Keep changes focused. For docs, cross-link the relevant reference pages:
 - `docs/providers.md`
 - `docs/data-model.md`
 - `docs/otel.md`
+- `docs/binaries.md`
+- `docs/releasing.md`
 - `docs/ci.md`
 - `docs/troubleshooting.md`
 
@@ -235,10 +237,10 @@ bash scripts/e2e-gate.sh --self-test
 # release tag must be an ancestor of origin/main
 bash scripts/check-ref-on-main.sh --self-test
 
-# README badges and cross-link block
+# README badges, structure, and client API snippets
 bash scripts/check-readme.sh
 
-# README and SECURITY.md verify commands stay identical and fail-closed
+# docs/releasing.md and SECURITY.md verify commands stay identical and fail-closed
 bash scripts/check-release-verify.sh --self-test
 
 # mermaid diagrams (needs @mermaid-js/mermaid-cli@11.12.0)
@@ -250,11 +252,5 @@ every workflow file.
 
 ## Releasing
 
-Merging the release-please PR tags the next version and publishes GitHub
-Release notes. GoReleaser then attaches signed archives, checksums, and SBOMs
-to that existing release. Later versions come from conventional commits
-(`feat`, `fix`, and breaking changes).
-
-In an emergency, push an annotated tag `vX.Y.Z` to `main`'s commit. The
-`Release` workflow calls the same reusable GoReleaser job. Do not create a
-second changelog on the GitHub Release.
+See [docs/releasing.md](docs/releasing.md) for tags, GoReleaser, and provenance
+verification. Binary names and `go install` are in [docs/binaries.md](docs/binaries.md).

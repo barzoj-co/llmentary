@@ -12,17 +12,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/barzoj-co/llmentary/internal/lab"
+	"github.com/barzoj-co/llmentary/internal/proxy"
 )
 
-func assertCallCount(t testing.TB, calls []lab.Call, want int) {
+func assertCallCount(t testing.TB, calls []proxy.Call, want int) {
 	t.Helper()
 	if got := len(calls); got != want {
 		t.Fatalf("LLM call count mismatch: got %d, want %d", got, want)
 	}
 }
 
-func assertNoRetries(t testing.TB, calls []lab.Call) {
+func assertNoRetries(t testing.TB, calls []proxy.Call) {
 	t.Helper()
 	got := 0
 	for _, call := range calls {
@@ -35,12 +35,12 @@ func assertNoRetries(t testing.TB, calls []lab.Call) {
 	}
 }
 
-func assertToolCalled(t testing.TB, calls []lab.Call, name string) {
+func assertToolCalled(t testing.TB, calls []proxy.Call, name string) {
 	t.Helper()
 	assertToolCalledSubset(t, calls, name, nil)
 }
 
-func assertToolCalledSubset(t testing.TB, calls []lab.Call, name string, want map[string]any) {
+func assertToolCalledSubset(t testing.TB, calls []proxy.Call, name string, want map[string]any) {
 	t.Helper()
 	for _, call := range calls {
 		for _, tool := range call.Normalized.ToolCalls {
@@ -64,7 +64,7 @@ func assertToolCalledSubset(t testing.TB, calls []lab.Call, name string, want ma
 	t.Fatalf("expected tool %q to be called", name)
 }
 
-func assertToolResultFedBack(t testing.TB, calls []lab.Call, callID string) {
+func assertToolResultFedBack(t testing.TB, calls []proxy.Call, callID string) {
 	t.Helper()
 	for _, call := range calls {
 		for _, result := range call.Normalized.ToolResultsIn {
@@ -76,7 +76,7 @@ func assertToolResultFedBack(t testing.TB, calls []lab.Call, callID string) {
 	t.Fatalf("expected tool result for call id %q to be fed back", callID)
 }
 
-func assertFinishReason(t testing.TB, calls []lab.Call, reason string) {
+func assertFinishReason(t testing.TB, calls []proxy.Call, reason string) {
 	t.Helper()
 	for _, call := range calls {
 		if call.Normalized.FinishReason == reason || call.Normalized.NativeFinishReason == reason {
@@ -86,7 +86,7 @@ func assertFinishReason(t testing.TB, calls []lab.Call, reason string) {
 	t.Fatalf("expected finish reason %q", reason)
 }
 
-func assertResponseContains(t testing.TB, calls []lab.Call, substr string) {
+func assertResponseContains(t testing.TB, calls []proxy.Call, substr string) {
 	t.Helper()
 	for _, call := range calls {
 		if strings.Contains(call.Normalized.OutputText, substr) {
@@ -96,7 +96,7 @@ func assertResponseContains(t testing.TB, calls []lab.Call, substr string) {
 	t.Fatalf("expected response content to contain %q", substr)
 }
 
-func assertNoErrors(t testing.TB, calls []lab.Call) {
+func assertNoErrors(t testing.TB, calls []proxy.Call) {
 	t.Helper()
 	for _, call := range calls {
 		if call.Normalized.Error != nil {
@@ -105,7 +105,7 @@ func assertNoErrors(t testing.TB, calls []lab.Call) {
 	}
 }
 
-func assertHasError(t testing.TB, calls []lab.Call) {
+func assertHasError(t testing.TB, calls []proxy.Call) {
 	t.Helper()
 	for _, call := range calls {
 		if call.Normalized.Error != nil {
@@ -115,7 +115,7 @@ func assertHasError(t testing.TB, calls []lab.Call) {
 	t.Fatalf("expected at least one LLM error")
 }
 
-func assertTokensAtMost(t testing.TB, calls []lab.Call, maxTotal int) {
+func assertTokensAtMost(t testing.TB, calls []proxy.Call, maxTotal int) {
 	t.Helper()
 	total, known := 0, false
 	for _, call := range calls {
@@ -144,7 +144,7 @@ func assertTokensAtMost(t testing.TB, calls []lab.Call, maxTotal int) {
 	}
 }
 
-func assertLatencyBelow(t testing.TB, calls []lab.Call, d time.Duration) {
+func assertLatencyBelow(t testing.TB, calls []proxy.Call, d time.Duration) {
 	t.Helper()
 	for _, call := range calls {
 		if time.Duration(call.LatencyMS)*time.Millisecond >= d {
@@ -153,7 +153,7 @@ func assertLatencyBelow(t testing.TB, calls []lab.Call, d time.Duration) {
 	}
 }
 
-func assertTTFTBelow(t testing.TB, calls []lab.Call, d time.Duration) {
+func assertTTFTBelow(t testing.TB, calls []proxy.Call, d time.Duration) {
 	t.Helper()
 	for _, call := range calls {
 		if call.FirstByteAt == nil {
@@ -166,7 +166,7 @@ func assertTTFTBelow(t testing.TB, calls []lab.Call, d time.Duration) {
 	}
 }
 
-func assertResponseJSONSchemaValid(t testing.TB, calls []lab.Call, schema map[string]any) {
+func assertResponseJSONSchemaValid(t testing.TB, calls []proxy.Call, schema map[string]any) {
 	t.Helper()
 	for _, call := range calls {
 		var value any

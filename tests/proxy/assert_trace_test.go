@@ -10,17 +10,17 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/barzoj-co/llmentary/internal/lab"
+	"github.com/barzoj-co/llmentary/internal/proxy"
 )
 
-func assertCallCount(t testing.TB, calls []lab.Call, want int) {
+func assertCallCount(t testing.TB, calls []proxy.Call, want int) {
 	t.Helper()
 	if got := len(calls); got != want {
 		t.Fatalf("call count mismatch: got=%d want=%d", got, want)
 	}
 }
 
-func assertRetryCount(t testing.TB, calls []lab.Call, want int) {
+func assertRetryCount(t testing.TB, calls []proxy.Call, want int) {
 	t.Helper()
 	got := 0
 	for _, call := range calls {
@@ -33,7 +33,7 @@ func assertRetryCount(t testing.TB, calls []lab.Call, want int) {
 	}
 }
 
-func assertToolCalled(t testing.TB, calls []lab.Call, name string, wantArgs any) {
+func assertToolCalled(t testing.TB, calls []proxy.Call, name string, wantArgs any) {
 	t.Helper()
 	for _, call := range calls {
 		for _, toolCall := range call.Normalized.ToolCalls {
@@ -48,7 +48,7 @@ func assertToolCalled(t testing.TB, calls []lab.Call, name string, wantArgs any)
 	t.Fatalf("expected tool %q to be called with args %s; calls=%d", name, mustJSONString(wantArgs), len(calls))
 }
 
-func assertToolCalledSubset(t testing.TB, calls []lab.Call, name string, want map[string]any) {
+func assertToolCalledSubset(t testing.TB, calls []proxy.Call, name string, want map[string]any) {
 	t.Helper()
 	for _, call := range calls {
 		for _, tool := range call.Normalized.ToolCalls {
@@ -69,7 +69,7 @@ func assertToolCalledSubset(t testing.TB, calls []lab.Call, name string, want ma
 	t.Fatalf("expected tool %q to be called", name)
 }
 
-func assertToolCalledArgPath(t testing.TB, calls []lab.Call, name, path string, want any) {
+func assertToolCalledArgPath(t testing.TB, calls []proxy.Call, name, path string, want any) {
 	t.Helper()
 	for _, call := range calls {
 		for _, tool := range call.Normalized.ToolCalls {
@@ -89,7 +89,7 @@ func assertToolCalledArgPath(t testing.TB, calls []lab.Call, name, path string, 
 	t.Fatalf("expected tool %q to be called", name)
 }
 
-func assertToolNotCalled(t testing.TB, calls []lab.Call, name string) {
+func assertToolNotCalled(t testing.TB, calls []proxy.Call, name string) {
 	t.Helper()
 	for _, call := range calls {
 		for _, toolCall := range call.Normalized.ToolCalls {
@@ -100,7 +100,7 @@ func assertToolNotCalled(t testing.TB, calls []lab.Call, name string) {
 	}
 }
 
-func assertToolOrder(t testing.TB, calls []lab.Call, names ...string) {
+func assertToolOrder(t testing.TB, calls []proxy.Call, names ...string) {
 	t.Helper()
 	got := make([]string, 0)
 	for _, call := range calls {
@@ -113,7 +113,7 @@ func assertToolOrder(t testing.TB, calls []lab.Call, names ...string) {
 	}
 }
 
-func assertFinishReason(t testing.TB, calls []lab.Call, reason string) {
+func assertFinishReason(t testing.TB, calls []proxy.Call, reason string) {
 	t.Helper()
 	for _, call := range calls {
 		if call.Normalized.FinishReason == reason || call.Normalized.NativeFinishReason == reason {
@@ -123,17 +123,17 @@ func assertFinishReason(t testing.TB, calls []lab.Call, reason string) {
 	t.Fatalf("expected finish reason %q", reason)
 }
 
-func assertTokensBelow(t testing.TB, calls []lab.Call, maxTotal int) {
+func assertTokensBelow(t testing.TB, calls []proxy.Call, maxTotal int) {
 	t.Helper()
 	assertTokenBound(t, calls, maxTotal, true)
 }
 
-func assertTokensAtMost(t testing.TB, calls []lab.Call, maxTotal int) {
+func assertTokensAtMost(t testing.TB, calls []proxy.Call, maxTotal int) {
 	t.Helper()
 	assertTokenBound(t, calls, maxTotal, false)
 }
 
-func assertTokenBound(t testing.TB, calls []lab.Call, maxTotal int, strict bool) {
+func assertTokenBound(t testing.TB, calls []proxy.Call, maxTotal int, strict bool) {
 	t.Helper()
 	total, known := 0, false
 	for _, call := range calls {
@@ -165,7 +165,7 @@ func assertTokenBound(t testing.TB, calls []lab.Call, maxTotal int, strict bool)
 	}
 }
 
-func assertNoErrors(t testing.TB, calls []lab.Call) {
+func assertNoErrors(t testing.TB, calls []proxy.Call) {
 	t.Helper()
 	for _, call := range calls {
 		if call.Normalized.Error != nil {
@@ -174,7 +174,7 @@ func assertNoErrors(t testing.TB, calls []lab.Call) {
 	}
 }
 
-func assertHasError(t testing.TB, calls []lab.Call) {
+func assertHasError(t testing.TB, calls []proxy.Call) {
 	t.Helper()
 	for _, call := range calls {
 		if call.Normalized.Error != nil {
@@ -184,7 +184,7 @@ func assertHasError(t testing.TB, calls []lab.Call) {
 	t.Fatalf("expected at least one LLM error")
 }
 
-func assertMidStreamError(t testing.TB, calls []lab.Call) {
+func assertMidStreamError(t testing.TB, calls []proxy.Call) {
 	t.Helper()
 	for _, call := range calls {
 		if call.Normalized.Error != nil && call.Normalized.Error.MidStream {
@@ -194,7 +194,7 @@ func assertMidStreamError(t testing.TB, calls []lab.Call) {
 	t.Fatalf("expected an error inside an HTTP-200 stream")
 }
 
-func assertResponseJSONValid(t testing.TB, calls []lab.Call) {
+func assertResponseJSONValid(t testing.TB, calls []proxy.Call) {
 	t.Helper()
 	for _, call := range calls {
 		if json.Valid([]byte(call.Normalized.OutputText)) {
@@ -204,7 +204,7 @@ func assertResponseJSONValid(t testing.TB, calls []lab.Call) {
 	t.Fatalf("expected at least one response to contain valid JSON")
 }
 
-func assertResponseJSONSchemaValid(t testing.TB, calls []lab.Call, schema map[string]any) {
+func assertResponseJSONSchemaValid(t testing.TB, calls []proxy.Call, schema map[string]any) {
 	t.Helper()
 	for _, call := range calls {
 		var value any

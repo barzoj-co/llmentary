@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/barzoj-co/llmentary/internal/lab"
+	"github.com/barzoj-co/llmentary/internal/proxy"
 	"github.com/barzoj-co/llmentary/internal/schemalint"
 	"github.com/barzoj-co/llmentary/internal/specvalidate"
 )
@@ -387,7 +387,7 @@ func streamP95(t *testing.T, p proxyProc, body []byte) time.Duration {
 		t.Fatal(err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set(lab.SessionHeaderName, newSession())
+	req.Header.Set(proxy.SessionHeaderName, newSession())
 	client := &http.Client{Transport: &http.Transport{DisableCompression: true}}
 	res, err := client.Do(req)
 	if err != nil {

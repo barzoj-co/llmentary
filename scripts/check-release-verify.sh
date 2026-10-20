@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-only
-# README.md and SECURITY.md must share one fail-closed cosign verify block.
+# docs/releasing.md and SECURITY.md must share one fail-closed cosign verify block.
 set -euo pipefail
 
 usage() {
   cat <<'EOF'
 Usage: scripts/check-release-verify.sh [--self-test]
 
-Require README.md and SECURITY.md to document the same release-verify
+Require docs/releasing.md and SECURITY.md to document the same release-verify
 commands, including set -euo pipefail, the pinned Fulcio identity,
 --certificate-oidc-issuer, and --certificate-github-workflow-repository.
 
@@ -64,13 +64,13 @@ def extract(path: pathlib.Path) -> str | None:
     return None
 
 
-readme = pathlib.Path(sys.argv[1])
+release_doc = pathlib.Path(sys.argv[1])
 security = pathlib.Path(sys.argv[2])
 errors: list[str] = []
 try:
-    readme_block = extract(readme)
+    release_block = extract(release_doc)
 except OSError as exc:
-    print(f"{readme}:1: cannot read: {exc}", file=sys.stderr)
+    print(f"{release_doc}:1: cannot read: {exc}", file=sys.stderr)
     sys.exit(1)
 try:
     security_block = extract(security)
@@ -78,14 +78,14 @@ except OSError as exc:
     print(f"{security}:1: cannot read: {exc}", file=sys.stderr)
     sys.exit(1)
 
-if readme_block is None:
-    errors.append(f"{readme}:1: missing bash verify block with cosign verify-blob")
+if release_block is None:
+    errors.append(f"{release_doc}:1: missing bash verify block with cosign verify-blob")
 if security_block is None:
     errors.append(f"{security}:1: missing bash verify block with cosign verify-blob")
-if readme_block is not None and security_block is not None and readme_block != security_block:
-    errors.append(f"{readme}:1: verify block differs from {security}")
+if release_block is not None and security_block is not None and release_block != security_block:
+    errors.append(f"{release_doc}:1: verify block differs from {security}")
 
-for path, block in ((readme, readme_block), (security, security_block)):
+for path, block in ((release_doc, release_block), (security, security_block)):
     if block is None:
         continue
     for req in REQUIRED:
@@ -97,16 +97,16 @@ if errors:
     for err in errors:
         print(err, file=sys.stderr)
     sys.exit(1)
-print(f"check-release-verify: {readme} and {security} match")
+print(f"check-release-verify: {release_doc} and {security} match")
 PY
 }
 
 if [[ "$SELF_TEST" -eq 0 ]]; then
-  scan_pair README.md SECURITY.md
+  scan_pair docs/releasing.md SECURITY.md
   exit 0
 fi
 
-scan_pair README.md SECURITY.md
+scan_pair docs/releasing.md SECURITY.md
 
 good_dir="scripts/testdata/release-verify/good"
 if [[ ! -f "${good_dir}/README.md" || ! -f "${good_dir}/SECURITY.md" ]]; then

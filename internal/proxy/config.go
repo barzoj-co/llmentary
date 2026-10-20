@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-package lab
+// Package proxy implements the llmentary recording reverse proxy, control API,
+// and OpenAI-wire parsers.
+package proxy
 
 import (
 	"fmt"

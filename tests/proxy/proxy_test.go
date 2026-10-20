@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/barzoj-co/llmentary/internal/lab"
+	"github.com/barzoj-co/llmentary/internal/proxy"
 	"github.com/barzoj-co/llmentary/internal/tracetest"
 )
 
@@ -44,7 +44,7 @@ func TestProxyPassesStreamUnchangedAndRecordsToolCall(t *testing.T) {
 	}))
 	defer upstream.Close()
 
-	cfg, err := lab.ConfigFromEnv()
+	cfg, err := proxy.ConfigFromEnv()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,13 +52,13 @@ func TestProxyPassesStreamUnchangedAndRecordsToolCall(t *testing.T) {
 	if err := cfg.AddUpstream("openai=" + upstream.URL); err != nil {
 		t.Fatal(err)
 	}
-	store := lab.NewMemoryStore()
-	server, err := lab.NewServer(cfg, store, lab.TolerantParser{})
+	store := proxy.NewMemoryStore()
+	server, err := proxy.NewServer(cfg, store, proxy.TolerantParser{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	proxy := httptest.NewServer(server.ProxyHandler())
-	defer proxy.Close()
+	proxySrv := httptest.NewServer(server.ProxyHandler())
+	defer proxySrv.Close()
 	control := httptest.NewServer(server.ControlHandler())
 	defer control.Close()
 	client, err := tracetest.NewClient(control.URL)
@@ -68,7 +68,7 @@ func TestProxyPassesStreamUnchangedAndRecordsToolCall(t *testing.T) {
 	sessionID := client.NewSession()
 
 	reqBody := []byte(`{"model":"gpt-test","messages":[{"role":"user","content":"hi"}],"stream":true,"tools":[{"type":"function","function":{"name":"lookup","parameters":{"type":"object"}}}]}`)
-	req, err := http.NewRequest(http.MethodPost, proxy.URL+"/u/openai/v1/chat/completions", bytes.NewReader(reqBody))
+	req, err := http.NewRequest(http.MethodPost, proxySrv.URL+"/u/openai/v1/chat/completions", bytes.NewReader(reqBody))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -273,16 +273,16 @@ func TestGzipSSEIsDecompressedForParsing(t *testing.T) {
 	}))
 	defer upstream.Close()
 
-	cfg := lab.Config{ListenAddr: ":0", ControlAddr: "127.0.0.1:0"}
+	cfg := proxy.Config{ListenAddr: ":0", ControlAddr: "127.0.0.1:0"}
 	if err := cfg.AddUpstream("default=" + upstream.URL); err != nil {
 		t.Fatal(err)
 	}
-	server, err := lab.NewServer(cfg, lab.NewMemoryStore(), lab.TolerantParser{})
+	server, err := proxy.NewServer(cfg, proxy.NewMemoryStore(), proxy.TolerantParser{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	proxy := httptest.NewServer(server.ProxyHandler())
-	defer proxy.Close()
+	proxySrv := httptest.NewServer(server.ProxyHandler())
+	defer proxySrv.Close()
 	control := httptest.NewServer(server.ControlHandler())
 	defer control.Close()
 	client, err := tracetest.NewClient(control.URL)
@@ -290,7 +290,7 @@ func TestGzipSSEIsDecompressedForParsing(t *testing.T) {
 		t.Fatal(err)
 	}
 	sessionID := client.NewSession()
-	req, err := http.NewRequest(http.MethodPost, proxy.URL+"/v1/chat/completions", bytes.NewReader([]byte(`{"model":"gpt-test","stream":true}`)))
+	req, err := http.NewRequest(http.MethodPost, proxySrv.URL+"/v1/chat/completions", bytes.NewReader([]byte(`{"model":"gpt-test","stream":true}`)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -312,7 +312,7 @@ func TestGzipSSEIsDecompressedForParsing(t *testing.T) {
 }
 
 func TestControlNonLoopbackRequiresToken(t *testing.T) {
-	cfg := lab.Config{ListenAddr: ":0", ControlAddr: "0.0.0.0:7778"}
+	cfg := proxy.Config{ListenAddr: ":0", ControlAddr: "0.0.0.0:7778"}
 	if err := cfg.AddUpstream("default=http://example.test"); err != nil {
 		t.Fatal(err)
 	}
@@ -326,11 +326,11 @@ func TestControlNonLoopbackRequiresToken(t *testing.T) {
 }
 
 func TestControlClientSendsBearerToken(t *testing.T) {
-	cfg := lab.Config{ListenAddr: ":0", ControlAddr: "127.0.0.1:0", ControlToken: "secret"}
+	cfg := proxy.Config{ListenAddr: ":0", ControlAddr: "127.0.0.1:0", ControlToken: "secret"}
 	if err := cfg.AddUpstream("default=http://example.test"); err != nil {
 		t.Fatal(err)
 	}
-	server, err := lab.NewServer(cfg, lab.NewMemoryStore(), lab.TolerantParser{})
+	server, err := proxy.NewServer(cfg, proxy.NewMemoryStore(), proxy.TolerantParser{})
 	if err != nil {
 		t.Fatal(err)
 	}

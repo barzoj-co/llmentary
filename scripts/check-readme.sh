@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-only
-# Require README badge URLs and the canonical cross-repo block.
+# Require README badge URLs, user-facing structure, and client API snippets.
 set -euo pipefail
 
 root="$(git rev-parse --show-toplevel)"
@@ -46,18 +46,92 @@ cat >"$canonical" <<'EOF'
 <!-- ltl-repos:end -->
 EOF
 
-if ! python3 - "$readme" "$canonical" <<'PY'; then
+if ! python3 - "$readme" "$canonical" "${root}" <<'PY'; then
 import pathlib
+import re
 import sys
-readme = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+
+readme_path = pathlib.Path(sys.argv[1])
 block = pathlib.Path(sys.argv[2]).read_text(encoding="utf-8")
-sys.exit(0 if block in readme else 1)
+root = pathlib.Path(sys.argv[3])
+readme = readme_path.read_text(encoding="utf-8")
+failed = False
+
+if block not in readme:
+    print("README.md is missing the canonical ltl-repos cross-link block", file=sys.stderr)
+    failed = True
+
+headings = [line.strip() for line in readme.splitlines() if re.match(r"^#{1,6} ", line)]
+want = [
+    "# llmentary",
+    "## Install",
+    "## Quickstart",
+    "## Assertions",
+    "## Documentation",
+    "## llmentary repositories",
+    "## License",
+]
+if headings != want:
+    print("README.md headings must be exactly:", file=sys.stderr)
+    for h in want:
+        print(f"  {h}", file=sys.stderr)
+    print("got:", file=sys.stderr)
+    for h in headings:
+        print(f"  {h}", file=sys.stderr)
+    failed = True
+
+required_snippets = (
+    "lm := llmentary.New(t)",
+    'import { llmentary } from "llmentary/vitest"',
+    'const { llmentary } = require("llmentary/jest")',
+    "def test_weather(llmentary):",
+    "const lm = llmentary()",
+)
+for snippet in required_snippets:
+    if snippet not in readme:
+        print(f"README.md is missing client API snippet: {snippet}", file=sys.stderr)
+        failed = True
+
+forbidden_readme = (
+    "llm-test-lab",
+    "Renamed from",
+    "lab :=",
+    "LLMTESTLAB",
+    "cosign verify-blob",
+    "CI secrets",
+    "private repo",
+    "private repositories",
+)
+for needle in forbidden_readme:
+    if needle in readme:
+        print(f"README.md must not contain {needle!r}", file=sys.stderr)
+        failed = True
+
+# Docs/examples must use lm, not leftover lab client naming.
+lab_assign = re.compile(r"\blab\s*:=")
+lab_recv = re.compile(r"\blab\.(Expect|HTTPClient|OpenAIBaseURL|Header|Wait|Check|New)\b")
+legacy = re.compile(r"llm-test-lab|WithLabControlToken|test-lab|\btestlab\b", re.I)
+skip_parts = {"CHANGELOG.md", "testdata"}
+for path in sorted(root.rglob("*.md")):
+    rel = path.relative_to(root).as_posix()
+    if any(part in skip_parts or part == "testdata" for part in path.relative_to(root).parts):
+        continue
+    if rel == "CHANGELOG.md":
+        continue
+    text = path.read_text(encoding="utf-8")
+    for i, line in enumerate(text.splitlines(), 1):
+        if "internal/proxy" in line:
+            continue
+        if lab_assign.search(line) or lab_recv.search(line) or legacy.search(line):
+            print(f"{rel}:{i}: leftover lab/testlab naming: {line.strip()}", file=sys.stderr)
+            failed = True
+
+sys.exit(1 if failed else 0)
 PY
-  echo "README.md is missing the canonical ltl-repos cross-link block" >&2
   failed=1
 fi
 
 if [[ "$failed" -ne 0 ]]; then
   exit 1
 fi
-echo "check-readme: badges and cross-link block ok"
+echo "check-readme: badges, structure, and client API snippets ok"

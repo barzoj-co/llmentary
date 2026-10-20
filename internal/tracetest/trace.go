@@ -6,16 +6,16 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/barzoj-co/llmentary/internal/lab"
+	"github.com/barzoj-co/llmentary/internal/proxy"
 )
 
 type Trace struct {
 	SessionID string
-	Calls     []lab.Call
+	Calls     []proxy.Call
 }
 
 func (tr Trace) Query() Query {
-	return Query{trace: tr, calls: append([]lab.Call(nil), tr.Calls...)}
+	return Query{trace: tr, calls: append([]proxy.Call(nil), tr.Calls...)}
 }
 
 func (tr Trace) Summary() string {
@@ -43,23 +43,23 @@ func (tr Trace) Summary() string {
 
 type Query struct {
 	trace Trace
-	calls []lab.Call
+	calls []proxy.Call
 }
 
-func (q Query) Calls() []lab.Call { return append([]lab.Call(nil), q.calls...) }
+func (q Query) Calls() []proxy.Call { return append([]proxy.Call(nil), q.calls...) }
 
 func (q Query) Trace() Trace {
 	return Trace{SessionID: q.trace.SessionID, Calls: q.Calls()}
 }
 
 func (q Query) APIType(apiType string) Query {
-	return q.keep(func(c lab.Call) bool {
+	return q.keep(func(c proxy.Call) bool {
 		return c.APIFamily == apiType || strings.TrimPrefix(c.APIFamily, "openai.") == apiType
 	})
 }
 
-func (q Query) keep(fn func(lab.Call) bool) Query {
-	out := make([]lab.Call, 0, len(q.calls))
+func (q Query) keep(fn func(proxy.Call) bool) Query {
+	out := make([]proxy.Call, 0, len(q.calls))
 	for _, call := range q.calls {
 		if fn(call) {
 			out = append(out, call)

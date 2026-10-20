@@ -16,7 +16,7 @@ const (
 	defaultControlURL = "http://127.0.0.1:7778"
 )
 
-type Lab struct {
+type Llmentary struct {
 	t          testing.TB
 	client     *Client
 	sessionID  string
@@ -26,20 +26,19 @@ type Lab struct {
 	httpClient *http.Client
 }
 
-type LabOption func(*labConfig)
+type Option func(*sessionConfig)
 
-type labConfig struct {
-	controlURL   string
-	proxyURL     string
-	controlToken string
-	httpClient   *http.Client
-	quiet        time.Duration
-	timeout      time.Duration
+type sessionConfig struct {
+	controlURL string
+	proxyURL   string
+	httpClient *http.Client
+	quiet      time.Duration
+	timeout    time.Duration
 }
 
-func New(t testing.TB, opts ...LabOption) *Lab {
+func New(t testing.TB, opts ...Option) *Llmentary {
 	t.Helper()
-	cfg := labConfig{
+	cfg := sessionConfig{
 		controlURL: getenvDefault("LLMENTARY_CONTROL_URL", defaultControlURL),
 		proxyURL:   getenvDefault("LLMENTARY_PROXY_URL", defaultProxyURL),
 		quiet:      500 * time.Millisecond,
@@ -52,14 +51,11 @@ func New(t testing.TB, opts ...LabOption) *Lab {
 	if cfg.httpClient != nil {
 		clientOpts = append(clientOpts, WithHTTPClient(cfg.httpClient))
 	}
-	if cfg.controlToken != "" {
-		clientOpts = append(clientOpts, WithControlToken(cfg.controlToken))
-	}
 	client, err := NewClient(cfg.controlURL, clientOpts...)
 	if err != nil {
 		t.Fatalf("tracetest: create client: %v", err)
 	}
-	session := &Lab{
+	session := &Llmentary{
 		t:          t,
 		client:     client,
 		sessionID:  client.NewSession(),
@@ -76,30 +72,26 @@ func New(t testing.TB, opts ...LabOption) *Lab {
 	return session
 }
 
-func WithControlURL(rawURL string) LabOption {
-	return func(c *labConfig) { c.controlURL = rawURL }
+func WithControlURL(rawURL string) Option {
+	return func(c *sessionConfig) { c.controlURL = rawURL }
 }
 
-func WithProxyURL(rawURL string) LabOption {
-	return func(c *labConfig) { c.proxyURL = rawURL }
+func WithProxyURL(rawURL string) Option {
+	return func(c *sessionConfig) { c.proxyURL = rawURL }
 }
 
-func WithLabControlToken(token string) LabOption {
-	return func(c *labConfig) { c.controlToken = token }
-}
-
-func WithWait(quiet, timeout time.Duration) LabOption {
-	return func(c *labConfig) {
+func WithWait(quiet, timeout time.Duration) Option {
+	return func(c *sessionConfig) {
 		c.quiet = quiet
 		c.timeout = timeout
 	}
 }
 
-func (l *Lab) SessionID() string { return l.sessionID }
+func (l *Llmentary) SessionID() string { return l.sessionID }
 
-func (l *Lab) Header() (string, string) { return Header(l.sessionID) }
+func (l *Llmentary) Header() (string, string) { return Header(l.sessionID) }
 
-func (l *Lab) HTTPClient() *http.Client {
+func (l *Llmentary) HTTPClient() *http.Client {
 	client := http.Client{}
 	if l.httpClient != nil {
 		client = *l.httpClient
@@ -124,18 +116,18 @@ func (t sessionTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return t.base.RoundTrip(clone)
 }
 
-func (l *Lab) BaseURL(upstream string) string {
+func (l *Llmentary) BaseURL(upstream string) string {
 	if upstream == "" {
 		return l.proxyURL
 	}
 	return l.proxyURL + "/u/" + strings.Trim(upstream, "/")
 }
 
-func (l *Lab) OpenAIBaseURL(upstream string) string {
+func (l *Llmentary) OpenAIBaseURL(upstream string) string {
 	return l.BaseURL(upstream)
 }
 
-func (l *Lab) Wait(ctx context.Context) Trace {
+func (l *Llmentary) Wait(ctx context.Context) Trace {
 	l.t.Helper()
 	calls, err := l.client.Wait(ctx, l.sessionID, l.quiet, l.timeout)
 	if err != nil {
@@ -144,7 +136,7 @@ func (l *Lab) Wait(ctx context.Context) Trace {
 	return Trace{SessionID: l.sessionID, Calls: calls}
 }
 
-func (l *Lab) Calls(ctx context.Context) Trace {
+func (l *Llmentary) Calls(ctx context.Context) Trace {
 	l.t.Helper()
 	calls, err := l.client.Calls(ctx, l.sessionID)
 	if err != nil {

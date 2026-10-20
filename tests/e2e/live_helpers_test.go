@@ -19,7 +19,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/barzoj-co/llmentary/internal/lab"
+	"github.com/barzoj-co/llmentary/internal/proxy"
 )
 
 const liveRequestCap = 120
@@ -32,9 +32,9 @@ func checkLiveCost(used, cap int64) string {
 }
 
 func TestMain(m *testing.M) {
-	before := lab.UpstreamCallCount.Load()
+	before := proxy.UpstreamCallCount.Load()
 	code := m.Run()
-	used := lab.UpstreamCallCount.Load() - before
+	used := proxy.UpstreamCallCount.Load() - before
 	fmt.Fprintf(os.Stderr, "K2 live cost: upstream calls=%d cap=%d\n", used, liveRequestCap)
 	if msg := checkLiveCost(used, int64(liveRequestCap)); msg != "" {
 		fmt.Fprintln(os.Stderr, msg)
@@ -50,7 +50,7 @@ type liveProxy struct {
 
 func startLiveProxy(t *testing.T, mode, profile string) liveProxy {
 	t.Helper()
-	cfg := lab.Config{
+	cfg := proxy.Config{
 		ListenAddr:     ":0",
 		ControlAddr:    "127.0.0.1:0",
 		SpecValidation: mode,
@@ -59,15 +59,15 @@ func startLiveProxy(t *testing.T, mode, profile string) liveProxy {
 	if err := cfg.AddUpstream("openai=https://api.openai.com/v1"); err != nil {
 		t.Fatal(err)
 	}
-	server, err := lab.NewServer(cfg, lab.NewMemoryStore(), lab.TolerantParser{})
+	server, err := proxy.NewServer(cfg, proxy.NewMemoryStore(), proxy.TolerantParser{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	proxy := httptest.NewServer(server.ProxyHandler())
-	t.Cleanup(proxy.Close)
+	proxySrv := httptest.NewServer(server.ProxyHandler())
+	t.Cleanup(proxySrv.Close)
 	control := httptest.NewServer(server.ControlHandler())
 	t.Cleanup(control.Close)
-	return liveProxy{proxyURL: proxy.URL, controlURL: control.URL}
+	return liveProxy{proxyURL: proxySrv.URL, controlURL: control.URL}
 }
 
 var liveSessionSeq atomic.Int64
@@ -91,7 +91,7 @@ func postLive(t *testing.T, apiKey string, p liveProxy, path, session string, bo
 	}
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set(lab.SessionHeaderName, session)
+	req.Header.Set(proxy.SessionHeaderName, session)
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
