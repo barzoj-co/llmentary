@@ -277,7 +277,8 @@ func warnViolationMessage(v specvalidate.Violation) string {
 	switch v.Keyword {
 	case "format":
 		return "format validation failed"
-	case "pattern", "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf":
+	case "pattern", "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf",
+		"enum", "minLength", "maxLength", "minItems", "maxItems":
 		return "schema validation failed"
 	default:
 		return v.Message
