@@ -3,7 +3,9 @@ module github.com/barzoj-co/llmentary
 go 1.26.0
 
 require (
+	github.com/andybalholm/brotli v1.2.6
 	github.com/dlclark/regexp2 v1.12.0
+	github.com/klauspost/compress v1.20.3
 	github.com/oapi-codegen/runtime v1.3.0
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
 	go.opentelemetry.io/otel v1.47.0

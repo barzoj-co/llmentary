@@ -1124,7 +1124,8 @@ func TestE6GzipRawBytes(t *testing.T) {
 
 func TestE7PassthroughNonSpecPaths(t *testing.T) {
 	req := []byte(`{"input":"x"}`)
-	for _, path := range []string{"/v1/models", "/v1/embeddings", "/v1/responses/resp_123", "/foo"} {
+	// /foo is no longer forwarded: unknown first segments are a local 404 (DOG-1 leak guard).
+	for _, path := range []string{"/v1/models", "/v1/embeddings", "/v1/responses/resp_123"} {
 		method := http.MethodPost
 		if path == "/v1/models" || strings.HasPrefix(path, "/v1/responses/") {
 			method = http.MethodGet
@@ -1144,6 +1145,30 @@ func TestE7PassthroughNonSpecPaths(t *testing.T) {
 		}
 		assertByteEqual(t, rt.body, []byte(`{"ok":true}`))
 	}
+	t.Run("unknown_prefix_foo", func(t *testing.T) {
+		hits := 0
+		proxyURL, _, _ := startAcceptance(t, func(http.ResponseWriter, *http.Request) {
+			hits++
+		})
+		res, err := http.Post(proxyURL+"/foo", "application/json", bytes.NewReader(req))
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, err := io.ReadAll(res.Body)
+		_ = res.Body.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.StatusCode != http.StatusNotFound {
+			t.Fatalf("status=%d body=%s", res.StatusCode, body)
+		}
+		if !bytes.Contains(body, []byte(`"llmentary_unknown_path"`)) {
+			t.Fatalf("body=%s", body)
+		}
+		if hits != 0 {
+			t.Fatalf("unknown prefix leaked to upstream (%d hits)", hits)
+		}
+	})
 }
 
 func TestE8OffSpecCompatibleProvider(t *testing.T) {

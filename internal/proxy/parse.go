@@ -5,12 +5,10 @@ package proxy
 import (
 	"bufio"
 	"bytes"
-	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"path"
@@ -195,22 +193,6 @@ func extractAPIVersionAndDeployment(u *url.URL) (string, string) {
 		}
 	}
 	return apiVersion, ""
-}
-
-func decompressIfNeeded(body []byte, headers map[string][]string) []byte {
-	if len(body) == 0 || !headerHas(headers, "Content-Encoding", "gzip") {
-		return body
-	}
-	reader, err := gzip.NewReader(bytes.NewReader(body))
-	if err != nil {
-		return body
-	}
-	defer func() { _ = reader.Close() }()
-	plain, err := io.ReadAll(reader)
-	if err != nil {
-		return body
-	}
-	return plain
 }
 
 func headerHas(headers map[string][]string, name, value string) bool {

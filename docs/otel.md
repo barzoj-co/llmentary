@@ -37,11 +37,14 @@ trace/span ID fields normalized to OTLP/JSON hex strings.
 - Parent: incoming W3C `traceparent`, if present.
 - Sampling: always record spans, including when the incoming `traceparent` has sampled flag
   `00`.
-- Outbound propagation: the proxy injects a `traceparent` for its CLIENT span into the
-  upstream request.
+- Outbound propagation: default `--propagate-trace=off` forwards the client's
+  `traceparent` unchanged and injects none. `--propagate-trace=auto` injects a
+  `traceparent` for the proxy CLIENT span into the upstream request.
 - Session:
-  - `X-Test-Session` wins and is stripped before forwarding.
-  - Otherwise baggage key `llmentary.session.id` is used.
+  - `--session-from` default `header,baggage,path,default`.
+  - `X-Test-Session` wins (when `header` is enabled) and is stripped before forwarding.
+  - Otherwise baggage key `llmentary.session.id` is used (when `baggage` is enabled).
+  - `/s/{session}/` is a path source (when `path` is enabled) and is stripped before forwarding.
   - All `llmentary.*` baggage members are stripped before forwarding; other baggage is
     preserved.
 

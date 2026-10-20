@@ -23,7 +23,8 @@ const (
 	DefaultUpstreamURL            = "https://api.openai.com/v1"
 	DefaultUpstreamSpec           = DefaultUpstreamName + "=" + DefaultUpstreamURL
 	// DefaultUpstreamLog is the startup line written when no --upstream / env mapping is set.
-	DefaultUpstreamLog = "no upstream configured; defaulting to openai=https://api.openai.com/v1"
+	DefaultUpstreamLog    = "no upstream configured; defaulting to openai=https://api.openai.com/v1"
+	DefaultPropagateTrace = PropagateTraceOff
 )
 
 type Config struct {
@@ -37,7 +38,11 @@ type Config struct {
 	SpecValidationMaxBytes int
 	// SpecLogMax is the number of per-finding WARN lines after the summary.
 	// nil means DefaultSpecLogMax. 0 means the summary line only.
-	SpecLogMax *int
+	SpecLogMax        *int
+	SessionFrom       []string
+	DefaultSession    string
+	AllowPathPrefixes []string
+	PropagateTrace    string
 }
 
 func ConfigFromEnv() (Config, error) {
@@ -49,6 +54,18 @@ func ConfigFromEnv() (Config, error) {
 		SpecValidation:         getenv("LLMENTARY_SPEC_VALIDATION", DefaultSpecValidation),
 		SpecProfile:            getenv("LLMENTARY_SPEC_PROFILE", DefaultSpecProfile),
 		SpecValidationMaxBytes: DefaultSpecValidationMaxBytes,
+		DefaultSession:         getenv("LLMENTARY_DEFAULT_SESSION", DefaultSessionID),
+		PropagateTrace:         getenv("LLMENTARY_PROPAGATE_TRACE", DefaultPropagateTrace),
+	}
+	if raw := strings.TrimSpace(os.Getenv("LLMENTARY_SESSION_FROM")); raw != "" {
+		sources, err := ParseSessionFrom(raw)
+		if err != nil {
+			return cfg, err
+		}
+		cfg.SessionFrom = sources
+	}
+	if raw := strings.TrimSpace(os.Getenv("LLMENTARY_ALLOW_PATH_PREFIXES")); raw != "" {
+		cfg.AllowPathPrefixes = ParseAllowPathPrefixes(raw)
 	}
 	if raw := strings.TrimSpace(os.Getenv("LLMENTARY_SPEC_VALIDATION_MAX_BYTES")); raw != "" {
 		n, err := strconv.Atoi(raw)
@@ -137,6 +154,38 @@ func (c *Config) Validate() error {
 	}
 	if err := validateSpecSettings(orDefault(c.SpecValidation, DefaultSpecValidation), orDefault(c.SpecProfile, DefaultSpecProfile), c.SpecValidationMaxBytes, specLogMaxValue(*c)); err != nil {
 		return err
+	}
+	if err := c.applyAttributionDefaults(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Config) applyAttributionDefaults() error {
+	if len(c.SessionFrom) == 0 {
+		sources, err := ParseSessionFrom(DefaultSessionFrom)
+		if err != nil {
+			return err
+		}
+		c.SessionFrom = sources
+	} else {
+		if _, err := ParseSessionFrom(strings.Join(c.SessionFrom, ",")); err != nil {
+			return err
+		}
+	}
+	if strings.TrimSpace(c.DefaultSession) == "" {
+		c.DefaultSession = DefaultSessionID
+	}
+	if err := validateSessionID(c.DefaultSession); err != nil {
+		return fmt.Errorf("--default-session=%q is invalid: %v (env LLMENTARY_DEFAULT_SESSION)", c.DefaultSession, err)
+	}
+	if strings.TrimSpace(c.PropagateTrace) == "" {
+		c.PropagateTrace = DefaultPropagateTrace
+	}
+	switch c.PropagateTrace {
+	case PropagateTraceOff, PropagateTraceAuto:
+	default:
+		return fmt.Errorf("--propagate-trace=%q is invalid; allowed values: off, auto (env LLMENTARY_PROPAGATE_TRACE)", c.PropagateTrace)
 	}
 	return nil
 }

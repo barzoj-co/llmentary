@@ -4,7 +4,6 @@ package proxy
 
 import (
 	"net/url"
-	"strings"
 	"testing"
 )
 
@@ -154,31 +153,4 @@ func TestOverlapJoinTable(t *testing.T) {
 			}
 		})
 	}
-}
-
-func stripRoutingPrefixes(p string) string {
-	clean := "/" + strings.TrimLeft(p, "/")
-	for {
-		next, ok := stripOneRoutingPrefix(clean)
-		if !ok {
-			return clean
-		}
-		clean = next
-	}
-}
-
-func stripOneRoutingPrefix(p string) (string, bool) {
-	p = "/" + strings.TrimLeft(p, "/")
-	for _, prefix := range []string{"/u/", "/s/"} {
-		if !strings.HasPrefix(p, prefix) {
-			continue
-		}
-		rest := strings.TrimLeft(p[len(prefix):], "/")
-		_, after, ok := strings.Cut(rest, "/")
-		if !ok {
-			return "/", true
-		}
-		return "/" + after, true
-	}
-	return p, false
 }
