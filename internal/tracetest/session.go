@@ -16,7 +16,8 @@ const (
 	defaultControlURL = "http://127.0.0.1:7778"
 )
 
-type Llmentary struct {
+// Session is the per-test handle that tags requests and waits on the recorded trace.
+type Session struct {
 	t          testing.TB
 	client     *Client
 	sessionID  string
@@ -36,7 +37,7 @@ type sessionConfig struct {
 	timeout    time.Duration
 }
 
-func New(t testing.TB, opts ...Option) *Llmentary {
+func New(t testing.TB, opts ...Option) *Session {
 	t.Helper()
 	cfg := sessionConfig{
 		controlURL: getenvDefault("LLMENTARY_CONTROL_URL", defaultControlURL),
@@ -55,7 +56,7 @@ func New(t testing.TB, opts ...Option) *Llmentary {
 	if err != nil {
 		t.Fatalf("tracetest: create client: %v", err)
 	}
-	session := &Llmentary{
+	session := &Session{
 		t:          t,
 		client:     client,
 		sessionID:  client.NewSession(),
@@ -87,20 +88,20 @@ func WithWait(quiet, timeout time.Duration) Option {
 	}
 }
 
-func (l *Llmentary) SessionID() string { return l.sessionID }
+func (s *Session) SessionID() string { return s.sessionID }
 
-func (l *Llmentary) Header() (string, string) { return Header(l.sessionID) }
+func (s *Session) Header() (string, string) { return Header(s.sessionID) }
 
-func (l *Llmentary) HTTPClient() *http.Client {
+func (s *Session) HTTPClient() *http.Client {
 	client := http.Client{}
-	if l.httpClient != nil {
-		client = *l.httpClient
+	if s.httpClient != nil {
+		client = *s.httpClient
 	}
 	transport := http.DefaultTransport
 	if client.Transport != nil {
 		transport = client.Transport
 	}
-	client.Transport = sessionTransport{sessionID: l.sessionID, base: transport}
+	client.Transport = sessionTransport{sessionID: s.sessionID, base: transport}
 	return &client
 }
 
@@ -116,33 +117,33 @@ func (t sessionTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return t.base.RoundTrip(clone)
 }
 
-func (l *Llmentary) BaseURL(upstream string) string {
+func (s *Session) BaseURL(upstream string) string {
 	if upstream == "" {
-		return l.proxyURL
+		return s.proxyURL
 	}
-	return l.proxyURL + "/u/" + strings.Trim(upstream, "/")
+	return s.proxyURL + "/u/" + strings.Trim(upstream, "/")
 }
 
-func (l *Llmentary) OpenAIBaseURL(upstream string) string {
-	return l.BaseURL(upstream)
+func (s *Session) OpenAIBaseURL(upstream string) string {
+	return s.BaseURL(upstream)
 }
 
-func (l *Llmentary) Wait(ctx context.Context) Trace {
-	l.t.Helper()
-	calls, err := l.client.Wait(ctx, l.sessionID, l.quiet, l.timeout)
+func (s *Session) Wait(ctx context.Context) Trace {
+	s.t.Helper()
+	calls, err := s.client.Wait(ctx, s.sessionID, s.quiet, s.timeout)
 	if err != nil {
-		l.t.Fatalf("tracetest: wait for session %s: %v", l.sessionID, err)
+		s.t.Fatalf("tracetest: wait for session %s: %v", s.sessionID, err)
 	}
-	return Trace{SessionID: l.sessionID, Calls: calls}
+	return Trace{SessionID: s.sessionID, Calls: calls}
 }
 
-func (l *Llmentary) Calls(ctx context.Context) Trace {
-	l.t.Helper()
-	calls, err := l.client.Calls(ctx, l.sessionID)
+func (s *Session) Calls(ctx context.Context) Trace {
+	s.t.Helper()
+	calls, err := s.client.Calls(ctx, s.sessionID)
 	if err != nil {
-		l.t.Fatalf("tracetest: fetch session %s: %v", l.sessionID, err)
+		s.t.Fatalf("tracetest: fetch session %s: %v", s.sessionID, err)
 	}
-	return Trace{SessionID: l.sessionID, Calls: calls}
+	return Trace{SessionID: s.sessionID, Calls: calls}
 }
 
 func getenvDefault(key, fallback string) string {

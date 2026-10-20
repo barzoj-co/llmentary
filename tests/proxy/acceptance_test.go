@@ -39,7 +39,7 @@ type proxyRoundtrip struct {
 	upstream   capturedUpstream
 	call       proxy.Call
 	session    proxy.Session
-	lm         *tracetest.Llmentary
+	lm         *tracetest.Session
 	proxyURL   string
 	controlURL string
 }

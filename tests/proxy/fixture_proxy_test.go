@@ -140,7 +140,7 @@ func TestFixtureProxyAssertions(t *testing.T) {
 	}
 }
 
-func newFixture(t *testing.T, upstream string) (*tracetest.Llmentary, string) {
+func newFixture(t *testing.T, upstream string) (*tracetest.Session, string) {
 	t.Helper()
 	cfg := proxy.Config{ListenAddr: ":0", ControlAddr: "127.0.0.1:0"}
 	if err := cfg.AddUpstream("default=" + upstream); err != nil {

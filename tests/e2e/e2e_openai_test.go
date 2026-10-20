@@ -207,7 +207,7 @@ func TestE2EChatCompletionsNonStreaming(t *testing.T) {
 	assertNoParserWarnings(t, trace.Calls)
 }
 
-func postOpenAI(t *testing.T, apiKey string, lm *tracetest.Llmentary, path string, body []byte) []byte {
+func postOpenAI(t *testing.T, apiKey string, lm *tracetest.Session, path string, body []byte) []byte {
 	t.Helper()
 	req, err := http.NewRequest(http.MethodPost, lm.OpenAIBaseURL("openai")+path, bytes.NewReader(body))
 	if err != nil {
@@ -232,7 +232,7 @@ func postOpenAI(t *testing.T, apiKey string, lm *tracetest.Llmentary, path strin
 	return stream
 }
 
-func newE2E(t *testing.T) *tracetest.Llmentary {
+func newE2E(t *testing.T) *tracetest.Session {
 	t.Helper()
 	cfg, err := proxy.ConfigFromEnv()
 	if err != nil {
@@ -487,7 +487,7 @@ func requireAPIKey(t *testing.T) string {
 	return apiKey
 }
 
-func postOpenAIStatus(t *testing.T, apiKey string, lm *tracetest.Llmentary, path string, body []byte) (int, http.Header, []byte) {
+func postOpenAIStatus(t *testing.T, apiKey string, lm *tracetest.Session, path string, body []byte) (int, http.Header, []byte) {
 	t.Helper()
 	req, err := http.NewRequest(http.MethodPost, lm.OpenAIBaseURL("openai")+path, bytes.NewReader(body))
 	if err != nil {
@@ -518,7 +518,7 @@ func assertNoParserWarnings(t *testing.T, calls []proxy.Call) {
 	}
 }
 
-func postOpenAIRetryNetwork(t *testing.T, apiKey string, lm *tracetest.Llmentary, path string, body []byte) []byte {
+func postOpenAIRetryNetwork(t *testing.T, apiKey string, lm *tracetest.Session, path string, body []byte) []byte {
 	t.Helper()
 	var lastErr error
 	for attempt := 1; attempt <= 3; attempt++ {
