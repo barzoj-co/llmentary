@@ -26,3 +26,19 @@ func TestWarnViolationMessageHidesFormatValue(t *testing.T) {
 		t.Fatalf("non-format message changed: %q", other)
 	}
 }
+
+func TestWarnViolationMessageHidesNumericAndPatternValues(t *testing.T) {
+	t.Parallel()
+	for _, kw := range []string{"pattern", "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf"} {
+		got := warnViolationMessage(specvalidate.Violation{
+			Keyword: kw,
+			Message: kw + ` failed: got 99 expected <= 2`,
+		})
+		if got != "schema validation failed" {
+			t.Fatalf("%s: got %q", kw, got)
+		}
+		if strings.Contains(got, "99") || strings.Contains(got, "2") {
+			t.Fatalf("%s leaked value: %q", kw, got)
+		}
+	}
+}

@@ -274,10 +274,14 @@ func (s *Server) logValidationFindings(call Call) {
 }
 
 func warnViolationMessage(v specvalidate.Violation) string {
-	if v.Keyword == "format" {
+	switch v.Keyword {
+	case "format":
 		return "format validation failed"
+	case "pattern", "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf":
+		return "schema validation failed"
+	default:
+		return v.Message
 	}
-	return v.Message
 }
 
 func applyRequestValidation(call *Call, rv requestValidation) {
