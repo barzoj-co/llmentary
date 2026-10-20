@@ -16,9 +16,6 @@ import (
 )
 
 func decompressIfNeeded(body []byte, headers map[string][]string, logger *slog.Logger) []byte {
-	if len(body) == 0 {
-		return body
-	}
 	encodings := contentEncodings(headers)
 	if len(encodings) == 0 {
 		return body

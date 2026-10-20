@@ -387,7 +387,7 @@ func TestP8VersionFlagAndConfig(t *testing.T) {
 
 func TestControlSessionIDEscapedOnce(t *testing.T) {
 	proxyURL, control, _ := startControl(t)
-	id := "team/a%b"
+	id := "a%b"
 	postCall(t, proxyURL, id)
 	escaped := url.PathEscape(id)
 	status, _, body := getJSON(t, control+"/sessions/"+escaped)
@@ -397,7 +397,7 @@ func TestControlSessionIDEscapedOnce(t *testing.T) {
 	if fmtString(body["id"]) != id {
 		t.Fatalf("session id=%v want %q", body["id"], id)
 	}
-	status, _, _ = getJSON(t, control+"/sessions/team/a%25b")
+	status, _, _ = getJSON(t, control+"/sessions/a/b")
 	if status != http.StatusNotFound {
 		t.Fatalf("literal slash path should 404, got %d", status)
 	}

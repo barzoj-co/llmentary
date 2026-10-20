@@ -146,9 +146,15 @@ func (c *Client) getJSON(ctx context.Context, path string, q url.Values, out any
 }
 
 func (c *Client) resolve(path string) *url.URL {
-	u := *c.baseURL
-	u.Path = strings.TrimRight(c.baseURL.Path, "/") + path
-	return &u
+	ref, err := url.Parse(path)
+	if err != nil {
+		u := *c.baseURL
+		joined := strings.TrimRight(c.baseURL.Path, "/") + path
+		u.Path = joined
+		u.RawPath = joined
+		return &u
+	}
+	return c.baseURL.ResolveReference(ref)
 }
 
 func (c *Client) authorize(req *http.Request) {

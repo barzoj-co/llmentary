@@ -77,3 +77,16 @@ func TestDecompressUnknownWarns(t *testing.T) {
 		t.Fatalf("log=%s", logBuf.String())
 	}
 }
+
+func TestDecompressUnknownEmptyBodyWarns(t *testing.T) {
+	t.Parallel()
+	var logBuf bytes.Buffer
+	logger := newTextLogger(&logBuf)
+	got := decompressIfNeeded(nil, map[string][]string{"Content-Encoding": {"weird"}}, logger)
+	if len(got) != 0 {
+		t.Fatalf("got %q", got)
+	}
+	if !strings.Contains(logBuf.String(), "unknown content encoding") {
+		t.Fatalf("log=%s", logBuf.String())
+	}
+}
