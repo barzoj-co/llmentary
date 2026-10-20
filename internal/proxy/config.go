@@ -169,9 +169,11 @@ func (c *Config) applyAttributionDefaults() error {
 		}
 		c.SessionFrom = sources
 	} else {
-		if _, err := ParseSessionFrom(strings.Join(c.SessionFrom, ",")); err != nil {
+		sources, err := ParseSessionFrom(strings.Join(c.SessionFrom, ","))
+		if err != nil {
 			return err
 		}
+		c.SessionFrom = sources
 	}
 	if strings.TrimSpace(c.DefaultSession) == "" {
 		c.DefaultSession = DefaultSessionID

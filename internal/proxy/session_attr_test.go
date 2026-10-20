@@ -68,6 +68,20 @@ func TestParseSessionFromRejectsInvalid(t *testing.T) {
 	}
 }
 
+func TestValidateNormalizesSessionFrom(t *testing.T) {
+	t.Parallel()
+	cfg := Config{ListenAddr: ":0", ControlAddr: "127.0.0.1:0", SessionFrom: []string{"HEADER"}}
+	if err := cfg.AddUpstream(DefaultUpstreamSpec); err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(cfg.SessionFrom, ",") != "header" {
+		t.Fatalf("SessionFrom=%v", cfg.SessionFrom)
+	}
+}
+
 func TestResolveSessionPrecedence(t *testing.T) {
 	t.Parallel()
 	s := &Server{cfg: Config{SessionFrom: []string{"header", "path"}, DefaultSession: "default"}}
