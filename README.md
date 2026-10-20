@@ -77,6 +77,24 @@ func TestWeatherTool(t *testing.T) {
 }
 ```
 
+Black-box (path prefix, set before the app constructs its client). Go uses
+`lm.PathBaseURL()`. Python: `lm.path_base_url()`. JS: `lm.pathBaseURL()`.
+
+```go
+func TestWeatherBlackBox(t *testing.T) {
+    lm := llmentary.New(t)
+    t.Setenv("OPENAI_BASE_URL", lm.PathBaseURL()) // {proxy}/s/{session}/v1
+    app := startApp(t)                           // NewClient reads the env
+    if err := app.Handle(context.Background(), "Weather in Paris?"); err != nil {
+        t.Fatal(err)
+    }
+    lm.Expect(context.Background()).CallCount(1)
+}
+```
+
+Sidecar compose, control tokens, `/healthz`, and import-time recipes:
+[Black-box and sidecar setups](docs/black-box.md).
+
 ```bash
 OPENAI_API_KEY=sk-... go test ./...
 ```
@@ -89,12 +107,17 @@ trace. Common checks: `CallCount`, `ToolCalled` / `ToolNotCalled` / `ToolOrder`,
 `ResponseContains`, `LatencyBelow`, and `TTFTBelow`. Scope a subset with
 `lm.Wait(ctx).Query()` (Go) or `lm.query({...}).expect()` (JS).
 
+Trace structure is deterministic; the model's free text is not. See
+[Assertions: trace vs free text](docs/assertions-guide.md).
+
 Python tests use a pytest fixture named `llmentary`: `def test_weather(llmentary):`.
 JS/TS tests `import { llmentary } from "llmentary/vitest"` or
 `const { llmentary } = require("llmentary/jest")`, then `const lm = llmentary()`.
 
 ## Documentation
 
+- [Black-box and sidecar setups](docs/black-box.md)
+- [Assertions: trace vs free text](docs/assertions-guide.md)
 - [Proxy configuration and control API](docs/proxy.md)
 - [Provider compatibility and SDK wiring](docs/providers.md)
 - [Recorded trace data model](docs/data-model.md)

@@ -171,7 +171,9 @@ proxy answers locally with `400` and an OpenAI-shaped JSON error
 (`type`/`code` `llmentary_session_required`). It is never forwarded.
 
 `--session-from=path` is how an unmodified service attributes calls: set its
-base URL to `{proxy}/s/{id}/v1` (or `{proxy}/s/{id}/u/{name}`).
+base URL to `{proxy}/s/{id}/v1` (or `{proxy}/s/{id}/u/{name}`). Compose,
+import-time clients, and `--default-session` sidecar recipes are in
+[Black-box and sidecar setups](black-box.md).
 
 ### No leaks of unknown prefixes
 
@@ -188,7 +190,8 @@ when the request had a single extra leading segment (`/dogfood/v1/...` suggests
 
 The Go client in [llmentary-go](https://github.com/barzoj-co/llmentary-go)
 creates a random session id and can inject `X-Test-Session` through `lm.HTTPClient()`.
-Unmodified services that cannot send headers should use the path prefix instead.
+Unmodified services that cannot send headers should use the path prefix
+(`lm.PathBaseURL()` / `lm.path_base_url()` / `lm.pathBaseURL()`) instead.
 
 ## What the proxy changes on the way upstream
 
