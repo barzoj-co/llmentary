@@ -159,11 +159,15 @@ def test_router(app_client, llmentary):
     llmentary.expect()
 ```
 
-### Go (`TestMain` or the start of the test)
+### Go (start of the test, or `TestMain` only if `NewClient` is deferred)
 
 `openai-go` reads `OPENAI_BASE_URL` in `NewClient`, not at `import` time. Set
-the env before the app calls `NewClient` (including any `init` / `TestMain`
-that constructs a package-level client).
+the env before the app calls `NewClient`.
+
+Go runs package `init` functions before `TestMain`. If a package-level client
+is constructed in `init`, `t.Setenv` and `os.Setenv` in `TestMain` are too
+late — export `OPENAI_BASE_URL` before `go test`, or defer `NewClient` until
+after setup (the snippet below).
 
 ```go
 func TestWeatherBlackBox(t *testing.T) {

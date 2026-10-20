@@ -85,9 +85,11 @@ lm.expect().final_response_mentions_any("moderate", "41.3")
 
 ### livekit-demo weather turn
 
-Exact checks belong on the trace: `function_call_output` equals the Lua JSON,
-args are `Amsterdam` / `celsius`, exactly three calls. The answer check is
-deliberately loose ("mentions 20 or sunny").
+The livekit test put exact equality on the trace (`function_call_output` ==
+the Lua JSON, args `Amsterdam` / `celsius`, exactly three calls) and left the
+answer loose ("20 or sunny"). The portable client checks below are weaker:
+`ArgsSubset` requires those keys and allows extra arguments; it does not
+compare `function_call_output` byte-for-byte.
 
 ```go
 assert := lm.Expect(ctx)

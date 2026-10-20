@@ -77,8 +77,8 @@ func TestWeatherTool(t *testing.T) {
 }
 ```
 
-Black-box (path prefix, set before the app constructs its client). Helpers are
-`lm.PathBaseURL()` / `lm.path_base_url()` / `lm.pathBaseURL()`:
+Black-box (path prefix, set before the app constructs its client). Go uses
+`lm.PathBaseURL()`. Python: `lm.path_base_url()`. JS: `lm.pathBaseURL()`.
 
 ```go
 func TestWeatherBlackBox(t *testing.T) {
