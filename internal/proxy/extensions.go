@@ -52,18 +52,32 @@ func applyChatExtensions(call *Call, raw json.RawMessage, choiceRaw json.RawMess
 		if c.FinishReason != "" && call.Normalized.FinishReason == "" {
 			call.Normalized.FinishReason = c.FinishReason
 		}
-		if len(c.Error) > 0 && !bytes.Equal(bytes.TrimSpace(c.Error), []byte("null")) && call.Normalized.Error == nil {
-			wrapped, _ := json.Marshal(map[string]json.RawMessage{"error": c.Error})
-			call.Normalized.Error = midStreamError(call.HTTPStatus, wrapped)
+		if len(c.Error) > 0 && !bytes.Equal(bytes.TrimSpace(c.Error), []byte("null")) {
+			recordChatJSONError(call, raw, c.Error)
 		}
 		collectFilter(call, c.ContentFilterResults)
 		applyReasoningFrom(call, c.Message)
 		applyReasoningFrom(call, c.Delta)
 	}
-	if errRaw := root["error"]; len(errRaw) > 0 && !bytes.Equal(bytes.TrimSpace(errRaw), []byte("null")) && call.Normalized.Error == nil {
-		wrapped, _ := json.Marshal(map[string]json.RawMessage{"error": errRaw})
-		call.Normalized.Error = midStreamError(call.HTTPStatus, wrapped)
+	if errRaw := root["error"]; len(errRaw) > 0 && !bytes.Equal(bytes.TrimSpace(errRaw), []byte("null")) {
+		recordChatJSONError(call, raw, errRaw)
 	}
+}
+
+// recordChatJSONError records a JSON error object from a chat body or chunk.
+// Non-2xx HTTP responses use the HTTP-error path (mid_stream=false). A 2xx
+// stream chunk uses the mid-stream path.
+func recordChatJSONError(call *Call, raw json.RawMessage, errRaw json.RawMessage) {
+	if call.Normalized.Error != nil {
+		return
+	}
+	if call.HTTPStatus >= 400 {
+		wrapped, _ := json.Marshal(map[string]json.RawMessage{"error": errRaw})
+		call.Normalized.Error = errorFromHTTP(call.HTTPStatus, wrapped)
+		return
+	}
+	wrapped, _ := json.Marshal(map[string]json.RawMessage{"error": errRaw})
+	call.Normalized.Error = midStreamError(call.HTTPStatus, wrapped)
 }
 
 func applyResponsesExtensions(call *Call, raw json.RawMessage) {
