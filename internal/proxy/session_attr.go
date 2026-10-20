@@ -106,19 +106,19 @@ func splitSessionPrefix(requestPath, escapedPath string) (id, rest string, prese
 		return "", "/", true, fmt.Errorf("session id is empty")
 	}
 	esc := "/" + strings.TrimLeft(escapedPath, "/")
-	escSeg := ""
 	escapedFirst, escapedRest, _ := strings.Cut(strings.TrimPrefix(esc, "/"), "/")
-	if first, firstErr := url.PathUnescape(escapedFirst); firstErr == nil && first == "s" {
-		escSeg, _, _ = strings.Cut(escapedRest, "/")
-		if strings.Contains(strings.ToLower(escSeg), "%2f") {
-			return "", "/", true, fmt.Errorf("session id cannot contain '/'")
-		}
+	first, firstErr := url.PathUnescape(escapedFirst)
+	if firstErr != nil || first != "s" {
+		// Decoded path can look like /s/... after %2F collapses; require the
+		// escaped first component to be exactly "s".
+		return "", "/", true, fmt.Errorf("session id is invalid")
+	}
+	escSeg, _, _ := strings.Cut(escapedRest, "/")
+	if strings.Contains(strings.ToLower(escSeg), "%2f") {
+		return "", "/", true, fmt.Errorf("session id cannot contain '/'")
 	}
 	after := strings.TrimPrefix(p, "/s/")
 	_, more, found := strings.Cut(after, "/")
-	if escSeg == "" {
-		escSeg, _, _ = strings.Cut(after, "/")
-	}
 	decoded, decErr := url.PathUnescape(escSeg)
 	if decErr != nil {
 		return "", "/", true, fmt.Errorf("session id is invalid")
