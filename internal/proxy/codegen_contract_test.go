@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-package lab
+package proxy
 
 import (
 	"bytes"
@@ -58,7 +58,7 @@ func TestA4OapiCodegenPinned(t *testing.T) {
 }
 
 func TestA5CompileTimeAssertionPresent(t *testing.T) {
-	raw, err := os.ReadFile(filepath.Join(repoRoot(t), "internal", "lab", "handler_openai.go"))
+	raw, err := os.ReadFile(filepath.Join(repoRoot(t), "internal", "proxy", "handler_openai.go"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +95,7 @@ func TestA5CompileTimeAssertionPresent(t *testing.T) {
 }
 
 func TestA7NoHandwrittenChoicesTags(t *testing.T) {
-	dir := filepath.Join(repoRoot(t), "internal", "lab")
+	dir := filepath.Join(repoRoot(t), "internal", "proxy")
 	err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return err

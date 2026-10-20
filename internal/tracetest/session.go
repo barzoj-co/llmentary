@@ -16,7 +16,8 @@ const (
 	defaultControlURL = "http://127.0.0.1:7778"
 )
 
-type Lab struct {
+// Session is the per-test handle that tags requests and waits on the recorded trace.
+type Session struct {
 	t          testing.TB
 	client     *Client
 	sessionID  string
@@ -26,9 +27,9 @@ type Lab struct {
 	httpClient *http.Client
 }
 
-type LabOption func(*labConfig)
+type Option func(*sessionConfig)
 
-type labConfig struct {
+type sessionConfig struct {
 	controlURL   string
 	proxyURL     string
 	controlToken string
@@ -37,9 +38,9 @@ type labConfig struct {
 	timeout      time.Duration
 }
 
-func New(t testing.TB, opts ...LabOption) *Lab {
+func New(t testing.TB, opts ...Option) *Session {
 	t.Helper()
-	cfg := labConfig{
+	cfg := sessionConfig{
 		controlURL: getenvDefault("LLMENTARY_CONTROL_URL", defaultControlURL),
 		proxyURL:   getenvDefault("LLMENTARY_PROXY_URL", defaultProxyURL),
 		quiet:      500 * time.Millisecond,
@@ -59,7 +60,7 @@ func New(t testing.TB, opts ...LabOption) *Lab {
 	if err != nil {
 		t.Fatalf("tracetest: create client: %v", err)
 	}
-	session := &Lab{
+	session := &Session{
 		t:          t,
 		client:     client,
 		sessionID:  client.NewSession(),
@@ -76,39 +77,39 @@ func New(t testing.TB, opts ...LabOption) *Lab {
 	return session
 }
 
-func WithControlURL(rawURL string) LabOption {
-	return func(c *labConfig) { c.controlURL = rawURL }
+func WithControlURL(rawURL string) Option {
+	return func(c *sessionConfig) { c.controlURL = rawURL }
 }
 
-func WithProxyURL(rawURL string) LabOption {
-	return func(c *labConfig) { c.proxyURL = rawURL }
+func WithProxyURL(rawURL string) Option {
+	return func(c *sessionConfig) { c.proxyURL = rawURL }
 }
 
-func WithLabControlToken(token string) LabOption {
-	return func(c *labConfig) { c.controlToken = token }
+func WithSessionControlToken(token string) Option {
+	return func(c *sessionConfig) { c.controlToken = token }
 }
 
-func WithWait(quiet, timeout time.Duration) LabOption {
-	return func(c *labConfig) {
+func WithWait(quiet, timeout time.Duration) Option {
+	return func(c *sessionConfig) {
 		c.quiet = quiet
 		c.timeout = timeout
 	}
 }
 
-func (l *Lab) SessionID() string { return l.sessionID }
+func (s *Session) SessionID() string { return s.sessionID }
 
-func (l *Lab) Header() (string, string) { return Header(l.sessionID) }
+func (s *Session) Header() (string, string) { return Header(s.sessionID) }
 
-func (l *Lab) HTTPClient() *http.Client {
+func (s *Session) HTTPClient() *http.Client {
 	client := http.Client{}
-	if l.httpClient != nil {
-		client = *l.httpClient
+	if s.httpClient != nil {
+		client = *s.httpClient
 	}
 	transport := http.DefaultTransport
 	if client.Transport != nil {
 		transport = client.Transport
 	}
-	client.Transport = sessionTransport{sessionID: l.sessionID, base: transport}
+	client.Transport = sessionTransport{sessionID: s.sessionID, base: transport}
 	return &client
 }
 
@@ -124,33 +125,33 @@ func (t sessionTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return t.base.RoundTrip(clone)
 }
 
-func (l *Lab) BaseURL(upstream string) string {
+func (s *Session) BaseURL(upstream string) string {
 	if upstream == "" {
-		return l.proxyURL
+		return s.proxyURL
 	}
-	return l.proxyURL + "/u/" + strings.Trim(upstream, "/")
+	return s.proxyURL + "/u/" + strings.Trim(upstream, "/")
 }
 
-func (l *Lab) OpenAIBaseURL(upstream string) string {
-	return l.BaseURL(upstream)
+func (s *Session) OpenAIBaseURL(upstream string) string {
+	return s.BaseURL(upstream)
 }
 
-func (l *Lab) Wait(ctx context.Context) Trace {
-	l.t.Helper()
-	calls, err := l.client.Wait(ctx, l.sessionID, l.quiet, l.timeout)
+func (s *Session) Wait(ctx context.Context) Trace {
+	s.t.Helper()
+	calls, err := s.client.Wait(ctx, s.sessionID, s.quiet, s.timeout)
 	if err != nil {
-		l.t.Fatalf("tracetest: wait for session %s: %v", l.sessionID, err)
+		s.t.Fatalf("tracetest: wait for session %s: %v", s.sessionID, err)
 	}
-	return Trace{SessionID: l.sessionID, Calls: calls}
+	return Trace{SessionID: s.sessionID, Calls: calls}
 }
 
-func (l *Lab) Calls(ctx context.Context) Trace {
-	l.t.Helper()
-	calls, err := l.client.Calls(ctx, l.sessionID)
+func (s *Session) Calls(ctx context.Context) Trace {
+	s.t.Helper()
+	calls, err := s.client.Calls(ctx, s.sessionID)
 	if err != nil {
-		l.t.Fatalf("tracetest: fetch session %s: %v", l.sessionID, err)
+		s.t.Fatalf("tracetest: fetch session %s: %v", s.sessionID, err)
 	}
-	return Trace{SessionID: l.sessionID, Calls: calls}
+	return Trace{SessionID: s.sessionID, Calls: calls}
 }
 
 func getenvDefault(key, fallback string) string {

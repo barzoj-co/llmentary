@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/barzoj-co/llmentary/internal/lab"
+	"github.com/barzoj-co/llmentary/internal/proxy"
 	"github.com/barzoj-co/llmentary/internal/tracetest"
 )
 
@@ -118,12 +118,12 @@ func TestFixtureProxyAssertions(t *testing.T) {
 				_, _ = w.Write(body)
 			}))
 			defer fake.Close()
-			labClient, proxy := newFixtureLab(t, fake.URL)
+			lm, proxy := newFixture(t, fake.URL)
 			req, err := http.NewRequest(http.MethodPost, proxy+tt.requestPath, bytes.NewBufferString(tt.requestBody))
 			if err != nil {
 				t.Fatal(err)
 			}
-			key, value := labClient.Header()
+			key, value := lm.Header()
 			req.Header.Set(key, value)
 			req.Header.Set("x-stainless-retry-count", "1")
 			resp, err := http.DefaultClient.Do(req)
@@ -133,26 +133,26 @@ func TestFixtureProxyAssertions(t *testing.T) {
 			_ = resp.Body.Close()
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
-			trace := labClient.Wait(ctx)
+			trace := lm.Wait(ctx)
 			assertRetryCount(t, trace.Calls, 1)
 			tt.assert(t, trace)
 		})
 	}
 }
 
-func newFixtureLab(t *testing.T, upstream string) (*tracetest.Lab, string) {
+func newFixture(t *testing.T, upstream string) (*tracetest.Session, string) {
 	t.Helper()
-	cfg := lab.Config{ListenAddr: ":0", ControlAddr: "127.0.0.1:0"}
+	cfg := proxy.Config{ListenAddr: ":0", ControlAddr: "127.0.0.1:0"}
 	if err := cfg.AddUpstream("default=" + upstream); err != nil {
 		t.Fatal(err)
 	}
-	server, err := lab.NewServer(cfg, lab.NewMemoryStore(), lab.TolerantParser{})
+	server, err := proxy.NewServer(cfg, proxy.NewMemoryStore(), proxy.TolerantParser{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	proxy := httptest.NewServer(server.ProxyHandler())
-	t.Cleanup(proxy.Close)
+	proxySrv := httptest.NewServer(server.ProxyHandler())
+	t.Cleanup(proxySrv.Close)
 	control := httptest.NewServer(server.ControlHandler())
 	t.Cleanup(control.Close)
-	return tracetest.New(t, tracetest.WithProxyURL(proxy.URL), tracetest.WithControlURL(control.URL), tracetest.WithWait(time.Millisecond, time.Second)), proxy.URL
+	return tracetest.New(t, tracetest.WithProxyURL(proxySrv.URL), tracetest.WithControlURL(control.URL), tracetest.WithWait(time.Millisecond, time.Second)), proxySrv.URL
 }

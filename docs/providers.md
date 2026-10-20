@@ -196,23 +196,39 @@ than zero.
 
 Use `X-Test-Session` for the clearest session tagging. W3C baggage with
 `llmentary.session.id=<id>` also works when an SDK does not expose custom headers.
+The Go, Python, and JS/TS clients inject that header for you.
 
 ### `openai-go`
 
 ```go
 // Go client: github.com/barzoj-co/llmentary-go
-lab := llmentary.New(t)
+lm := llmentary.New(t)
 
 client := openai.NewClient(
     option.WithAPIKey(os.Getenv("OPENAI_API_KEY")),
-    option.WithBaseURL(lab.OpenAIBaseURL("openai")),
-    option.WithHTTPClient(lab.HTTPClient()),
+    option.WithBaseURL(lm.OpenAIBaseURL("openai")),
+    option.WithHTTPClient(lm.HTTPClient()),
 )
 ```
 
-`lab.HTTPClient()` wraps the transport and injects `X-Test-Session` on every request.
+`lm.HTTPClient()` wraps the transport and injects `X-Test-Session` on every request.
+After the SDK call: `lm.Expect(ctx)...`.
 
 ### `openai-python`
+
+The pytest plugin registers a fixture named `llmentary`:
+
+```python
+def test_weather(llmentary):
+    client = OpenAI(
+        api_key=os.environ["OPENAI_API_KEY"],
+        base_url="http://127.0.0.1:7777/u/openai",
+    )
+    # Drive the real SDK. The fixture tags the session.
+    llmentary.expect()
+```
+
+Without the client, tag the session yourself:
 
 ```python
 from openai import OpenAI
@@ -232,6 +248,30 @@ requests.get(f"http://127.0.0.1:7778/sessions/{session_id}/wait").json()
 ```
 
 ### `openai-node`
+
+Vitest:
+
+```ts
+import { llmentary } from "llmentary/vitest";
+import OpenAI from "openai";
+
+const lm = llmentary();
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+  baseURL: "http://127.0.0.1:7777/u/openai",
+});
+lm.expect();
+lm.query({}).expect();
+```
+
+Jest:
+
+```js
+const { llmentary } = require("llmentary/jest");
+const lm = llmentary();
+```
+
+Without the client, tag the session yourself:
 
 ```ts
 import OpenAI from "openai";

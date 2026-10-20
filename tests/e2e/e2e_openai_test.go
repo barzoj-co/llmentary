@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/barzoj-co/llmentary/internal/lab"
+	"github.com/barzoj-co/llmentary/internal/proxy"
 	"github.com/barzoj-co/llmentary/internal/tracetest"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
@@ -28,11 +28,11 @@ import (
 func TestE2EChatCompletionsToolFlow(t *testing.T) {
 	apiKey := requireAPIKey(t)
 	model := e2eModel()
-	testLab := newE2ELab(t)
+	lm := newE2E(t)
 	client := openai.NewClient(
 		option.WithAPIKey(apiKey),
-		option.WithBaseURL(testLab.OpenAIBaseURL("openai")),
-		option.WithHTTPClient(testLab.HTTPClient()),
+		option.WithBaseURL(lm.OpenAIBaseURL("openai")),
+		option.WithHTTPClient(lm.HTTPClient()),
 		option.WithMaxRetries(0),
 	)
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
@@ -68,7 +68,7 @@ func TestE2EChatCompletionsToolFlow(t *testing.T) {
 		t.Fatalf("expected final chat answer to mention Paris, got %#v", final)
 	}
 
-	trace := testLab.Wait(ctx)
+	trace := lm.Wait(ctx)
 	chat := trace.Query().APIType("chat").Calls()
 	assertCallCount(t, chat, 2)
 	assertToolCalledSubset(t, chat, "echo_city", map[string]any{"city": "Paris"})
@@ -86,7 +86,7 @@ func TestE2EChatCompletionsToolFlow(t *testing.T) {
 func TestE2EResponsesToolFlow(t *testing.T) {
 	apiKey := requireAPIKey(t)
 	model := e2eModel()
-	testLab := newE2ELab(t)
+	lm := newE2E(t)
 
 	firstBody := []byte(`{
 		"model":` + strconv.Quote(model) + `,
@@ -101,12 +101,12 @@ func TestE2EResponsesToolFlow(t *testing.T) {
 			"parameters":{"type":"object","properties":{"city":{"type":"string"}},"required":["city"],"additionalProperties":false}
 		}]
 	}`)
-	responsesStream := postOpenAI(t, apiKey, testLab, "/responses", firstBody)
+	responsesStream := postOpenAI(t, apiKey, lm, "/responses", firstBody)
 	if !bytes.Contains(responsesStream, []byte("event:")) {
 		t.Fatalf("expected responses SSE stream, got %q", responsesStream)
 	}
 	firstCtx, firstCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	firstTrace := testLab.Wait(firstCtx)
+	firstTrace := lm.Wait(firstCtx)
 	firstCancel()
 	responseCalls := firstTrace.Query().APIType("responses").Calls()
 	if len(responseCalls) != 1 || len(responseCalls[0].Normalized.ToolCalls) != 1 {
@@ -133,14 +133,14 @@ func TestE2EResponsesToolFlow(t *testing.T) {
 			"parameters":{"type":"object","properties":{"city":{"type":"string"}},"required":["city"],"additionalProperties":false}
 		}]
 	}`)
-	finalStream := postOpenAI(t, apiKey, testLab, "/responses", secondBody)
+	finalStream := postOpenAI(t, apiKey, lm, "/responses", secondBody)
 	if !bytes.Contains(finalStream, []byte("Paris")) {
 		t.Fatalf("expected final responses stream to mention Paris, got %q", finalStream)
 	}
 
 	finalCtx, finalCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer finalCancel()
-	trace := testLab.Wait(finalCtx)
+	trace := lm.Wait(finalCtx)
 	responses := trace.Query().APIType("responses").Calls()
 	assertCallCount(t, responses, 2)
 	assertToolCalledSubset(t, responses, "echo_city", map[string]any{"city": "Paris"})
@@ -158,7 +158,7 @@ func TestE2EResponsesToolFlow(t *testing.T) {
 func TestE2EChatCompletionsNonStreaming(t *testing.T) {
 	apiKey := requireAPIKey(t)
 	model := e2eModel()
-	testLab := newE2ELab(t)
+	lm := newE2E(t)
 	body := []byte(`{
 		"model":` + strconv.Quote(model) + `,
 		"messages":[{"role":"user","content":"Call the echo_city tool with city Paris. Do not answer in text."}],
@@ -174,9 +174,9 @@ func TestE2EChatCompletionsNonStreaming(t *testing.T) {
 			}
 		}]
 	}`)
-	_ = postOpenAI(t, apiKey, testLab, "/chat/completions", body)
+	_ = postOpenAI(t, apiKey, lm, "/chat/completions", body)
 	firstCtx, firstCancel := context.WithTimeout(context.Background(), 5*time.Second)
-	firstTrace := testLab.Wait(firstCtx)
+	firstTrace := lm.Wait(firstCtx)
 	firstCancel()
 	chatCalls := firstTrace.Query().APIType("chat").Calls()
 	if len(chatCalls) != 1 || len(chatCalls[0].Normalized.ToolCalls) != 1 {
@@ -193,10 +193,10 @@ func TestE2EChatCompletionsNonStreaming(t *testing.T) {
 		],
 		"temperature":0
 	}`)
-	_ = postOpenAI(t, apiKey, testLab, "/chat/completions", finalBody)
+	_ = postOpenAI(t, apiKey, lm, "/chat/completions", finalBody)
 	finalCtx, finalCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer finalCancel()
-	trace := testLab.Wait(finalCtx)
+	trace := lm.Wait(finalCtx)
 	assertCallCount(t, trace.Calls, 2)
 	chat := trace.Query().APIType("chat").Calls()
 	assertToolCalledSubset(t, chat, "echo_city", map[string]any{"city": "Paris"})
@@ -207,15 +207,15 @@ func TestE2EChatCompletionsNonStreaming(t *testing.T) {
 	assertNoParserWarnings(t, trace.Calls)
 }
 
-func postOpenAI(t *testing.T, apiKey string, lab *tracetest.Lab, path string, body []byte) []byte {
+func postOpenAI(t *testing.T, apiKey string, lm *tracetest.Session, path string, body []byte) []byte {
 	t.Helper()
-	req, err := http.NewRequest(http.MethodPost, lab.OpenAIBaseURL("openai")+path, bytes.NewReader(body))
+	req, err := http.NewRequest(http.MethodPost, lm.OpenAIBaseURL("openai")+path, bytes.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	req.Header.Set("Content-Type", "application/json")
-	key, value := lab.Header()
+	key, value := lm.Header()
 	req.Header.Set(key, value)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -232,9 +232,9 @@ func postOpenAI(t *testing.T, apiKey string, lab *tracetest.Lab, path string, bo
 	return stream
 }
 
-func newE2ELab(t *testing.T) *tracetest.Lab {
+func newE2E(t *testing.T) *tracetest.Session {
 	t.Helper()
-	cfg, err := lab.ConfigFromEnv()
+	cfg, err := proxy.ConfigFromEnv()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -242,15 +242,15 @@ func newE2ELab(t *testing.T) *tracetest.Lab {
 	if err := cfg.AddUpstream("openai=https://api.openai.com/v1"); err != nil {
 		t.Fatal(err)
 	}
-	server, err := lab.NewServer(cfg, lab.NewMemoryStore(), lab.TolerantParser{})
+	server, err := proxy.NewServer(cfg, proxy.NewMemoryStore(), proxy.TolerantParser{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	proxy := httptest.NewServer(server.ProxyHandler())
-	t.Cleanup(proxy.Close)
+	proxySrv := httptest.NewServer(server.ProxyHandler())
+	t.Cleanup(proxySrv.Close)
 	control := httptest.NewServer(server.ControlHandler())
 	t.Cleanup(control.Close)
-	return tracetest.New(t, tracetest.WithProxyURL(proxy.URL), tracetest.WithControlURL(control.URL), tracetest.WithWait(100*time.Millisecond, 5*time.Second))
+	return tracetest.New(t, tracetest.WithProxyURL(proxySrv.URL), tracetest.WithControlURL(control.URL), tracetest.WithWait(100*time.Millisecond, 5*time.Second))
 }
 
 func e2eModel() string {
@@ -263,20 +263,20 @@ func e2eModel() string {
 func TestE2EChatNonStreamAndStreamText(t *testing.T) {
 	apiKey := requireAPIKey(t)
 	model := e2eModel()
-	testLab := newE2ELab(t)
+	lm := newE2E(t)
 	nonStream := []byte(`{"model":` + strconv.Quote(model) + `,"messages":[{"role":"user","content":"Reply with the single word pong."}],"temperature":0,"max_tokens":16}`)
-	body := postOpenAI(t, apiKey, testLab, "/chat/completions", nonStream)
+	body := postOpenAI(t, apiKey, lm, "/chat/completions", nonStream)
 	if !bytes.Contains(bytes.ToLower(body), []byte("pong")) {
 		t.Fatalf("expected pong in chat body, got %s", body)
 	}
 	stream := []byte(`{"model":` + strconv.Quote(model) + `,"stream":true,"stream_options":{"include_usage":true},"messages":[{"role":"user","content":"Reply with the single word pong."}],"temperature":0,"max_tokens":16}`)
-	streamBody := postOpenAI(t, apiKey, testLab, "/chat/completions", stream)
+	streamBody := postOpenAI(t, apiKey, lm, "/chat/completions", stream)
 	if !bytes.Contains(streamBody, []byte("data:")) {
 		t.Fatalf("expected chat SSE, got %s", streamBody)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	trace := testLab.Wait(ctx)
+	trace := lm.Wait(ctx)
 	chat := trace.Query().APIType("chat").Calls()
 	assertCallCount(t, chat, 2)
 	assertResponseContains(t, chat, "pong")
@@ -292,7 +292,7 @@ func TestE2EChatNonStreamAndStreamText(t *testing.T) {
 func TestE2EChatParallelToolCalls(t *testing.T) {
 	apiKey := requireAPIKey(t)
 	model := e2eModel()
-	testLab := newE2ELab(t)
+	lm := newE2E(t)
 	body := []byte(`{
 		"model":` + strconv.Quote(model) + `,
 		"messages":[{"role":"user","content":"You must call BOTH tools in this turn: echo_city with city Paris AND echo_country with country France. Do not answer in text."}],
@@ -301,10 +301,10 @@ func TestE2EChatParallelToolCalls(t *testing.T) {
 		"tool_choice":"required",
 		"tools":[` + echoCityChatToolJSON() + `,` + echoCountryChatToolJSON() + `]
 	}`)
-	_ = postOpenAIRetryNetwork(t, apiKey, testLab, "/chat/completions", body)
+	_ = postOpenAIRetryNetwork(t, apiKey, lm, "/chat/completions", body)
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	trace := testLab.Wait(ctx)
+	trace := lm.Wait(ctx)
 	chat := trace.Query().APIType("chat").Calls()
 	assertCallCount(t, chat, 1)
 	if n := len(chat[0].Normalized.ToolCalls); n < 2 {
@@ -318,17 +318,17 @@ func TestE2EChatParallelToolCalls(t *testing.T) {
 func TestE2EChatStructuredOutput(t *testing.T) {
 	apiKey := requireAPIKey(t)
 	model := e2eModel()
-	testLab := newE2ELab(t)
+	lm := newE2E(t)
 	body := []byte(`{
 		"model":` + strconv.Quote(model) + `,
 		"messages":[{"role":"user","content":"Return JSON with answer=ok and count=1."}],
 		"temperature":0,
 		"response_format":{"type":"json_schema","json_schema":{"name":"ans","strict":true,"schema":{"type":"object","properties":{"answer":{"type":"string"},"count":{"type":"integer"}},"required":["answer","count"],"additionalProperties":false}}}
 	}`)
-	_ = postOpenAI(t, apiKey, testLab, "/chat/completions", body)
+	_ = postOpenAI(t, apiKey, lm, "/chat/completions", body)
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	trace := testLab.Wait(ctx)
+	trace := lm.Wait(ctx)
 	chat := trace.Query().APIType("chat").Calls()
 	assertCallCount(t, chat, 1)
 	assertResponseJSONSchemaValid(t, chat, map[string]any{
@@ -346,9 +346,9 @@ func TestE2EChatStructuredOutput(t *testing.T) {
 func TestE2EResponsesNonStreamAndStructured(t *testing.T) {
 	apiKey := requireAPIKey(t)
 	model := e2eModel()
-	testLab := newE2ELab(t)
+	lm := newE2E(t)
 	text := []byte(`{"model":` + strconv.Quote(model) + `,"input":"Reply with the single word pong.","temperature":0,"max_output_tokens":16}`)
-	body := postOpenAI(t, apiKey, testLab, "/responses", text)
+	body := postOpenAI(t, apiKey, lm, "/responses", text)
 	if !bytes.Contains(bytes.ToLower(body), []byte("pong")) {
 		t.Fatalf("expected pong in responses body, got %s", body)
 	}
@@ -358,10 +358,10 @@ func TestE2EResponsesNonStreamAndStructured(t *testing.T) {
 		"temperature":0,
 		"text":{"format":{"type":"json_schema","name":"ans","strict":true,"schema":{"type":"object","properties":{"answer":{"type":"string"}},"required":["answer"],"additionalProperties":false}}}
 	}`)
-	_ = postOpenAI(t, apiKey, testLab, "/responses", structured)
+	_ = postOpenAI(t, apiKey, lm, "/responses", structured)
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	trace := testLab.Wait(ctx)
+	trace := lm.Wait(ctx)
 	responses := trace.Query().APIType("responses").Calls()
 	assertCallCount(t, responses, 2)
 	assertResponseContains(t, responses, "pong")
@@ -384,15 +384,15 @@ func TestE2EResponsesNonStreamAndStructured(t *testing.T) {
 func TestE2EInvalidParameter400(t *testing.T) {
 	apiKey := requireAPIKey(t)
 	model := e2eModel()
-	testLab := newE2ELab(t)
+	lm := newE2E(t)
 	body := []byte(`{"model":` + strconv.Quote(model) + `,"messages":[{"role":"user","content":"hi"}],"temperature":99}`)
-	status, _, resp := postOpenAIStatus(t, apiKey, testLab, "/chat/completions", body)
+	status, _, resp := postOpenAIStatus(t, apiKey, lm, "/chat/completions", body)
 	if status != http.StatusBadRequest {
 		t.Fatalf("status=%d body=%s", status, resp)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	trace := testLab.Wait(ctx)
+	trace := lm.Wait(ctx)
 	assertHasError(t, trace.Calls)
 	call := trace.Calls[0]
 	if call.Normalized.Error == nil || call.Normalized.Error.Normalized != "bad_request" || call.HTTPStatus != 400 {
@@ -405,15 +405,15 @@ func TestE2EInvalidParameter400(t *testing.T) {
 func TestE2EUnauthorized401(t *testing.T) {
 	_ = requireAPIKey(t)
 	model := e2eModel()
-	testLab := newE2ELab(t)
+	lm := newE2E(t)
 	body := []byte(`{"model":` + strconv.Quote(model) + `,"messages":[{"role":"user","content":"hi"}]}`)
-	status, _, resp := postOpenAIStatus(t, "sk-invalid-e2e-key", testLab, "/chat/completions", body)
+	status, _, resp := postOpenAIStatus(t, "sk-invalid-e2e-key", lm, "/chat/completions", body)
 	if status != http.StatusUnauthorized {
 		t.Fatalf("status=%d body=%s", status, resp)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	trace := testLab.Wait(ctx)
+	trace := lm.Wait(ctx)
 	assertHasError(t, trace.Calls)
 	call := trace.Calls[0]
 	if call.Normalized.Error == nil || call.Normalized.Error.Normalized != "auth" || call.HTTPStatus != 401 {
@@ -426,12 +426,12 @@ func TestE2EUnauthorized401(t *testing.T) {
 func TestE2EResponsesStreamErrorShape(t *testing.T) {
 	apiKey := requireAPIKey(t)
 	model := e2eModel()
-	testLab := newE2ELab(t)
+	lm := newE2E(t)
 	// A real mid-stream Responses `event: error` is not cheaply triggerable;
 	// fixture coverage remains D4. This live probe pins the pre-stream JSON
 	// error for previous_response_id:"resp_does_not_exist".
 	body := []byte(`{"model":` + strconv.Quote(model) + `,"stream":true,"previous_response_id":"resp_does_not_exist","input":"hi"}`)
-	status, hdr, resp := postOpenAIStatus(t, apiKey, testLab, "/responses", body)
+	status, hdr, resp := postOpenAIStatus(t, apiKey, lm, "/responses", body)
 	row := loadLiveBehavior(t).Rows["stream_error_responses"]
 	if status != row.Status {
 		t.Fatalf("status=%d want %d body=%s", status, row.Status, resp)
@@ -462,7 +462,7 @@ func TestE2EResponsesStreamErrorShape(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	trace := testLab.Wait(ctx)
+	trace := lm.Wait(ctx)
 	if len(trace.Calls) == 0 {
 		t.Fatal("expected a recorded call")
 	}
@@ -487,15 +487,15 @@ func requireAPIKey(t *testing.T) string {
 	return apiKey
 }
 
-func postOpenAIStatus(t *testing.T, apiKey string, lab *tracetest.Lab, path string, body []byte) (int, http.Header, []byte) {
+func postOpenAIStatus(t *testing.T, apiKey string, lm *tracetest.Session, path string, body []byte) (int, http.Header, []byte) {
 	t.Helper()
-	req, err := http.NewRequest(http.MethodPost, lab.OpenAIBaseURL("openai")+path, bytes.NewReader(body))
+	req, err := http.NewRequest(http.MethodPost, lm.OpenAIBaseURL("openai")+path, bytes.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	req.Header.Set("Content-Type", "application/json")
-	key, value := lab.Header()
+	key, value := lm.Header()
 	req.Header.Set(key, value)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -509,7 +509,7 @@ func postOpenAIStatus(t *testing.T, apiKey string, lab *tracetest.Lab, path stri
 	return resp.StatusCode, resp.Header.Clone(), raw
 }
 
-func assertNoParserWarnings(t *testing.T, calls []lab.Call) {
+func assertNoParserWarnings(t *testing.T, calls []proxy.Call) {
 	t.Helper()
 	for _, call := range calls {
 		if len(call.Normalized.ParserWarnings) != 0 {
@@ -518,17 +518,17 @@ func assertNoParserWarnings(t *testing.T, calls []lab.Call) {
 	}
 }
 
-func postOpenAIRetryNetwork(t *testing.T, apiKey string, lab *tracetest.Lab, path string, body []byte) []byte {
+func postOpenAIRetryNetwork(t *testing.T, apiKey string, lm *tracetest.Session, path string, body []byte) []byte {
 	t.Helper()
 	var lastErr error
 	for attempt := 1; attempt <= 3; attempt++ {
-		req, err := http.NewRequest(http.MethodPost, lab.OpenAIBaseURL("openai")+path, bytes.NewReader(body))
+		req, err := http.NewRequest(http.MethodPost, lm.OpenAIBaseURL("openai")+path, bytes.NewReader(body))
 		if err != nil {
 			t.Fatal(err)
 		}
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 		req.Header.Set("Content-Type", "application/json")
-		key, value := lab.Header()
+		key, value := lm.Header()
 		req.Header.Set(key, value)
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {

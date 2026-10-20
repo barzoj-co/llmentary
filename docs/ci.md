@@ -122,18 +122,8 @@ jobs:
         working-directory: tests/proxy
 ```
 
-Replace `VERSION` with a published release tag. Release archives are built by
-the reusable GoReleaser workflow for Linux, macOS, and Windows on amd64/arm64
-when release-please tags `main`, or when a `v*` tag is pushed.
-
-Goreleaser names each archive `llmentary_<version>_<os>_<arch>.tar.gz`
-(`.zip` on Windows). `<version>` is goreleaser's `.Version` and does **not**
-include a `v` prefix: tag `v0.1.0` produces `llmentary_0.1.0_linux_amd64.tar.gz`.
-`<os>` is `linux`, `darwin`, or `windows`. `<arch>` is `amd64` or `arm64`.
-Each archive contains the binary `llmentary` (`llmentary.exe` on Windows), plus
-`LICENSE` and `README.md`. The release also publishes `checksums.txt` and
-`checksums.txt.sigstore.json`. Clients that download GitHub release assets
-must match `llmentary_<version>_<os>_<arch>.(tar.gz|zip)` exactly.
+Replace `VERSION` with a published release tag. Archive names, contents, and
+verification are in [Binaries](binaries.md) and [Releasing](releasing.md).
 
 ## Use `go install` instead of a release binary
 

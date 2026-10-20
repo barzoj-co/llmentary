@@ -13,7 +13,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/barzoj-co/llmentary/internal/lab"
+	"github.com/barzoj-co/llmentary/internal/proxy"
 )
 
 type upstreamFlags []string
@@ -53,7 +53,7 @@ func (f *nonNegIntFlag) Set(value string) error {
 }
 
 func main() {
-	cfg, err := lab.ConfigFromEnv()
+	cfg, err := proxy.ConfigFromEnv()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -77,7 +77,7 @@ func main() {
 		flag.Usage()
 		os.Exit(2)
 	}
-	server, err := lab.NewServer(cfg, lab.NewMemoryStore(), lab.TolerantParser{})
+	server, err := proxy.NewServer(cfg, proxy.NewMemoryStore(), proxy.TolerantParser{})
 	if err != nil {
 		log.Fatal(err)
 	}

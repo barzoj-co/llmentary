@@ -19,7 +19,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/barzoj-co/llmentary/internal/lab"
+	"github.com/barzoj-co/llmentary/internal/proxy"
 )
 
 type fakeUpstream struct {
@@ -87,12 +87,12 @@ type proxyProc struct {
 	upstream   *fakeUpstream
 }
 
-func startSpecProxy(t *testing.T, mode, profile string, upstream http.HandlerFunc, extra ...func(*lab.Config)) proxyProc {
+func startSpecProxy(t *testing.T, mode, profile string, upstream http.HandlerFunc, extra ...func(*proxy.Config)) proxyProc {
 	t.Helper()
 	fake := &fakeUpstream{handler: upstream}
 	srv := httptest.NewServer(fake)
 	t.Cleanup(srv.Close)
-	cfg := lab.Config{
+	cfg := proxy.Config{
 		ListenAddr:     ":0",
 		ControlAddr:    "127.0.0.1:0",
 		SpecValidation: mode,
@@ -104,15 +104,15 @@ func startSpecProxy(t *testing.T, mode, profile string, upstream http.HandlerFun
 	for _, fn := range extra {
 		fn(&cfg)
 	}
-	server, err := lab.NewServer(cfg, lab.NewMemoryStore(), lab.TolerantParser{})
+	server, err := proxy.NewServer(cfg, proxy.NewMemoryStore(), proxy.TolerantParser{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	proxy := httptest.NewServer(server.ProxyHandler())
-	t.Cleanup(proxy.Close)
+	proxySrv := httptest.NewServer(server.ProxyHandler())
+	t.Cleanup(proxySrv.Close)
 	control := httptest.NewServer(server.ControlHandler())
 	t.Cleanup(control.Close)
-	return proxyProc{proxyURL: proxy.URL, controlURL: control.URL, upstream: fake}
+	return proxyProc{proxyURL: proxySrv.URL, controlURL: control.URL, upstream: fake}
 }
 
 func postRawErr(p proxyProc, path, session string, headers map[string]string, body []byte) (status int, respHeaders http.Header, respBody []byte, trace map[string]any, err error) {
@@ -121,7 +121,7 @@ func postRawErr(p proxyProc, path, session string, headers map[string]string, bo
 		return 0, nil, nil, nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set(lab.SessionHeaderName, session)
+	req.Header.Set(proxy.SessionHeaderName, session)
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}

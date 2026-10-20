@@ -38,7 +38,7 @@ Authorization: Bearer <token>
 
 The [Go client](https://github.com/barzoj-co/llmentary-go) reads
 `LLMENTARY_CONTROL_TOKEN` automatically or can be configured with
-`llmentary.WithControlToken(token)` / `llmentary.WithLabControlToken(token)`.
+`llmentary.WithControlToken(token)`.
 
 ## `401 unauthorized` from the control API
 
@@ -93,17 +93,17 @@ Check session tagging:
 For Go tests, prefer the [Go client](https://github.com/barzoj-co/llmentary-go):
 
 ```go
-lab := llmentary.New(t)
+lm := llmentary.New(t)
 client := openai.NewClient(
-    option.WithBaseURL(lab.OpenAIBaseURL("openai")),
-    option.WithHTTPClient(lab.HTTPClient()),
+    option.WithBaseURL(lm.OpenAIBaseURL("openai")),
+    option.WithHTTPClient(lm.HTTPClient()),
 )
 ```
 
 Or set the header manually:
 
 ```go
-key, value := lab.Header()
+key, value := lm.Header()
 req.Header.Set(key, value)
 ```
 
@@ -116,7 +116,7 @@ timeout.
 Try:
 
 ```go
-lab := llmentary.New(t, llmentary.WithWait(100*time.Millisecond, 60*time.Second)) // llmentary-go
+lm := llmentary.New(t, llmentary.WithWait(100*time.Millisecond, 60*time.Second)) // llmentary-go
 ```
 
 Or inspect the current session without waiting:

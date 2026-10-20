@@ -17,10 +17,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/barzoj-co/llmentary/internal/lab"
+	"github.com/barzoj-co/llmentary/internal/proxy"
 )
 
-const SessionHeaderName = lab.SessionHeaderName
+const SessionHeaderName = proxy.SessionHeaderName
 
 type Client struct {
 	baseURL      *url.URL
@@ -63,15 +63,15 @@ func (c *Client) NewSession() string {
 	return NewSessionID()
 }
 
-func (c *Client) Session(ctx context.Context, sessionID string) (lab.Session, error) {
-	var session lab.Session
+func (c *Client) Session(ctx context.Context, sessionID string) (proxy.Session, error) {
+	var session proxy.Session
 	if err := c.getJSON(ctx, "/sessions/"+url.PathEscape(sessionID), nil, &session); err != nil {
-		return lab.Session{}, err
+		return proxy.Session{}, err
 	}
 	return session, nil
 }
 
-func (c *Client) Calls(ctx context.Context, sessionID string) ([]lab.Call, error) {
+func (c *Client) Calls(ctx context.Context, sessionID string) ([]proxy.Call, error) {
 	session, err := c.Session(ctx, sessionID)
 	if err != nil {
 		return nil, err
@@ -79,7 +79,7 @@ func (c *Client) Calls(ctx context.Context, sessionID string) ([]lab.Call, error
 	return session.Calls, nil
 }
 
-func (c *Client) Wait(ctx context.Context, sessionID string, quiet, timeout time.Duration) ([]lab.Call, error) {
+func (c *Client) Wait(ctx context.Context, sessionID string, quiet, timeout time.Duration) ([]proxy.Call, error) {
 	q := url.Values{}
 	if quiet > 0 {
 		q.Set("quiet", quiet.String())
@@ -87,7 +87,7 @@ func (c *Client) Wait(ctx context.Context, sessionID string, quiet, timeout time
 	if timeout > 0 {
 		q.Set("timeout", timeout.String())
 	}
-	var session lab.Session
+	var session proxy.Session
 	if err := c.getJSON(ctx, "/sessions/"+url.PathEscape(sessionID)+"/wait", q, &session); err != nil {
 		return nil, err
 	}

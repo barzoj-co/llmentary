@@ -1,7 +1,7 @@
 # Recorded trace data model
 
 The control API returns one `Session` per test id. A session contains ordered `Call`
-records. The Go structs live in `internal/lab/types.go`; this document describes their
+records. The Go structs live in `internal/proxy/types.go`; this document describes their
 JSON shape and normalization rules.
 
 ## Session

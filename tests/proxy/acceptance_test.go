@@ -19,8 +19,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/barzoj-co/llmentary/internal/lab"
 	"github.com/barzoj-co/llmentary/internal/openaiapi"
+	"github.com/barzoj-co/llmentary/internal/proxy"
 	"github.com/barzoj-co/llmentary/internal/tracetest"
 )
 
@@ -37,9 +37,9 @@ type proxyRoundtrip struct {
 	headers    http.Header
 	body       []byte
 	upstream   capturedUpstream
-	call       lab.Call
-	session    lab.Session
-	lab        *tracetest.Lab
+	call       proxy.Call
+	session    proxy.Session
+	lm         *tracetest.Session
 	proxyURL   string
 	controlURL string
 }
@@ -62,29 +62,29 @@ func startAcceptanceLog(t *testing.T, upstream http.HandlerFunc, logger *slog.Lo
 		upstream(w, r)
 	}))
 	t.Cleanup(fake.Close)
-	cfg := lab.Config{ListenAddr: ":0", ControlAddr: "127.0.0.1:0", Logger: logger}
+	cfg := proxy.Config{ListenAddr: ":0", ControlAddr: "127.0.0.1:0", Logger: logger}
 	if err := cfg.AddUpstream("default=" + fake.URL); err != nil {
 		t.Fatal(err)
 	}
-	server, err := lab.NewServer(cfg, lab.NewMemoryStore(), lab.TolerantParser{})
+	server, err := proxy.NewServer(cfg, proxy.NewMemoryStore(), proxy.TolerantParser{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	proxy := httptest.NewServer(server.ProxyHandler())
-	t.Cleanup(proxy.Close)
+	proxySrv := httptest.NewServer(server.ProxyHandler())
+	t.Cleanup(proxySrv.Close)
 	control := httptest.NewServer(server.ControlHandler())
 	t.Cleanup(control.Close)
-	return proxy.URL, control.URL, got
+	return proxySrv.URL, control.URL, got
 }
 
 func doProxy(t *testing.T, method, proxyURL, controlURL, path string, headers map[string]string, body []byte) proxyRoundtrip {
 	t.Helper()
-	testLab := tracetest.New(t, tracetest.WithProxyURL(proxyURL), tracetest.WithControlURL(controlURL), tracetest.WithWait(time.Millisecond, 2*time.Second))
+	lm := tracetest.New(t, tracetest.WithProxyURL(proxyURL), tracetest.WithControlURL(controlURL), tracetest.WithWait(time.Millisecond, 2*time.Second))
 	req, err := http.NewRequest(method, proxyURL+path, bytes.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
-	key, value := testLab.Header()
+	key, value := lm.Header()
 	req.Header.Set(key, value)
 	req.Header.Set("Content-Type", "application/json")
 	for k, v := range headers {
@@ -102,7 +102,7 @@ func doProxy(t *testing.T, method, proxyURL, controlURL, path string, headers ma
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	calls := testLab.Wait(ctx).Calls
+	calls := lm.Wait(ctx).Calls
 	if len(calls) == 0 {
 		t.Fatal("no recorded calls")
 	}
@@ -111,8 +111,8 @@ func doProxy(t *testing.T, method, proxyURL, controlURL, path string, headers ma
 		headers:    resp.Header.Clone(),
 		body:       got,
 		call:       calls[len(calls)-1],
-		session:    lab.Session{ID: testLab.SessionID(), Calls: calls},
-		lab:        testLab,
+		session:    proxy.Session{ID: lm.SessionID(), Calls: calls},
+		lm:         lm,
 		proxyURL:   proxyURL,
 		controlURL: controlURL,
 	}
@@ -815,19 +815,19 @@ func TestD5RequestDecodeErrorPassthrough(t *testing.T) {
 }
 
 func TestD6UpstreamUnreachable(t *testing.T) {
-	cfg := lab.Config{ListenAddr: ":0", ControlAddr: "127.0.0.1:0"}
+	cfg := proxy.Config{ListenAddr: ":0", ControlAddr: "127.0.0.1:0"}
 	if err := cfg.AddUpstream("default=http://127.0.0.1:1"); err != nil {
 		t.Fatal(err)
 	}
-	server, err := lab.NewServer(cfg, lab.NewMemoryStore(), lab.TolerantParser{})
+	server, err := proxy.NewServer(cfg, proxy.NewMemoryStore(), proxy.TolerantParser{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	proxy := httptest.NewServer(server.ProxyHandler())
-	t.Cleanup(proxy.Close)
+	proxySrv := httptest.NewServer(server.ProxyHandler())
+	t.Cleanup(proxySrv.Close)
 	control := httptest.NewServer(server.ControlHandler())
 	t.Cleanup(control.Close)
-	rt := doProxy(t, http.MethodPost, proxy.URL, control.URL, "/v1/chat/completions", nil, []byte(`{"model":"x"}`))
+	rt := doProxy(t, http.MethodPost, proxySrv.URL, control.URL, "/v1/chat/completions", nil, []byte(`{"model":"x"}`))
 	if rt.status != http.StatusBadGateway {
 		t.Fatalf("status=%d", rt.status)
 	}
@@ -871,7 +871,7 @@ func TestE1AzureClassic(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	otlp := fetchOTLP(t, rt.controlURL, rt.lab.SessionID())
+	otlp := fetchOTLP(t, rt.controlURL, rt.lm.SessionID())
 	for _, blob := range []struct {
 		name string
 		raw  []byte
@@ -1202,7 +1202,7 @@ func TestE8OffSpecCompatibleProvider(t *testing.T) {
 }
 
 func TestA7NoHandwrittenChoicesTags(t *testing.T) {
-	root := filepath.Join("..", "..", "internal", "lab")
+	root := filepath.Join("..", "..", "internal", "proxy")
 	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -1236,7 +1236,7 @@ func deref(v *int) int {
 	return *v
 }
 
-func names(calls []lab.ToolCall) []string {
+func names(calls []proxy.ToolCall) []string {
 	out := make([]string, len(calls))
 	for i, c := range calls {
 		out[i] = c.Name

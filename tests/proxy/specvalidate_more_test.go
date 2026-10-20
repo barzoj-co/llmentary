@@ -16,7 +16,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/barzoj-co/llmentary/internal/lab"
+	"github.com/barzoj-co/llmentary/internal/proxy"
 	"github.com/barzoj-co/llmentary/internal/specvalidate"
 )
 
@@ -422,7 +422,7 @@ func TestF1InvalidUTF8AndBOM(t *testing.T) {
 
 func TestF2BodyTooLarge(t *testing.T) {
 	t.Run("over_limit_skipped_and_forwarded", func(t *testing.T) {
-		p := startSpecProxy(t, "enforce", "strict", chatOK(), func(cfg *lab.Config) {
+		p := startSpecProxy(t, "enforce", "strict", chatOK(), func(cfg *proxy.Config) {
 			cfg.SpecValidationMaxBytes = 1 << 20
 		})
 		body := sizedChatBody(20 << 20)
@@ -445,7 +445,7 @@ func TestF2BodyTooLarge(t *testing.T) {
 	})
 	t.Run("exact_at_limit_validated", func(t *testing.T) {
 		const limit = 256
-		p := startSpecProxy(t, "warn", "strict", chatOK(), func(cfg *lab.Config) {
+		p := startSpecProxy(t, "warn", "strict", chatOK(), func(cfg *proxy.Config) {
 			cfg.SpecValidationMaxBytes = limit
 		})
 		body := sizedChatBody(limit)
@@ -523,7 +523,7 @@ func TestF7ContentEncoding(t *testing.T) {
 		zw := gzip.NewWriter(&buf)
 		_, _ = zw.Write(zeros)
 		_ = zw.Close()
-		p := startSpecProxy(t, "enforce", "relaxed", chatOK(), func(cfg *lab.Config) {
+		p := startSpecProxy(t, "enforce", "relaxed", chatOK(), func(cfg *proxy.Config) {
 			cfg.SpecValidationMaxBytes = 1024
 		})
 		sid := newSession()
