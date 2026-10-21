@@ -129,6 +129,10 @@ paths:
         description: Minimum finished calls before a successful return. Default 0.
     get:
       summary: Wait until the session is quiet and has min_calls
+      description: >
+        min_calls=0 on a session that was never created (or was DELETE'd)
+        returns 404 session_not_found immediately. min_calls>=1 keeps waiting
+        until the session appears or timeout, then 504 wait_timeout.
       responses:
         "200":
           description: session
@@ -140,6 +144,8 @@ paths:
           $ref: "#/components/responses/InvalidParameter"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/SessionNotFoundWait"
         "405":
           $ref: "#/components/responses/MethodNotAllowed"
         "504":
@@ -193,6 +199,8 @@ components:
         calls_seen:
           type: integer
         min_calls:
+          type: integer
+        waited_ms:
           type: integer
     ErrorBody:
       type: object
@@ -323,6 +331,21 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorBody"
+    SessionNotFoundWait:
+      description: >
+        Wait with min_calls=0 on a session that was never created or was DELETE'd.
+        Same error as GET /sessions/{id}, plus id and waited_ms.
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: "#/components/schemas/ErrorBody"
+              - type: object
+                properties:
+                  id:
+                    type: string
+                  waited_ms:
+                    type: integer
     WaitTimeout:
       description: Wait timed out before min_calls and quiet were satisfied
       content:
