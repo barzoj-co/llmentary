@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -179,21 +180,18 @@ func TestFinishIgnoresStaleCallAfterReuse(t *testing.T) {
 	store := NewMemoryStore()
 	_, oldID := store.Begin("s", Call{StartedAt: time.Now().UTC()})
 	store.Delete("s")
-	_, newID := store.Begin("s", Call{StartedAt: time.Now().UTC()})
+	_, _ = store.Begin("s", Call{StartedAt: time.Now().UTC()})
 	store.Finish("s", oldID, func(call *Call) { call.EndedAt = time.Now().UTC() })
 
 	session, ok := store.Lookup("s")
 	if !ok {
 		t.Fatal("reused session missing")
 	}
-	if len(session.Calls) != 1 || session.Calls[0].ID != newID {
-		t.Fatalf("calls=%+v", session.Calls)
-	}
-	if !session.Calls[0].EndedAt.IsZero() {
-		t.Fatal("stale finish updated the new generation")
+	if len(session.Calls) != 0 {
+		t.Fatalf("in-flight call must not be published: %+v", session.Calls)
 	}
 	summaries := store.List("")
-	if len(summaries) != 1 || summaries[0].Active != 1 {
+	if len(summaries) != 1 || summaries[0].Active != 1 || summaries[0].Calls != 0 {
 		t.Fatalf("summaries=%+v", summaries)
 	}
 
@@ -236,5 +234,191 @@ func TestWaitQuietActiveCallThenQuiet(t *testing.T) {
 	elapsed := time.Since(start)
 	if elapsed < 120*time.Millisecond {
 		t.Fatalf("returned in %s; active call should keep wait open then quiet", elapsed)
+	}
+}
+
+func TestLookupHidesInFlightPlaceholder(t *testing.T) {
+	store := NewMemoryStore()
+	_, id := store.Begin("s", Call{StartedAt: time.Now().UTC(), HTTPStatus: 0})
+	session, ok := store.Lookup("s")
+	if !ok {
+		t.Fatal("session missing after Begin")
+	}
+	if len(session.Calls) != 0 {
+		t.Fatalf("GET-equivalent Lookup exposed in-flight placeholder: %+v", session.Calls)
+	}
+	summaries := store.List("")
+	if len(summaries) != 1 || summaries[0].Active != 1 || summaries[0].Calls != 0 {
+		t.Fatalf("list during in-flight=%+v", summaries)
+	}
+
+	store.Finish("s", id, func(call *Call) {
+		call.EndedAt = time.Now().UTC()
+		call.ClientAborted = true
+		call.AbortPhase = AbortPhaseBeforeHeaders
+		call.HTTPStatus = 0
+		call.Normalized.FinishReason = "cancelled"
+		call.Normalized.ClientAborted = true
+	})
+	session, ok = store.Lookup("s")
+	if !ok || len(session.Calls) != 1 {
+		t.Fatalf("settled session=%+v ok=%v", session, ok)
+	}
+	got := session.Calls[0]
+	if got.ID != id || !got.ClientAborted || got.AbortPhase != AbortPhaseBeforeHeaders || got.Normalized.FinishReason != "cancelled" {
+		t.Fatalf("settled call=%+v", got)
+	}
+}
+
+func TestWaitMinCallsCountsOnlySettled(t *testing.T) {
+	store := NewMemoryStore()
+	_, _ = store.Begin("s", Call{StartedAt: time.Now().UTC()})
+	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	_, err := store.WaitQuiet(ctx, "s", 20*time.Millisecond, 80*time.Millisecond, 1)
+	if !errors.Is(err, ErrWaitTimeout) {
+		t.Fatalf("err=%v want wait_timeout while only an in-flight call exists", err)
+	}
+	if elapsed := time.Since(start); elapsed < 40*time.Millisecond {
+		t.Fatalf("wait returned in %s; in-flight must not count as min_calls", elapsed)
+	}
+}
+
+func TestConcurrentGetDuringFinishHook(t *testing.T) {
+	store := NewMemoryStore()
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	var once sync.Once
+	store.SetBeforeFinish(func() {
+		once.Do(func() { close(entered) })
+		<-release
+	})
+	t.Cleanup(func() {
+		select {
+		case <-release:
+		default:
+			close(release)
+		}
+	})
+
+	_, id := store.Begin("s", Call{StartedAt: time.Now().UTC()})
+
+	waitDone := make(chan error, 1)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		_, err := store.WaitQuiet(ctx, "s", 10*time.Millisecond, time.Second, 1)
+		waitDone <- err
+	}()
+
+	finishDone := make(chan struct{})
+	go func() {
+		defer close(finishDone)
+		store.Finish("s", id, func(call *Call) {
+			call.EndedAt = time.Now().UTC()
+			call.ClientAborted = true
+			call.AbortPhase = AbortPhaseAfterHeaders
+			call.HTTPStatus = 200
+			call.Normalized.FinishReason = "cancelled"
+		})
+	}()
+
+	select {
+	case <-entered:
+	case <-time.After(time.Second):
+		t.Fatal("Finish hook did not run")
+	}
+
+	for i := 0; i < 20; i++ {
+		session, ok := store.Lookup("s")
+		if !ok {
+			t.Fatal("session missing during finalize")
+		}
+		if len(session.Calls) != 0 {
+			t.Fatalf("Lookup during finalize exposed placeholder: %+v", session.Calls)
+		}
+		summaries := store.List("")
+		if len(summaries) != 1 || summaries[0].Active != 1 || summaries[0].Calls != 0 {
+			t.Fatalf("list during finalize=%+v", summaries)
+		}
+		select {
+		case err := <-waitDone:
+			t.Fatalf("wait returned during finalize: %v", err)
+		default:
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
+
+	close(release)
+	<-finishDone
+	if err := <-waitDone; err != nil {
+		t.Fatalf("wait after publish: %v", err)
+	}
+	session, ok := store.Lookup("s")
+	if !ok || len(session.Calls) != 1 {
+		t.Fatalf("after publish session=%+v ok=%v", session, ok)
+	}
+	if !session.Calls[0].ClientAborted || session.Calls[0].AbortPhase != AbortPhaseAfterHeaders {
+		t.Fatalf("settled=%+v", session.Calls[0])
+	}
+}
+
+func TestConcurrentGetNeverSeesPlaceholder(t *testing.T) {
+	for i := 0; i < 20; i++ {
+		store := NewMemoryStore()
+		started := make(chan struct{})
+		var startOnce sync.Once
+		seenEmpty := make(chan struct{})
+		var seenOnce sync.Once
+		done := make(chan struct{})
+		errCh := make(chan error, 1)
+		go func() {
+			defer close(errCh)
+			startOnce.Do(func() { close(started) })
+			for {
+				select {
+				case <-done:
+					return
+				default:
+				}
+				session, ok := store.Lookup("s")
+				if !ok {
+					continue
+				}
+				if len(session.Calls) == 0 {
+					seenOnce.Do(func() { close(seenEmpty) })
+				}
+				for _, call := range session.Calls {
+					if !callSettled(call) {
+						errCh <- errors.New("unsettled call visible")
+						return
+					}
+					if call.HTTPStatus == 0 && !call.ClientAborted && call.AbortPhase == "" && call.Normalized.FinishReason == "" {
+						errCh <- errors.New("abort placeholder visible")
+						return
+					}
+				}
+			}
+		}()
+		<-started
+		_, id := store.Begin("s", Call{StartedAt: time.Now().UTC()})
+		select {
+		case <-seenEmpty:
+		case <-time.After(time.Second):
+			t.Fatal("reader never observed in-flight session")
+		}
+		store.Finish("s", id, func(call *Call) {
+			call.EndedAt = time.Now().UTC()
+			call.ClientAborted = true
+			call.AbortPhase = AbortPhaseBeforeHeaders
+			call.HTTPStatus = 0
+			call.Normalized.FinishReason = "cancelled"
+			call.Normalized.ClientAborted = true
+		})
+		close(done)
+		if err := <-errCh; err != nil {
+			t.Fatal(err)
+		}
 	}
 }

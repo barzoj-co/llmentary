@@ -277,7 +277,8 @@ Wait defaults (after DOG-7) are `timeout=30s` and `quiet=500ms`.
 
 Raise `timeout` when a worker fans out several model calls. Use `min_calls`
 when the trigger is async (a queue, a LiveKit job, an HTTP 202): wait until
-that many **finished** calls exist, then the quiet period. A session that was
+that many **settled** calls exist, then the quiet period. In-flight
+placeholders are not counted. A session that was
 never created does not succeed at `min_calls=0`; you get `404`
 `session_not_found` immediately. `min_calls>=1` still waits until `timeout`,
 then `504` `wait_timeout` with `calls_seen:0`.

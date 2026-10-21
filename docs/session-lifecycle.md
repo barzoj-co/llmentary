@@ -6,11 +6,16 @@ and `GET /sessions` treat a session id.
 | State | `GET /sessions/{id}` | `wait` `min_calls=0` | `wait` `min_calls>=1` | `DELETE` | `GET /sessions` list |
 |---|---|---|---|---|---|
 | Never created | `404` `session_not_found` | `404` `session_not_found` immediately | wait until `timeout`, then `504` `wait_timeout` | `204` (idempotent) | absent |
-| Has calls | `200` session | `200` after quiet | `200` when enough finished calls are quiet | `204` | present |
+| In-flight only (0 settled) | `200` empty `calls` | wait while `active>0` | wait while `active>0` | `204` | present, `active>0`, `calls=0` |
+| Has settled calls | `200` session (settled `calls` only) | `200` after quiet | `200` when enough settled calls are quiet | `204` | present |
 | Deleted | `404` `session_not_found` | `404` `session_not_found` immediately | wait until `timeout`, then `504` `wait_timeout` | `204` (idempotent) | absent |
 
-A never-created session is never a `200` with an empty `calls` array. Use
-`min_calls>=1` when an async worker may still create the session.
+A never-created session is never a `200` with an empty `calls` array. An
+in-flight first call is: the session exists (`200`) but `calls` stays empty
+until the final record is published. Use `min_calls>=1` when an async worker
+may still create the session. `wait` counts only settled calls (`ended_at`
+set); `GET /sessions/{id}` and a successful `wait` never return an abort
+placeholder (`http_status=0`, `client_aborted=false`).
 
 Machine-readable contract: [`api/control/openapi.yaml`](../api/control/openapi.yaml).
 Control API reference: [Proxy](proxy.md#get-sessionsidwait).
