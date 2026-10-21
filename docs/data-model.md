@@ -77,8 +77,8 @@ JSON shape and normalization rules.
 | `raw_request` | base64 string | Raw request body bytes. |
 | `raw_response` | base64 string | Raw response bytes used for parsing. **Gzip responses are stored decompressed** (see below). |
 | `sse_events` | array | Parsed SSE events for streaming responses. |
-| `stream` | boolean | Whether the response was detected as SSE. |
-| `http_status` | number | Upstream HTTP status, or proxy error status. |
+| `stream` | boolean | Whether the response was detected as SSE. When the client aborts before response headers, this is the request body's `stream` flag. |
+| `http_status` | number | Upstream HTTP status, or proxy error status. `0` when the client cancelled before response headers (never a synthetic `502`). |
 | `retry_count` | number, optional | Integer parsed from `x-stainless-retry-count`. |
 | `retry_after` | string, optional | `retry-after-ms` or `retry-after` response header. |
 | `normalized` | object | Cross-provider view used by test assertions. |
@@ -190,7 +190,7 @@ from an Azure-style `/deployments/{deployment}/...` path segment.
 | `content_filter` | Provider content-filter data when parsed. |
 | `error` | Normalized provider/proxy error. |
 | `stream_truncated` | Stream ended without a terminal marker/event. |
-| `client_aborted` | The client disconnected before the terminal stream event (`[DONE]`, or Responses `response.completed` / `response.failed` / `response.incomplete`). A close after that event is not an abort. |
+| `client_aborted` | The client disconnected before the terminal stream event (`[DONE]`, or Responses `response.completed` / `response.failed` / `response.incomplete`), or cancelled the inbound request before response headers arrived. A close after a terminal event is not an abort. |
 | `parser_warnings` | Non-fatal parser warnings. |
 | `validation` | Present in `warn`/`enforce`. Mode, profile, spec SHA, subset retrieval date, checked flags, optional `skipped_reason`, `duration_us`, and `truncated`. Absent in `off`. |
 | `spec_violations` | Pointer-to-slice so `[]` (clean) is distinct from absent (not checked). Sorted by side, pointer, keyword. Capped at 200. |
@@ -282,7 +282,13 @@ Responses synthesizes `finish_reason` as follows:
 | other non-empty status | the status string |
 | no status and no parser result | `unknown` |
 
-Proxy errors set `finish_reason: "error"`. Passthrough calls without errors use
+Proxy network errors set `finish_reason: "error"` with `error.normalized: "network"`
+and an HTTP `502`. A client cancel before response headers sets
+`finish_reason: "cancelled"`, `client_aborted: true`, `http_status: 0`,
+`error.normalized: "client_aborted"`, and `stream` from the request body. The
+parser is not run on that empty body, so there is no "strict decode failed"
+warning. `upstream_called` is true when the outbound request was written
+(`httptrace.WroteRequest`). Passthrough calls without errors use
 `finish_reason: "unknown"`.
 
 ## Errors inside HTTP 200 streams

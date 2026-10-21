@@ -510,6 +510,22 @@ Profiles:
 
 **D5 (reworded).** In `--spec-validation=off` and `warn` modes, a request body that does not decode into the generated type (malformed JSON, valid JSON with a field of unknown type, trailing data) is **not** answered by the proxy: it goes upstream byte-for-byte, the client gets the upstream response, and `parser_warnings` contains the reason; in `warn`, `spec_violations` also records it. In `enforce` mode, and only for requests, the proxy answers a local OpenAI-shaped 400 (`code: llmentary_spec_violation` or `llmentary_ignored_field`) **without calling the upstream** if there is at least one request-side spec violation or reject-class ignored field. Responses are never rejected or altered in any mode.
 
+## Logs
+
+Every finished call writes one `INFO proxy response` line, including client
+aborts and upstream connection errors.
+
+```text
+INFO proxy response status=200 call_id=call_1 session=weather api_family=openai.responses
+INFO proxy response status=- call_id=call_2 session=barge api_family=openai.responses client_aborted=true phase=before_headers
+INFO proxy response status=502 call_id=call_3 session=weather api_family=openai.responses
+```
+
+`status=-` and `phase=before_headers` mean the inbound request context was
+cancelled before the upstream sent headers. That is a client abort, not a
+proxy `502`. A live client plus a refused / DNS / TLS failure stays
+`status=502` with `error.normalized: "network"`.
+
 ## Features
 
 - Reverse proxy binary: `cmd/llmentary`.

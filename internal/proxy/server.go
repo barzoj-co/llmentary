@@ -250,13 +250,14 @@ func (s *Server) route(requestPath string) (string, string, *url.URL, error) {
 	return "", "", nil, fmt.Errorf("bare proxy path requires exactly one upstream or a default upstream")
 }
 
-func (s *Server) finishWithProxyError(sessionID, callID string, startedAt time.Time, err error, status int, rv requestValidation) Call {
+func (s *Server) finishWithProxyError(sessionID, callID string, startedAt time.Time, err error, status int, rv requestValidation, upstreamCalled bool) Call {
 	endedAt := time.Now().UTC()
 	var endedCall Call
 	s.store.Finish(sessionID, callID, func(call *Call) {
 		call.EndedAt = endedAt
 		call.LatencyMS = endedAt.Sub(startedAt).Milliseconds()
 		call.HTTPStatus = status
+		call.UpstreamCalled = upstreamCalled
 		call.Normalized.Error = &CallError{HTTPStatus: status, Message: err.Error(), Normalized: "network"}
 		call.Normalized.FinishReason = "error"
 		s.parser.Parse(call)
