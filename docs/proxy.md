@@ -280,7 +280,8 @@ If the control address is non-loopback, validation fails unless a control token 
 ## Control endpoints
 
 All endpoints are on the control listener, not the proxy listener. The machine-readable
-contract is `GET /openapi.yaml` (the same bytes as `api/control/openapi.yaml`).
+contract is `GET /openapi.yaml`, based on `api/control/openapi.yaml` with
+`info.version` stamped at serve time.
 Unknown query parameters and unparsable values
 return `400` `{"error":{"type":"invalid_parameter","param":"…","message":"…"}}`.
 `timeout` and `quiet` accept Go durations (`30s`, `500ms`) and plain seconds (`90`,
