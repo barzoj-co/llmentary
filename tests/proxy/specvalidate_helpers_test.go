@@ -89,6 +89,11 @@ type proxyProc struct {
 
 func startSpecProxy(t *testing.T, mode, profile string, upstream http.HandlerFunc, extra ...func(*proxy.Config)) proxyProc {
 	t.Helper()
+	return startSpecProxyStore(t, proxy.NewMemoryStore(), mode, profile, upstream, extra...)
+}
+
+func startSpecProxyStore(t *testing.T, store *proxy.MemoryStore, mode, profile string, upstream http.HandlerFunc, extra ...func(*proxy.Config)) proxyProc {
+	t.Helper()
 	fake := &fakeUpstream{handler: upstream}
 	srv := httptest.NewServer(fake)
 	t.Cleanup(srv.Close)
@@ -104,7 +109,10 @@ func startSpecProxy(t *testing.T, mode, profile string, upstream http.HandlerFun
 	for _, fn := range extra {
 		fn(&cfg)
 	}
-	server, err := proxy.NewServer(cfg, proxy.NewMemoryStore(), proxy.TolerantParser{})
+	if store == nil {
+		store = proxy.NewMemoryStore()
+	}
+	server, err := proxy.NewServer(cfg, store, proxy.TolerantParser{})
 	if err != nil {
 		t.Fatal(err)
 	}

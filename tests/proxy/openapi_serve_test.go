@@ -142,7 +142,8 @@ func TestSessionLifecycleTableInDocs(t *testing.T) {
 	needles := []string{
 		"## Session lifecycle",
 		"Never created",
-		"Has calls",
+		"Has settled calls",
+		"In-flight only",
 		"Deleted",
 		"session_not_found",
 		"wait_timeout",

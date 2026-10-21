@@ -146,7 +146,7 @@ paths:
         schema:
           type: integer
           minimum: 0
-        description: Minimum finished calls before a successful return. Default 0.
+        description: Minimum settled (finished) calls before a successful return. Default 0. In-flight calls are not counted.
     get:
       summary: Wait until the session is quiet and has min_calls
       description: >
@@ -351,7 +351,11 @@ components:
       required:
         - id
         - calls
-      description: Full session trace. Call fields follow docs/data-model.md.
+      description: >
+        Full session trace. Call fields follow docs/data-model.md.
+        calls contains only settled records (ended_at set). In-flight calls
+        increment GET /sessions[].active and are omitted here until Finish
+        publishes the final record, including abort fields.
       properties:
         id:
           type: string

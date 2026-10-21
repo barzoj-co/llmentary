@@ -305,7 +305,8 @@ curl http://127.0.0.1:7778/openapi.yaml
 | State | `GET /sessions/{id}` | `wait` `min_calls=0` | `wait` `min_calls>=1` | `DELETE` | `GET /sessions` |
 |---|---|---|---|---|---|
 | Never created | `404` | `504` `wait_timeout` after `quiet` | `504` `wait_timeout` after timeout | `204` | absent |
-| Has calls | `200` | `200` after quiet | `200` when quiet and enough calls | `204` | present |
+| In-flight only | `200` empty `calls` | wait while `active>0` | wait while `active>0` | `204` | present, `active>0` |
+| Has settled calls | `200` | `200` after quiet | `200` when quiet and enough settled calls | `204` | present |
 | Deleted | `404` | `504` `wait_timeout` after `quiet` | `504` `wait_timeout` after timeout | `204` | absent |
 
 The wait statuses are implemented by `serveWait` / `WaitQuiet`. See
@@ -356,7 +357,15 @@ the list. Zero sessions: `{"sessions":[]}`.
 
 ### `GET /sessions/{id}`
 
-Returns the current session immediately. Unknown ids (never recorded, or deleted)
+Returns the current session immediately. `calls` contains only **settled**
+records (`ended_at` set). An in-flight call is counted in `GET /sessions`
+`active` and keeps `wait` open, but it is omitted from this array until
+`Finish` publishes the final record atomically — including abort fields
+(`client_aborted`, `abort_phase`, `finish_reason`). A session with only
+in-flight work is `200` with `calls: []`, not a placeholder
+(`http_status=0`, `client_aborted=false`).
+
+Unknown ids (never recorded, or deleted)
 return `404` `{"error":{"type":"session_not_found","message":"no calls recorded for session \"{id}\"; list sessions with GET /sessions"}}`. GETs never create sessions.
 
 ```bash
@@ -411,9 +420,10 @@ as base64 strings in JSON.
 
 ### `GET /sessions/{id}/wait`
 
-Waits until the session has at least `min_calls` **finished** calls, no active calls,
+Waits until the session has at least `min_calls` **settled** calls, no active calls,
 and has been quiet for `quiet` after the last session activity (a call start or
-finish). That can be immediate when the session is already idle. A session that
+finish). In-flight placeholders are not counted and are not included in the
+returned `calls` array. That can be immediate when the session is already idle. A session that
 does not exist yet is waited for until it appears **only when `min_calls>=1`**.
 `min_calls=0` on a never-created (or `DELETE`d) session is not success: it
 returns `404` `session_not_found` immediately, with the same error as
@@ -427,7 +437,8 @@ See [Session lifecycle](session-lifecycle.md) for the status table and an exampl
 | State | `GET /sessions/{id}` | `wait` `min_calls=0` | `wait` `min_calls>=1` | `DELETE` | `GET /sessions` |
 |---|---|---|---|---|---|
 | Never created | `404` | `404` `session_not_found` immediately | `504` `wait_timeout` after timeout | `204` | absent |
-| Has calls | `200` | `200` after quiet | `200` when quiet and enough calls | `204` | present |
+| In-flight only | `200` empty `calls` | wait while `active>0` | wait while `active>0` | `204` | present, `active>0` |
+| Has settled calls | `200` | `200` after quiet | `200` when quiet and enough settled calls | `204` | present |
 | Deleted | `404` | `404` `session_not_found` immediately | `504` `wait_timeout` after timeout | `204` | absent |
 
 Query parameters:

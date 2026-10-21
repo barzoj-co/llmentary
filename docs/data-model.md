@@ -83,6 +83,10 @@ JSON shape and normalization rules.
 | `retry_after` | string, optional | `retry-after-ms` or `retry-after` response header. |
 | `client_aborted` | boolean | True when the inbound client cancelled before a terminal stream event. |
 | `abort_phase` | string, optional | `before_headers` or `after_headers`. Omitted when not aborted. |
+
+A call appears on `GET /sessions/{id}` and in `wait` results only after it is
+settled (`ended_at` set). In-flight work is not published as a placeholder
+with `http_status=0` and `client_aborted=false`.
 | `normalized` | object | Cross-provider view used by test assertions. `normalized.client_aborted` is a deprecated 0.x alias of the top-level field. |
 
 ### Gzip and raw-byte hashes (E6)

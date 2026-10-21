@@ -82,9 +82,20 @@ type Store interface {
 }
 
 type MemoryStore struct {
-	mu       sync.Mutex
-	sessions map[string]*sessionState
-	nextID   uint64
+	mu           sync.Mutex
+	sessions     map[string]*sessionState
+	nextID       uint64
+	beforeFinish func()
+}
+
+// SetBeforeFinish registers a test hook invoked at the start of Finish,
+// before the store lock is taken. Tests use it to observe GET/wait during
+// the window after Begin and before the settled record is published.
+// A nil hook clears it.
+func (s *MemoryStore) SetBeforeFinish(fn func()) {
+	s.mu.Lock()
+	s.beforeFinish = fn
+	s.mu.Unlock()
 }
 
 type sessionState struct {
@@ -115,6 +126,13 @@ func (s *MemoryStore) Begin(sessionID string, call Call) (int, string) {
 }
 
 func (s *MemoryStore) Finish(sessionID, callID string, update func(*Call)) {
+	s.mu.Lock()
+	hook := s.beforeFinish
+	s.mu.Unlock()
+	if hook != nil {
+		hook()
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if sessionID == "" {
@@ -245,10 +263,14 @@ func (s *MemoryStore) lookupUnlockedCopy(sessionID string) Session {
 	return Session{ID: sessionID}
 }
 
+func callSettled(call Call) bool {
+	return !call.EndedAt.IsZero()
+}
+
 func finishedCallCount(state *sessionState) int {
 	n := 0
 	for i := range state.calls {
-		if !state.calls[i].EndedAt.IsZero() {
+		if callSettled(state.calls[i]) {
 			n++
 		}
 	}
@@ -259,7 +281,7 @@ func summarizeSession(state *sessionState) SessionSummary {
 	sources := uniqueSources(state.calls)
 	sum := SessionSummary{
 		ID:      state.id,
-		Calls:   len(state.calls),
+		Calls:   finishedCallCount(state),
 		Active:  state.active,
 		Sources: sources,
 	}
@@ -278,8 +300,18 @@ func summarizeSession(state *sessionState) SessionSummary {
 	}
 	sum.FirstStartedAt = first
 	sum.LastEndedAt = last
-	sum.Spec = specCounters(state.calls)
+	sum.Spec = specCounters(settledCalls(state))
 	return sum
+}
+
+func settledCalls(state *sessionState) []Call {
+	out := make([]Call, 0, finishedCallCount(state))
+	for i := range state.calls {
+		if callSettled(state.calls[i]) {
+			out = append(out, state.calls[i])
+		}
+	}
+	return out
 }
 
 func specCounters(calls []Call) SpecCounters {
@@ -343,9 +375,12 @@ func (s *MemoryStore) state(sessionID string) *sessionState {
 }
 
 func copySession(state *sessionState) Session {
-	calls := make([]Call, len(state.calls))
+	calls := make([]Call, 0, finishedCallCount(state))
 	for i := range state.calls {
-		calls[i] = cloneCall(state.calls[i])
+		if !callSettled(state.calls[i]) {
+			continue
+		}
+		calls = append(calls, cloneCall(state.calls[i]))
 	}
 	return Session{ID: state.id, Calls: calls}
 }
