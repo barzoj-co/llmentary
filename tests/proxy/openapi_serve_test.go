@@ -60,7 +60,7 @@ func TestGetOpenAPIYAML(t *testing.T) {
 		t.Fatal("missing wait path")
 	}
 
-	proxy.SetBuildInfo("9.9.9", "deadbeef", "2026-10-21T00:00:00Z")
+	proxy.SetBuildInfo("9.9.9", "", "")
 	t.Cleanup(func() { proxy.SetBuildInfo("devel", "", "") })
 	_, stampedControl, _ := startControl(t)
 	stampedRes, err := http.Get(stampedControl + "/openapi.yaml")
