@@ -279,12 +279,7 @@ func (ex *proxyExchange) finishCall(resp *http.Response, rawBody []byte, firstBy
 			call.Normalized.StreamTruncated = true
 		}
 		clientGone := ex.r != nil && ex.r.Context().Err() != nil
-		// Non-stream: a write failure or a context-canceled body read (doUpstream
-		// binds the upstream request to the client context). Ordinary upstream
-		// read errors stay network failures.
-		incomplete := (stream && !complete) ||
-			(!stream && (copyWriteErr || errors.Is(copyErr, context.Canceled)))
-		if clientGone && incomplete {
+		if clientAbortedAfterHeaders(stream, complete, clientGone, copyWriteErr, copyErr) {
 			// A complete SSE stream (terminal [DONE] or Responses
 			// response.completed/failed/incomplete already written) is not
 			// client_aborted when the SDK closes after that event.
@@ -335,6 +330,28 @@ func (ex *proxyExchange) finishCall(resp *http.Response, rawBody []byte, firstBy
 	if ex.span != nil {
 		finishSpan(ex.span, endedCall, endedAt)
 	}
+}
+
+// clientAbortedAfterHeaders reports whether a response that already had
+// headers should be recorded as a client abort.
+//
+// A complete SSE stream is never aborted when the SDK closes after the
+// terminal event. An incomplete stream (or a non-stream body that failed
+// mid-write / was canceled) is aborted when the inbound context is gone
+// or the copy failed writing to the client. Write errors must count even
+// when Request.Context has not been canceled yet: net/http can surface
+// the broken pipe before the request-context cancel is visible, and
+// Finish would otherwise publish a settled record with client_aborted omitted.
+func clientAbortedAfterHeaders(stream, complete, clientGone, copyWriteErr bool, copyErr error) bool {
+	// Non-stream: a write failure or a context-canceled body read (doUpstream
+	// binds the upstream request to the client context). Ordinary upstream
+	// read errors stay network failures.
+	incomplete := (stream && !complete) ||
+		(!stream && (copyWriteErr || errors.Is(copyErr, context.Canceled)))
+	if !incomplete {
+		return false
+	}
+	return clientGone || copyWriteErr || errors.Is(copyErr, context.Canceled)
 }
 
 func (s *Server) passthrough(w http.ResponseWriter, ex *proxyExchange) {

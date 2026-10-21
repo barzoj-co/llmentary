@@ -62,6 +62,17 @@ func TestAbortRecordPublishedAtomically(t *testing.T) {
 				assertAfterHeadersAbort(t, call, "chunk-one")
 			},
 		},
+		{
+			name:     "after_headers_responses",
+			upstream: responsesStreamAbortAfterFirst(),
+			start: func(_ *testing.T, p proxyProc, sid string) error {
+				body := []byte(`{"model":"gpt-fixture","input":"tell a long story","stream":true}`)
+				return closeSSEAfterMarker(p.proxyURL, "/v1/responses", sid, "chunk-one", body)
+			},
+			assert: func(t *testing.T, call map[string]any) {
+				assertAfterHeadersAbort(t, call, "chunk-one")
+			},
+		},
 	}
 
 	for _, tc := range cases {
