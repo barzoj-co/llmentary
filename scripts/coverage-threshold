@@ -1,0 +1,4 @@
+# Merged unit + tests/proxy statement coverage floor (integer percent).
+# Same excludes as codecov.yml: internal/openaiapi/gen.go, tools/**
+# Ratchet this up as tests land. Release-please PRs require 90 regardless.
+80

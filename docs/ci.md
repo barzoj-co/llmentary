@@ -17,8 +17,12 @@ Triggers are `push` to `main`, `pull_request`, and `workflow_dispatch`.
 - `test`: checkout, Go 1.26.10, `go test` in the root module and
   `tests/proxy` with atomic coverage profiles uploaded to Codecov
   (`use_oidc: false`; this job does not grant `id-token: write`).
-  Coverage is informational. GoReleaser snapshots live in the Hygiene
-  workflow. OIDC and cosign signing stay in the release workflow.
+  Codecov project/patch statuses stay informational. After both
+  profiles exist, `scripts/coverage-gate.sh` merges them (same excludes
+  as `codecov.yml`) and fails the same `test` job below
+  `scripts/coverage-threshold` (90 on release-please PRs). GoReleaser
+  snapshots live in the Hygiene workflow. OIDC and cosign signing stay
+  in the release workflow.
 - `docs-mermaid`: checkout (`actions/checkout` SHA-pinned at v4.4.0), Node 22
   (`actions/setup-node` SHA-pinned at v4.4.0), and
   `@mermaid-js/mermaid-cli@11.12.0` (`mmdc`). Runs
