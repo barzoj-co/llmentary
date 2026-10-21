@@ -74,16 +74,20 @@ func chatStreamAbortAfterFirst() http.HandlerFunc {
 }
 
 func responsesStreamWithDelay(delay time.Duration) http.HandlerFunc {
+	return responsesTerminalStream("response.completed", "completed", delay)
+}
+
+func responsesTerminalStream(event, status string, delay time.Duration) http.HandlerFunc {
 	created := "event: response.created\ndata: {\"type\":\"response.created\",\"sequence_number\":0}\n\n"
 	delta := "event: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"delta\":\"hi\"}\n\n"
-	completed := "event: response.completed\ndata: {\"type\":\"response.completed\",\"sequence_number\":2,\"response\":{\"id\":\"resp_1\",\"created_at\":1,\"model\":\"gpt-fixture\",\"object\":\"response\",\"output\":[{\"id\":\"m\",\"type\":\"message\",\"role\":\"assistant\",\"status\":\"completed\",\"content\":[{\"type\":\"output_text\",\"text\":\"hi\",\"annotations\":[],\"logprobs\":[]}]}],\"parallel_tool_calls\":true,\"status\":\"completed\",\"tool_choice\":\"auto\",\"tools\":[]}}\n\n"
+	terminal := fmt.Sprintf("event: %s\ndata: {\"type\":%q,\"sequence_number\":2,\"response\":{\"id\":\"resp_1\",\"created_at\":1,\"model\":\"gpt-fixture\",\"object\":\"response\",\"output\":[{\"id\":\"m\",\"type\":\"message\",\"role\":\"assistant\",\"status\":%q,\"content\":[{\"type\":\"output_text\",\"text\":\"hi\",\"annotations\":[],\"logprobs\":[]}]}],\"parallel_tool_calls\":true,\"status\":%q,\"tool_choice\":\"auto\",\"tools\":[]}}\n\n", event, event, status, status)
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(http.StatusOK)
 		flusher, _ := w.(http.Flusher)
 		_, _ = io.WriteString(w, created)
 		_, _ = io.WriteString(w, delta)
-		_, _ = io.WriteString(w, completed)
+		_, _ = io.WriteString(w, terminal)
 		if flusher != nil {
 			flusher.Flush()
 		}
@@ -181,6 +185,28 @@ func TestClientAbortedFalseAfterResponsesCompleted(t *testing.T) {
 		if n["finish_reason"] != "stop" {
 			t.Fatalf("loop %d: finish_reason=%v", i, n["finish_reason"])
 		}
+	}
+}
+
+func TestClientAbortedFalseAfterResponsesTerminalEvents(t *testing.T) {
+	cases := []struct {
+		event  string
+		status string
+	}{
+		{"response.failed", "failed"},
+		{"response.incomplete", "incomplete"},
+	}
+	body := []byte(`{"model":"gpt-fixture","input":"hi","stream":true}`)
+	for _, tc := range cases {
+		t.Run(tc.event, func(t *testing.T) {
+			p := startSpecProxy(t, "off", "relaxed", responsesTerminalStream(tc.event, tc.status, delayedTerminator))
+			sid := "resp-" + strings.ReplaceAll(tc.event, ".", "-")
+			postSSECloseAfter(t, p.proxyURL, "/v1/responses", sid, tc.event, body)
+			n := normalized(lastCall(t, waitSession(t, p.controlURL, sid)))
+			if n["client_aborted"] == true {
+				t.Fatalf("client_aborted=true after %s", tc.event)
+			}
+		})
 	}
 }
 

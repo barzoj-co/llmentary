@@ -168,6 +168,28 @@ func TestResponsesStreamParsesFunctionCallFromCompletedEvent(t *testing.T) {
 	}
 }
 
+func TestParseSSEUnterminatedTerminalIsNotComplete(t *testing.T) {
+	_, complete, _ := parseSSE([]byte("event: response.completed\ndata: {\"type\":\"response.completed\"}"), time.Now())
+	if complete {
+		t.Fatal("EOF flush of an unterminated terminal frame must not mark complete")
+	}
+	_, complete, _ = parseSSE([]byte("data: [DONE]"), time.Now())
+	if complete {
+		t.Fatal("EOF flush of unterminated [DONE] must not mark complete")
+	}
+}
+
+func TestParseSSEDelimitedTerminalIsComplete(t *testing.T) {
+	_, complete, _ := parseSSE([]byte("event: response.failed\ndata: {\"type\":\"response.failed\"}\n\n"), time.Now())
+	if !complete {
+		t.Fatal("delimited response.failed must mark complete")
+	}
+	_, complete, _ = parseSSE([]byte("event: response.incomplete\ndata: {\"type\":\"response.incomplete\"}\n\n"), time.Now())
+	if !complete {
+		t.Fatal("delimited response.incomplete must mark complete")
+	}
+}
+
 func TestSSERecorderDoesNotTreatUnterminatedFrameAsComplete(t *testing.T) {
 	rec := newSSERecorder(time.Now())
 	rec.Write([]byte("event: response.completed\ndata: {\"type\":\"response.completed\"}"))

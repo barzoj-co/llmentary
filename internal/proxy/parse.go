@@ -205,7 +205,7 @@ func parseSSE(raw []byte, startedAt time.Time) ([]SSEEvent, bool, []string) {
 		complete  bool
 		warnings  []string
 	)
-	flush := func() {
+	flush := func(markComplete bool) {
 		if eventName == "" && len(dataLines) == 0 {
 			return
 		}
@@ -216,7 +216,7 @@ func parseSSE(raw []byte, startedAt time.Time) ([]SSEEvent, bool, []string) {
 			AtMS:  time.Since(startedAt).Milliseconds(),
 		}
 		events = append(events, evt)
-		if sseTerminalSeen(eventName, data) {
+		if markComplete && sseTerminalSeen(eventName, data) {
 			complete = true
 		}
 		eventName = ""
@@ -226,7 +226,7 @@ func parseSSE(raw []byte, startedAt time.Time) ([]SSEEvent, bool, []string) {
 		line := scanner.Bytes()
 		line = bytes.TrimSuffix(line, []byte("\r"))
 		if len(line) == 0 {
-			flush()
+			flush(true)
 			continue
 		}
 		if bytes.HasPrefix(line, []byte(":")) {
@@ -248,7 +248,7 @@ func parseSSE(raw []byte, startedAt time.Time) ([]SSEEvent, bool, []string) {
 		}
 	}
 	if len(dataLines) > 0 || eventName != "" {
-		flush()
+		flush(false)
 	}
 	if err := scanner.Err(); err != nil {
 		warnings = append(warnings, "sse scan error: "+err.Error())
