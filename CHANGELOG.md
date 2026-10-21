@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.2](https://github.com/barzoj-co/llmentary/compare/v0.2.1...v0.2.2) (2026-10-21)
+
+
+### Bug Fixes
+
+* count wait quiet from last session activity ([#25](https://github.com/barzoj-co/llmentary/issues/25)) ([d8c007d](https://github.com/barzoj-co/llmentary/commit/d8c007dcc6ef2684e905965c213080027d509950))
+* do not mark complete SSE streams as client_aborted ([#24](https://github.com/barzoj-co/llmentary/issues/24)) ([7bc039e](https://github.com/barzoj-co/llmentary/commit/7bc039e1b8b0dd4cb13941369baa3d47602d9c86))
+* name unknown spec fields and collapse streamed findings ([#26](https://github.com/barzoj-co/llmentary/issues/26)) ([10cc210](https://github.com/barzoj-co/llmentary/commit/10cc210a89373dcd60488b8b32f8bdb7bb93ade0))
+
 ## [0.2.1](https://github.com/barzoj-co/llmentary/compare/v0.2.0...v0.2.1) (2026-10-21)
 
 
