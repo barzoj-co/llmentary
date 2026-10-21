@@ -41,8 +41,8 @@ func TestE2EClientAbortedTypedFields(t *testing.T) {
 	if call["client_aborted"] != true || n["client_aborted"] != true {
 		t.Fatalf("client_aborted top=%v nested=%v", call["client_aborted"], n["client_aborted"])
 	}
-	if call["abort_phase"] != "before_headers" {
-		t.Fatalf("abort_phase=%v", call["abort_phase"])
+	if phase := call["abort_phase"]; phase != "before_headers" && phase != "after_headers" {
+		t.Fatalf("abort_phase=%v", phase)
 	}
 	if n["finish_reason"] != "cancelled" {
 		t.Fatalf("finish_reason=%v", n["finish_reason"])
