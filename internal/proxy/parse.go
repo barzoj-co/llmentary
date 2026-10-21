@@ -216,7 +216,7 @@ func parseSSE(raw []byte, startedAt time.Time) ([]SSEEvent, bool, []string) {
 			AtMS:  time.Since(startedAt).Milliseconds(),
 		}
 		events = append(events, evt)
-		if bytes.Equal(bytes.TrimSpace(data), []byte("[DONE]")) {
+		if sseTerminalSeen(eventName, data) {
 			complete = true
 		}
 		eventName = ""
@@ -300,6 +300,27 @@ func (r *sseRecorder) recordBlock(block []byte) {
 		r.complete = true
 	}
 	r.warnings = append(r.warnings, warnings...)
+}
+
+func sseTerminalSeen(eventName string, data []byte) bool {
+	if bytes.Equal(bytes.TrimSpace(data), []byte("[DONE]")) {
+		return true
+	}
+	name := eventName
+	if name == "" {
+		var probe struct {
+			Type string `json:"type"`
+		}
+		if json.Unmarshal(data, &probe) == nil {
+			name = probe.Type
+		}
+	}
+	switch name {
+	case "response.completed", "response.failed", "response.incomplete":
+		return true
+	default:
+		return false
+	}
 }
 
 func sseDelimiter(b []byte) (int, int) {

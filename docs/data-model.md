@@ -190,7 +190,7 @@ from an Azure-style `/deployments/{deployment}/...` path segment.
 | `content_filter` | Provider content-filter data when parsed. |
 | `error` | Normalized provider/proxy error. |
 | `stream_truncated` | Stream ended without a terminal marker/event. |
-| `client_aborted` | Copying the upstream response to the client returned an error. |
+| `client_aborted` | The client disconnected before the terminal stream event (`[DONE]`, or Responses `response.completed` / `response.failed` / `response.incomplete`). A close after that event is not an abort. |
 | `parser_warnings` | Non-fatal parser warnings. |
 | `validation` | Present in `warn`/`enforce`. Mode, profile, spec SHA, subset retrieval date, checked flags, optional `skipped_reason`, `duration_us`, and `truncated`. Absent in `off`. |
 | `spec_violations` | Pointer-to-slice so `[]` (clean) is distinct from absent (not checked). Sorted by side, pointer, keyword. Capped at 200. |
