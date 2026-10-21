@@ -595,7 +595,7 @@ aborts and upstream connection errors.
 ```text
 INFO proxy response status=200 call_id=call_1 session=weather seq=1 api_family=openai.responses spec=clean
 INFO proxy response status=- call_id=call_2 session=barge seq=2 api_family=openai.responses spec=request_only client_aborted=true phase=before_headers
-INFO proxy response status=200 call_id=call_3 session=barge seq=3 api_family=openai.responses spec=request_only client_aborted=true phase=after_headers
+INFO proxy response status=200 call_id=call_3 session=barge seq=3 api_family=openai.responses spec=clean client_aborted=true phase=after_headers
 INFO proxy response status=502 call_id=call_4 session=weather seq=4 api_family=openai.responses spec=off
 ```
 

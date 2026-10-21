@@ -277,7 +277,7 @@ func (ex *proxyExchange) finishCall(resp *http.Response, rawBody []byte, firstBy
 			call.Normalized.StreamTruncated = true
 		}
 		clientGone := ex.r != nil && ex.r.Context().Err() != nil
-		if (copyErr != nil || clientGone) && (!stream || !complete) {
+		if clientGone && (!stream || !complete) {
 			// A complete SSE stream (terminal [DONE] or Responses
 			// response.completed/failed/incomplete already written) is not
 			// client_aborted when the SDK closes after that event.
@@ -287,6 +287,8 @@ func (ex *proxyExchange) finishCall(resp *http.Response, rawBody []byte, firstBy
 			} else {
 				call.Normalized.ParserWarnings = append(call.Normalized.ParserWarnings, "client canceled after response headers")
 			}
+		} else if copyErr != nil {
+			call.Normalized.ParserWarnings = append(call.Normalized.ParserWarnings, "response copy error: "+copyErr.Error())
 		}
 		recordRequestIDs(call, resp.Header)
 		ex.s.parser.Parse(call)
