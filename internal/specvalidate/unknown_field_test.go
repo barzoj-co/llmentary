@@ -34,6 +34,42 @@ func TestUnknownFieldMessageNamesField(t *testing.T) {
 	}
 }
 
+func TestUnknownFieldMessageNumericKey(t *testing.T) {
+	eng, err := CompileEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	res := eng.ValidateRequest(ProfileStrict, "openai.chat", []byte(`{"123":true}`), 0)
+	found := false
+	for _, v := range res.Violations {
+		if v.Keyword != "unevaluatedProperties" || v.Pointer != "/123" {
+			continue
+		}
+		found = true
+		if !strings.Contains(v.Message, `unknown field "123"`) {
+			t.Fatalf("message=%q", v.Message)
+		}
+		if strings.Contains(v.Message, "false schema") {
+			t.Fatalf("still using library wording: %q", v.Message)
+		}
+	}
+	if !found {
+		t.Fatalf("missing unevaluatedProperties /123: %v", res.Violations)
+	}
+}
+
+func TestLastPointerFieldKeepsNumericObjectKey(t *testing.T) {
+	if got := lastPointerField("/123"); got != "123" {
+		t.Fatalf("got %q", got)
+	}
+	if got := lastPointerField("/messages/0/123"); got != "123" {
+		t.Fatalf("nested got %q", got)
+	}
+	if got := lastPointerField("/foo~1bar"); got != "foo/bar" {
+		t.Fatalf("escaped got %q", got)
+	}
+}
+
 func TestCollapseDuplicatesCounts(t *testing.T) {
 	idx0, idx1, idx2 := 0, 1, 2
 	in := []Violation{

@@ -151,13 +151,8 @@ func lastPointerField(pointer string) string {
 		return ""
 	}
 	parts := strings.Split(pointer, "/")
-	for i := len(parts) - 1; i >= 0; i-- {
-		part := strings.ReplaceAll(strings.ReplaceAll(parts[i], "~1", "/"), "~0", "~")
-		if part != "" && !isIndex(part) {
-			return part
-		}
-	}
-	return ""
+	part := strings.ReplaceAll(strings.ReplaceAll(parts[len(parts)-1], "~1", "/"), "~0", "~")
+	return part
 }
 
 type schemaErr struct {
