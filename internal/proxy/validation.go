@@ -199,6 +199,73 @@ func shouldReject(violations []specvalidate.Violation, ignored []schemalint.Find
 	return false, ""
 }
 
+func (s *Server) specMode() string {
+	if s == nil || s.validation == nil || s.validation.mode == "" {
+		return DefaultSpecValidation
+	}
+	return s.validation.mode
+}
+
+func (s *Server) logSpecValidationStartup() {
+	if s == nil {
+		return
+	}
+	mode := s.specMode()
+	profile := DefaultSpecProfile
+	maxBytes := DefaultSpecValidationMaxBytes
+	sha := ""
+	if s.validation != nil {
+		if s.validation.profile != "" {
+			profile = s.validation.profile
+		}
+		if s.validation.maxBytes > 0 {
+			maxBytes = s.validation.maxBytes
+		}
+		if s.validation.engine != nil {
+			sha = s.validation.engine.SpecSHA
+		}
+	}
+	s.logger().Info("spec validation",
+		"mode", mode,
+		"profile", profile,
+		"spec_sha", sha,
+		"max_bytes", maxBytes,
+	)
+}
+
+func specLogValue(call Call, mode string) string {
+	if mode == "" || mode == specvalidate.ModeOff {
+		return "off"
+	}
+	info := call.Normalized.Validation
+	if info == nil {
+		return "off"
+	}
+	if info.SkippedReason != nil && *info.SkippedReason != "" && !info.RequestChecked {
+		return "skipped:" + *info.SkippedReason
+	}
+	findings := 0
+	if call.Normalized.SpecViolations != nil {
+		for _, v := range *call.Normalized.SpecViolations {
+			n := v.Count
+			if n < 1 {
+				n = 1
+			}
+			findings += n
+		}
+	}
+	if findings > 0 {
+		return fmt.Sprintf("findings:%d", findings)
+	}
+	if info.RequestChecked && !info.ResponseChecked {
+		return "request_only"
+	}
+	if info.RequestChecked || info.ResponseChecked {
+		return "clean"
+	}
+	return "off"
+}
+
 func (s *Server) logValidationFindings(call Call) {
 	if s == nil || s.validation == nil {
 		return

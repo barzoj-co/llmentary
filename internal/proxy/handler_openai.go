@@ -318,6 +318,7 @@ func (ex *proxyExchange) finishCall(resp *http.Response, rawBody []byte, firstBy
 		"session", ex.session.ID,
 		"seq", ex.seq,
 		"api_family", endedCall.APIFamily,
+		"spec", specLogValue(endedCall, ex.s.specMode()),
 	)
 	ex.s.logValidationFindings(endedCall)
 	if ex.span != nil {

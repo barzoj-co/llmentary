@@ -327,7 +327,7 @@ ok
 Both return `200 application/json` with no redirect. Cheap: no call bodies.
 
 ```json
-{"sessions":[{"id":"default","calls":3,"active":0,"sources":["default"],"first_started_at":"…","last_ended_at":"…"}]}
+{"sessions":[{"id":"default","calls":3,"active":0,"sources":["default"],"first_started_at":"…","last_ended_at":"…","spec":{"checked":3,"clean":3,"findings":0,"not_checked":0}}]}
 ```
 
 Sorted by `first_started_at`. Optional `?source=default|header|baggage|path` filters
@@ -506,6 +506,18 @@ Where findings show up: trace (`normalized.spec_violations`), proxy log (WARN), 
 | `validation` | Metadata: was the call checked, and how (`mode`, `profile`, `spec_sha`, checked flags, `skipped_reason`). Not a list of problems. | Absent when validation was not run (`off`). Present in `warn`/`enforce` even when the call is clean. |
 | `spec_violations` | Findings from the spec validator. | `[]` means checked and clean. Absent means not checked. |
 | `ignored_fields` | Silently ignored request content (unknown schema keywords, unknown request fields, strict fallback). | Same empty-vs-absent rule as `spec_violations`. |
+
+How to tell a clean run from an unchecked one: the `INFO proxy response` line
+always carries a compact `spec=` field. `spec=clean` means request and response
+were checked and produced zero findings. `spec=findings:N` is the finding count.
+`spec=off` is validation disabled. `spec=skipped:<reason>` is a skip
+(`body_too_large`, `unsupported_content_encoding`, …). `spec=request_only` means
+the request was checked and the response was not (for example a cancel before
+headers). In the trace, `spec_violations: []` is clean and an absent
+`spec_violations` key is not checked. Startup logs the effective config once:
+`INFO spec validation mode=warn profile=relaxed spec_sha=… max_bytes=8388608`.
+`GET /sessions` list items also include
+`spec: {"checked","clean","findings","not_checked"}` counters.
 
 In `warn` and `enforce`, after the call finishes the proxy writes one WARN summary per finding category (`msg="spec violations"` and/or `msg="ignored fields"`), then one WARN line per finding (before identical rows are collapsed). `--spec-log-max` (default 5; `0` is summaries only) is a single per-call budget shared across both categories. Detail lines include `call_id`, pointers, keywords, kinds, and schema messages. Streamed response findings also include `event=<index>` so chunks can be told apart. `unevaluatedProperties` / `additionalProperties` messages name the field (`unknown field "temprature" (not in the OpenAI spec for chat.completions request)`); `keyword` and `pointer` are unchanged. Format-keyword messages are replaced with `format validation failed`. Value-bearing keywords (`pattern`, `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`, `enum`, `minLength`, `maxLength`, `minItems`, `maxItems`) use `schema validation failed`, so rejected field values are not logged. Summaries include `session` (the recorded session id, as in `proxy request` / `proxy response`). They never include request bodies, field values, or `Authorization` / cookie / api-key header values. Enforce rejections use the same WARN lines.
 
