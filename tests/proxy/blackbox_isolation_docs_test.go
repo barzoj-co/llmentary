@@ -17,6 +17,8 @@ func TestBlackBoxIsolationDocs(t *testing.T) {
 	text := string(raw)
 	needles := []string{
 		"What a path prefix isolates",
+		"header,baggage,path,default",
+		"distinct `lm`",
 		"One worker process per session",
 		"Construct the SDK client per conversation",
 		"Headers or baggage from the app",

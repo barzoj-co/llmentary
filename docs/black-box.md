@@ -135,8 +135,9 @@ Helpers produce the path prefix (and percent-encode the session id):
 
 ## What a path prefix isolates
 
-A path prefix is chosen by whoever **builds** the SDK client. The proxy records
-each request under `/s/{session}`; it does not split conversations inside one
+A path prefix is chosen by whoever **builds** the SDK client. With the default
+`header,baggage,path,default` order, a header or baggage value takes precedence
+over `/s/{session}`. The proxy does not split conversations inside one
 process that already constructed a single client.
 
 One process with one env-configured client (`OPENAI_BASE_URL` set once, typical
@@ -155,6 +156,8 @@ one of:
 
 2. **Construct the SDK client per conversation** with
    `base_url=lm.path_base_url()` (Go `lm.PathBaseURL()`, JS `lm.pathBaseURL()`).
+   Those helpers use the session already stored on `lm`; they do not allocate a
+   new one. Use a distinct `lm` (or session id) per conversation.
 
 3. **Headers or baggage from the app** when it can set them (see
    [Session attribution](proxy.md#session-attribution)).
