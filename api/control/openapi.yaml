@@ -200,8 +200,6 @@ components:
           type: integer
         min_calls:
           type: integer
-        waited_ms:
-          type: integer
     ErrorBody:
       type: object
       required: [error]
@@ -341,6 +339,7 @@ components:
             allOf:
               - $ref: "#/components/schemas/ErrorBody"
               - type: object
+                required: [id, waited_ms]
                 properties:
                   id:
                     type: string
