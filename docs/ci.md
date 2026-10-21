@@ -4,17 +4,17 @@ The repository's own workflow is in `.github/workflows/ci.yml`.
 Triggers are `push` to `main`, `pull_request`, and `workflow_dispatch`.
 `workflow_dispatch` does not run live e2e on any ref.
 
-- `codegen-check`: checkout, Go 1.26.x, `make codegen-check` (`spec-verify`,
+- `codegen-check`: checkout, Go 1.26.10, `make codegen-check` (`spec-verify`,
   `make gen && git diff --exit-code`, `go mod tidy && git diff --exit-code`,
   then `make gen && git diff --exit-code` again). A2 is a temp worktree that
   commits a hand-edit of `gen.go` and expects `make codegen-check` to fail.
   A5 is a temp worktree that adds `createEmbedding` to `operations.txt`, runs
   `make gen`, and expects `go build` to fail with a missing `CreateEmbedding`
   method (no hand-injection into `gen.go`).
-- `lint`: checkout, Go 1.26.x, SHA-pinned `golangci/golangci-lint-action` with
+- `lint`: checkout, Go 1.26.10, SHA-pinned `golangci/golangci-lint-action` with
   a pinned `golangci-lint` version. Generated `internal/openaiapi/gen.go` is
   excluded in `.golangci.yml`.
-- `test`: checkout, Go 1.26.x, `go test` in the root module and
+- `test`: checkout, Go 1.26.10, `go test` in the root module and
   `tests/proxy` with atomic coverage profiles uploaded to Codecov
   (`use_oidc: false`; this job does not grant `id-token: write`).
   Coverage is informational. GoReleaser snapshots live in the Hygiene
@@ -86,7 +86,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.26.x"
+          go-version: "1.26.10"
           cache: true
 
       - name: Download llmentary

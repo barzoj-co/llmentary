@@ -4,7 +4,7 @@ Thanks for working on `llmentary`.
 
 ## Requirements
 
-- Go 1.26.x, matching `go.mod` and the GitHub Actions workflows.
+- Go 1.26.10 (`toolchain go1.26.10` in `go.mod`), matching the GitHub Actions workflows.
 - Standard Go tooling (`go test`, `gofmt`).
 
 ## OpenAPI spec and codegen
