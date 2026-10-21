@@ -5,16 +5,10 @@
 package llmentary_test
 
 import (
-	"context"
 	"encoding/json"
 	"io"
 	"net/http"
 	"testing"
-	"time"
-
-	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/option"
-	"github.com/openai/openai-go/responses"
 )
 
 func TestE2ESessionsSpecCounters(t *testing.T) {
@@ -27,35 +21,13 @@ func TestE2ESessionsSpecCounters(t *testing.T) {
 		t.Fatalf("clean status=%d body=%s", status, redactLiveBody(resp))
 	}
 
-	client := openai.NewClient(
-		option.WithAPIKey(apiKey),
-		option.WithBaseURL(p.proxyURL+"/s/"+sid+"/v1"),
-		option.WithMaxRetries(0),
-	)
-	ctx, cancel := context.WithCancel(context.Background())
-	time.AfterFunc(50*time.Millisecond, cancel)
-	stream := client.Responses.NewStreaming(ctx, responses.ResponseNewParams{
-		Model: liveModel(),
-		Input: responses.ResponseNewParamsInputUnion{
-			OfString: openai.String("Write a very long bedtime story with many chapters, at least two thousand words."),
-		},
-	})
-	for stream.Next() {
-	}
-	_ = stream.Err()
-	_ = stream.Close()
-	reqWait, err := http.NewRequestWithContext(context.Background(), http.MethodGet, p.controlURL+"/sessions/"+sid+"/wait?quiet=50ms&timeout=15s&min_calls=2", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	resWait, err := http.DefaultClient.Do(reqWait)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, _ = io.ReadAll(resWait.Body)
-	_ = resWait.Body.Close()
-	if resWait.StatusCode != 200 {
-		t.Fatalf("wait min_calls=2 status=%d", resWait.StatusCode)
+	// 4xx is always recorded (Begin already ran) and is request_only:
+	// request validated, response not checked. Do not use client cancel here;
+	// a cancel before Begin never creates a call.
+	bad := []byte(`{"model":"llmentary-not-a-model","input":"Reply with the single word pong.","max_output_tokens":16}`)
+	status, _, resp, _ = postLive(t, apiKey, p, "/responses", sid, bad)
+	if status < 400 {
+		t.Fatalf("request_only status=%d body=%s", status, redactLiveBody(resp))
 	}
 
 	req, err := http.NewRequest(http.MethodGet, p.controlURL+"/sessions", nil)
