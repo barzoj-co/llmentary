@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.3.0](https://github.com/barzoj-co/llmentary/compare/v0.2.2...v0.3.0) (2026-10-21)
+
+
+### Features
+
+* add spec= field on proxy response logs ([#32](https://github.com/barzoj-co/llmentary/issues/32)) ([8a16aaf](https://github.com/barzoj-co/llmentary/commit/8a16aafb9d2e0c031f9ceaa4544a85a70a7999ec))
+* serve GET /openapi.yaml on the control API ([#28](https://github.com/barzoj-co/llmentary/issues/28)) ([828a5c8](https://github.com/barzoj-co/llmentary/commit/828a5c82beb68d945c586bfb7cfd37462bb2759c))
+
+
+### Bug Fixes
+
+* record client cancel before headers as client_aborted ([#31](https://github.com/barzoj-co/llmentary/issues/31)) ([6c4548d](https://github.com/barzoj-co/llmentary/commit/6c4548d90ad185f1e44db786af9b7da9d271cf58))
+* return 404 for wait on a missing session when min_calls=0 ([#30](https://github.com/barzoj-co/llmentary/issues/30)) ([6153daf](https://github.com/barzoj-co/llmentary/commit/6153dafd33d245eef9346b7f68c742591b2f08a0))
+
 ## [0.2.2](https://github.com/barzoj-co/llmentary/compare/v0.2.1...v0.2.2) (2026-10-21)
 
 
