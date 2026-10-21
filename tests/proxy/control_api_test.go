@@ -239,6 +239,23 @@ func TestP5WaitUnknownAppearsOrTimeout(t *testing.T) {
 	})
 }
 
+func TestWaitQuietSecondCallImmediate(t *testing.T) {
+	proxyURL, control, _ := startControl(t)
+	postCall(t, proxyURL, "idle")
+	status, _, body := getJSON(t, control+"/sessions/idle/wait?quiet=500ms&timeout=3s")
+	if status != http.StatusOK {
+		t.Fatalf("first wait status=%d body=%v", status, body)
+	}
+	start := time.Now()
+	status, _, body = getJSON(t, control+"/sessions/idle/wait?quiet=500ms&timeout=3s")
+	if status != http.StatusOK {
+		t.Fatalf("second wait status=%d body=%v", status, body)
+	}
+	if elapsed := time.Since(start); elapsed >= 50*time.Millisecond {
+		t.Fatalf("second wait took %s, want < 50ms", elapsed)
+	}
+}
+
 func TestP6StrictQueryParams(t *testing.T) {
 	_, control, _ := startControl(t)
 	cases := []struct {

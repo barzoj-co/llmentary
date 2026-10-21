@@ -38,10 +38,11 @@ type MemoryStore struct {
 }
 
 type sessionState struct {
-	id      string
-	calls   []Call
-	active  int
-	version uint64
+	id           string
+	calls        []Call
+	active       int
+	version      uint64
+	lastChangeAt time.Time
 }
 
 func NewMemoryStore() *MemoryStore {
@@ -54,6 +55,7 @@ func (s *MemoryStore) Begin(sessionID string, call Call) (int, string) {
 	state := s.state(sessionID)
 	state.active++
 	state.version++
+	state.lastChangeAt = time.Now()
 	s.nextID++
 	call.ID = makeCallID(s.nextID)
 	call.SessionID = sessionID
@@ -65,17 +67,24 @@ func (s *MemoryStore) Begin(sessionID string, call Call) (int, string) {
 func (s *MemoryStore) Finish(sessionID, callID string, update func(*Call)) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	state := s.state(sessionID)
+	if sessionID == "" {
+		sessionID = DefaultSessionID
+	}
+	state, ok := s.sessions[sessionID]
+	if !ok {
+		return
+	}
 	for i := range state.calls {
 		if state.calls[i].ID == callID {
 			update(&state.calls[i])
-			break
+			if state.active > 0 {
+				state.active--
+			}
+			state.version++
+			state.lastChangeAt = time.Now()
+			return
 		}
 	}
-	if state.active > 0 {
-		state.active--
-	}
-	state.version++
 }
 
 func (s *MemoryStore) Lookup(sessionID string) (Session, bool) {
@@ -138,24 +147,23 @@ func (s *MemoryStore) WaitQuiet(ctx context.Context, sessionID string, quiet, ti
 	ticker := time.NewTicker(minDuration(quiet/4, 100*time.Millisecond))
 	defer ticker.Stop()
 
-	var lastVersion uint64
-	var lastExists bool
 	quietSince := time.Now()
+	wasPresent := false
 	for {
 		s.mu.Lock()
 		state, exists := s.sessions[sessionID]
 		finished := 0
 		active := 0
-		version := uint64(0)
 		if exists {
+			wasPresent = true
 			active = state.active
-			version = state.version
 			finished = finishedCallCount(state)
-		}
-		if exists != lastExists || version != lastVersion || active > 0 {
-			lastVersion = version
-			lastExists = exists
+			if !state.lastChangeAt.IsZero() {
+				quietSince = state.lastChangeAt
+			}
+		} else if wasPresent {
 			quietSince = time.Now()
+			wasPresent = false
 		}
 		if exists && finished >= minCalls && active == 0 && time.Since(quietSince) >= quiet {
 			out := copySession(state)
