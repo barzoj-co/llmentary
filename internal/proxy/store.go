@@ -38,10 +38,11 @@ type MemoryStore struct {
 }
 
 type sessionState struct {
-	id      string
-	calls   []Call
-	active  int
-	version uint64
+	id           string
+	calls        []Call
+	active       int
+	version      uint64
+	lastChangeAt time.Time
 }
 
 func NewMemoryStore() *MemoryStore {
@@ -54,6 +55,7 @@ func (s *MemoryStore) Begin(sessionID string, call Call) (int, string) {
 	state := s.state(sessionID)
 	state.active++
 	state.version++
+	state.lastChangeAt = time.Now()
 	s.nextID++
 	call.ID = makeCallID(s.nextID)
 	call.SessionID = sessionID
@@ -76,6 +78,7 @@ func (s *MemoryStore) Finish(sessionID, callID string, update func(*Call)) {
 		state.active--
 	}
 	state.version++
+	state.lastChangeAt = time.Now()
 }
 
 func (s *MemoryStore) Lookup(sessionID string) (Session, bool) {
@@ -138,24 +141,18 @@ func (s *MemoryStore) WaitQuiet(ctx context.Context, sessionID string, quiet, ti
 	ticker := time.NewTicker(minDuration(quiet/4, 100*time.Millisecond))
 	defer ticker.Stop()
 
-	var lastVersion uint64
-	var lastExists bool
 	quietSince := time.Now()
 	for {
 		s.mu.Lock()
 		state, exists := s.sessions[sessionID]
 		finished := 0
 		active := 0
-		version := uint64(0)
 		if exists {
 			active = state.active
-			version = state.version
 			finished = finishedCallCount(state)
-		}
-		if exists != lastExists || version != lastVersion || active > 0 {
-			lastVersion = version
-			lastExists = exists
-			quietSince = time.Now()
+			if !state.lastChangeAt.IsZero() {
+				quietSince = state.lastChangeAt
+			}
 		}
 		if exists && finished >= minCalls && active == 0 && time.Since(quietSince) >= quiet {
 			out := copySession(state)

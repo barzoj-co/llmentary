@@ -369,17 +369,21 @@ as base64 strings in JSON.
 ### `GET /sessions/{id}/wait`
 
 Waits until the session has at least `min_calls` **finished** calls, no active calls,
-and has been quiet for `quiet`. A session that does not exist yet is waited for until
-it appears. `min_calls=0` on a never-created session is not success: after `quiet` it
-returns `504` `wait_timeout` with `calls_seen:0` (not `200` with an empty trace).
+and has been quiet for `quiet` after the last session activity (a call start or
+finish). That can be immediate when the session is already idle. A session that
+does not exist yet is waited for until it appears. `min_calls=0` on a
+never-created session is not success: after `quiet` it returns `504`
+`wait_timeout` with `calls_seen:0` (not `200` with an empty trace). Use
+`min_calls` when a call is about to start and must be observed; `quiet` is not
+a grace period for that.
 
 Query parameters:
 
 | Name | Default | Meaning |
 |---|---|---|
-| `quiet` | `500ms` | Required quiet period after the last version change. |
+| `quiet` | `500ms` | Required quiet period after the last call start or finish. Already-elapsed idle time counts. |
 | `timeout` | `30s` | Maximum wait before `504`. |
-| `min_calls` | `0` | Minimum finished calls. |
+| `min_calls` | `0` | Minimum finished calls. Wait for a call that has not started yet with this, not with `quiet`. |
 
 ```bash
 curl 'http://127.0.0.1:7778/sessions/test-1/wait?quiet=100ms&timeout=5s&min_calls=2'
