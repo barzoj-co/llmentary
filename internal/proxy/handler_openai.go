@@ -137,6 +137,8 @@ func (s *Server) finishWithClientAbort(ex *proxyExchange, err error) Call {
 		call.HTTPStatus = 0
 		call.Stream = requestStreamFlag(ex.rawReq)
 		call.UpstreamCalled = ex.wroteRequest.Load()
+		call.ClientAborted = true
+		call.AbortPhase = AbortPhaseBeforeHeaders
 		call.Normalized.DerivedVersion = derivedVersion
 		call.Normalized.ClientAborted = true
 		call.Normalized.FinishReason = "cancelled"
@@ -309,6 +311,8 @@ func (ex *proxyExchange) finishCall(resp *http.Response, rawBody []byte, firstBy
 			mergeResponseValidation(call, vios, extra, dur, trunc)
 		}
 		if call.Normalized.ClientAborted {
+			call.ClientAborted = true
+			call.AbortPhase = AbortPhaseAfterHeaders
 			call.Normalized.FinishReason = "cancelled"
 			if err := call.Normalized.Error; err != nil {
 				if err.Normalized == "network" {

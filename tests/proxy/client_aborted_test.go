@@ -272,6 +272,12 @@ func assertAfterHeadersAbort(t *testing.T, call map[string]any, wantText string)
 	if n["client_aborted"] != true {
 		t.Fatalf("client_aborted=%v", n["client_aborted"])
 	}
+	if call["client_aborted"] != true {
+		t.Fatalf("top-level client_aborted=%v", call["client_aborted"])
+	}
+	if fmtString(call["abort_phase"]) != proxy.AbortPhaseAfterHeaders {
+		t.Fatalf("abort_phase=%v", call["abort_phase"])
+	}
 	if call["http_status"] != float64(http.StatusOK) {
 		t.Fatalf("http_status=%v want 200", call["http_status"])
 	}

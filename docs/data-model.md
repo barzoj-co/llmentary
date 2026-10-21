@@ -81,7 +81,9 @@ JSON shape and normalization rules.
 | `http_status` | number | Upstream HTTP status, or proxy error status. `0` when the client cancelled before response headers (never a synthetic `502`). |
 | `retry_count` | number, optional | Integer parsed from `x-stainless-retry-count`. |
 | `retry_after` | string, optional | `retry-after-ms` or `retry-after` response header. |
-| `normalized` | object | Cross-provider view used by test assertions. |
+| `client_aborted` | boolean | True when the inbound client cancelled before a terminal stream event. |
+| `abort_phase` | string, optional | `before_headers` or `after_headers`. Omitted when not aborted. |
+| `normalized` | object | Cross-provider view used by test assertions. `normalized.client_aborted` is a deprecated 0.x alias of the top-level field. |
 
 ### Gzip and raw-byte hashes (E6)
 

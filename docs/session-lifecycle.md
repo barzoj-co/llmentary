@@ -34,6 +34,24 @@ and do not set `error.mid_stream` (that flag is for HTTP/SSE *errors* after
 a stream started). The abort `proxy response` line always includes `seq=`
 and `spec=` (`request_only` when the response was not validated).
 
+Abort JSON (top-level fields; `normalized.client_aborted` is a deprecated alias):
+
+```json
+{
+  "id": "call_1",
+  "session_id": "barge",
+  "seq": 1,
+  "http_status": 0,
+  "client_aborted": true,
+  "abort_phase": "before_headers",
+  "normalized": {
+    "finish_reason": "cancelled",
+    "client_aborted": true,
+    "error": {"normalized": "client_aborted"}
+  }
+}
+```
+
 ## Example: `wait` on a missing session
 
 ```bash
