@@ -16,13 +16,22 @@ var (
 	ErrSessionNotFound = errors.New("session_not_found")
 )
 
+type SpecCounters struct {
+	Checked     int `json:"checked"`
+	Clean       int `json:"clean"`
+	Findings    int `json:"findings"`
+	RequestOnly int `json:"request_only"`
+	NotChecked  int `json:"not_checked"`
+}
+
 type SessionSummary struct {
-	ID             string     `json:"id"`
-	Calls          int        `json:"calls"`
-	Active         int        `json:"active"`
-	Sources        []string   `json:"sources"`
-	FirstStartedAt *time.Time `json:"first_started_at,omitempty"`
-	LastEndedAt    *time.Time `json:"last_ended_at,omitempty"`
+	ID             string       `json:"id"`
+	Calls          int          `json:"calls"`
+	Active         int          `json:"active"`
+	Sources        []string     `json:"sources"`
+	FirstStartedAt *time.Time   `json:"first_started_at,omitempty"`
+	LastEndedAt    *time.Time   `json:"last_ended_at,omitempty"`
+	Spec           SpecCounters `json:"spec"`
 }
 
 type Store interface {
@@ -231,7 +240,29 @@ func summarizeSession(state *sessionState) SessionSummary {
 	}
 	sum.FirstStartedAt = first
 	sum.LastEndedAt = last
+	sum.Spec = specCounters(state.calls)
 	return sum
+}
+
+func specCounters(calls []Call) SpecCounters {
+	var out SpecCounters
+	for i := range calls {
+		info := calls[i].Normalized.Validation
+		findings := calls[i].Normalized.SpecViolations != nil && len(*calls[i].Normalized.SpecViolations) > 0
+		switch {
+		case findings:
+			out.Checked++
+			out.Findings++
+		case info != nil && info.RequestChecked && info.ResponseChecked:
+			out.Checked++
+			out.Clean++
+		case info != nil && info.RequestChecked:
+			out.RequestOnly++
+		default:
+			out.NotChecked++
+		}
+	}
+	return out
 }
 
 func uniqueSources(calls []Call) []string {

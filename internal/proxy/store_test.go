@@ -7,6 +7,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/barzoj-co/llmentary/internal/specvalidate"
 )
 
 func TestLookupDoesNotCreateSession(t *testing.T) {
@@ -16,6 +18,31 @@ func TestLookupDoesNotCreateSession(t *testing.T) {
 	}
 	if got := store.List(""); len(got) != 0 {
 		t.Fatalf("list after lookup = %+v", got)
+	}
+}
+
+func TestSpecCountersRequestOnlyNotClean(t *testing.T) {
+	got := specCounters([]Call{{
+		Normalized: Normalized{
+			Validation: &ValidationInfo{RequestChecked: true, ResponseChecked: false},
+		},
+	}})
+	if got.Clean != 0 || got.RequestOnly != 1 || got.Checked != 0 || got.NotChecked != 0 {
+		t.Fatalf("got=%+v", got)
+	}
+}
+
+func TestSpecLogValueFindingsBeatSkipped(t *testing.T) {
+	reason := "body_too_large"
+	findings := []specvalidate.Violation{{Keyword: "required", Count: 2}}
+	got := specLogValue(Call{
+		Normalized: Normalized{
+			Validation:     &ValidationInfo{SkippedReason: &reason, RequestChecked: false, ResponseChecked: true},
+			SpecViolations: &findings,
+		},
+	}, "warn")
+	if got != "findings:2" {
+		t.Fatalf("got=%q want findings:2", got)
 	}
 }
 

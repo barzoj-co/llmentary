@@ -72,6 +72,7 @@ func NewServer(cfg Config, store Store, parser Parser) (*Server, error) {
 		ResponseErrorHandlerFunc: s.handleResponseError,
 	})
 	s.specHandler = openaiapi.HandlerWithOptions(strict, openaiapi.StdHTTPServerOptions{})
+	s.logSpecValidationStartup()
 	return s, nil
 }
 
