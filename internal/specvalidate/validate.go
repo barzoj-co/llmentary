@@ -34,7 +34,7 @@ func (e *Engine) ValidateRequest(profile, apiFamily string, raw []byte, maxBytes
 	res.Violations = append(res.Violations, prechecks(raw, profile, precheckConfig{skip: skip})...)
 	if firstJSONObject(raw) {
 		if sch := e.requestSchema(profile, apiFamily); sch != nil {
-			res.Violations = append(res.Violations, e.schemaViolations(sch, raw, profile, SideRequest, nil)...)
+			res.Violations = append(res.Violations, e.schemaViolations(sch, raw, profile, SideRequest, apiFamily, nil)...)
 		}
 	}
 	res.Violations = capAndSort(res.Violations, &res.Truncated, SideRequest)
@@ -51,7 +51,7 @@ func (e *Engine) ValidateResponse(profile, apiFamily string, raw []byte, stream 
 	}
 	sch := e.responseSchema(profile, apiFamily, stream)
 	if sch != nil {
-		res.Violations = append(res.Violations, e.schemaViolations(sch, raw, profile, SideResponse, eventIndex)...)
+		res.Violations = append(res.Violations, e.schemaViolations(sch, raw, profile, SideResponse, apiFamily, eventIndex)...)
 	}
 	res.Violations = capAndSort(res.Violations, &res.Truncated, SideResponse)
 	res.DurationUS = time.Since(start).Microseconds()
@@ -97,7 +97,7 @@ func (e *Engine) responseSchema(profile, apiFamily string, stream bool) *jsonsch
 	return e.strictChatResp
 }
 
-func (e *Engine) schemaViolations(sch *jsonschema.Schema, raw []byte, profile, side string, eventIndex *int) []Violation {
+func (e *Engine) schemaViolations(sch *jsonschema.Schema, raw []byte, profile, side, apiFamily string, eventIndex *int) []Violation {
 	inst, err := jsonschema.UnmarshalJSON(bytes.NewReader(trimBOM(firstJSONBytes(raw))))
 	if err != nil {
 		return nil
@@ -118,13 +118,46 @@ func (e *Engine) schemaViolations(sch *jsonschema.Schema, raw []byte, profile, s
 			Path:       PointerToPath(pointer),
 			Pointer:    pointer,
 			Keyword:    item.keyword,
-			Message:    item.message,
+			Message:    unknownFieldMessage(item, side, apiFamily),
 			Profile:    profile,
 			SchemaRef:  item.schemaRef,
 			EventIndex: eventIndex,
 		})
 	}
 	return out
+}
+
+func unknownFieldMessage(item schemaErr, side, apiFamily string) string {
+	if item.keyword != "unevaluatedProperties" && item.keyword != "additionalProperties" {
+		return item.message
+	}
+	field := lastPointerField(item.pointer)
+	if field == "" {
+		return item.message
+	}
+	return fmt.Sprintf("unknown field %q (not in the OpenAI spec for %s %s)", field, specDisplayName(apiFamily), side)
+}
+
+func specDisplayName(apiFamily string) string {
+	if apiFamily == "openai.responses" {
+		return "responses"
+	}
+	return "chat.completions"
+}
+
+func lastPointerField(pointer string) string {
+	pointer = strings.Trim(pointer, "/")
+	if pointer == "" {
+		return ""
+	}
+	parts := strings.Split(pointer, "/")
+	for i := len(parts) - 1; i >= 0; i-- {
+		part := strings.ReplaceAll(strings.ReplaceAll(parts[i], "~1", "/"), "~0", "~")
+		if part != "" && !isIndex(part) {
+			return part
+		}
+	}
+	return ""
 }
 
 type schemaErr struct {
@@ -310,4 +343,35 @@ func capAndSort(in []Violation, truncated *bool, side string) []Violation {
 	})
 	*truncated = true
 	return kept
+}
+
+// CollapseDuplicates keeps one finding per (side, keyword, pointer, message)
+// and sets Count to the number of copies. The first event_index is kept.
+// Streamed per-chunk copies therefore become one stored row with count=N.
+func CollapseDuplicates(in []Violation) []Violation {
+	if len(in) <= 1 {
+		return in
+	}
+	type key struct {
+		side, keyword, pointer, message string
+	}
+	seen := map[key]int{}
+	out := make([]Violation, 0, len(in))
+	for _, v := range in {
+		k := key{v.Side, v.Keyword, v.Pointer, v.Message}
+		if i, ok := seen[k]; ok {
+			if out[i].Count < 1 {
+				out[i].Count = 1
+			}
+			out[i].Count++
+			continue
+		}
+		seen[k] = len(out)
+		cp := v
+		if cp.Count < 1 {
+			cp.Count = 1
+		}
+		out = append(out, cp)
+	}
+	return out
 }

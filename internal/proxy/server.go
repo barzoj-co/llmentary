@@ -261,7 +261,9 @@ func (s *Server) finishWithProxyError(sessionID, callID string, startedAt time.T
 		call.Normalized.FinishReason = "error"
 		s.parser.Parse(call)
 		applyRequestValidation(call, rv)
+		logCall := snapshotAndCollapseViolations(call)
 		endedCall = *call
+		endedCall.Normalized.SpecViolations = logCall.Normalized.SpecViolations
 	})
 	s.logValidationFindings(endedCall)
 	return endedCall

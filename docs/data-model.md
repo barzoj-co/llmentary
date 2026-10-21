@@ -209,7 +209,7 @@ from an Azure-style `/deployments/{deployment}/...` path segment.
 }
 ```
 
-`spec_violations` entries use `side` (`request`/`response`), `source` (`syntax`/`schema`/`strict_mode`), `path`, `pointer`, `keyword`, `message`, `profile`, and optional `offset` / `event_index`.
+`spec_violations` entries use `side` (`request`/`response`), `source` (`syntax`/`schema`/`strict_mode`), `path`, `pointer`, `keyword`, `message`, `profile`, and optional `offset` / `event_index` / `count`. Identical rows (same side, keyword, pointer, message) are stored once with `count=N`; streamed copies keep the first `event_index`. `unevaluatedProperties` / `additionalProperties` messages name the unknown field.
 
 `ignored_fields` entries use `path`, `pointer`, `key`, `kind`, `context`, `effective_strict`, `upstream_behavior`, `evidence`, `severity`, `action`, `hint`, optional `suggested_description`, and `confirmed`.
 

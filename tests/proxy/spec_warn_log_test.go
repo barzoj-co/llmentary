@@ -87,6 +87,41 @@ func TestP1SpecWarnLoggedUnknownField(t *testing.T) {
 	}
 }
 
+func TestUnknownFieldWarnMessage(t *testing.T) {
+	logBuf := &syncLogBuf{}
+	const fieldVal = "UNIQUE_FIELD_VALUE"
+	p := startSpecProxy(t, "warn", "relaxed", chatOK(), func(cfg *proxy.Config) {
+		cfg.Logger = slog.New(slog.NewTextHandler(logBuf, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	})
+	body := []byte(`{"model":"gpt-fixture","messages":[{"role":"user","content":"hi"}],"temprature":"` + fieldVal + `"}`)
+	_, _, _, session := postRaw(t, p, "/v1/chat/completions", newSession(), nil, body)
+	n := normalized(lastCall(t, session))
+	found := false
+	for _, raw := range asAnySlice(n["spec_violations"]) {
+		m, _ := raw.(map[string]any)
+		msg, _ := m["message"].(string)
+		if strings.Contains(msg, `unknown field "temprature"`) {
+			found = true
+			if m["keyword"] != "unevaluatedProperties" || m["pointer"] != "/temprature" {
+				t.Fatalf("keyword/pointer changed: %+v", m)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("finding message: %v", n["spec_violations"])
+	}
+	logs := logBuf.String()
+	if !strings.Contains(logs, "unknown field") || !strings.Contains(logs, "temprature") {
+		t.Fatalf("WARN missing unknown-field text: %s", logs)
+	}
+	if strings.Contains(logs, "false schema") {
+		t.Fatalf("WARN still says false schema: %s", logs)
+	}
+	if strings.Contains(logs, fieldVal) {
+		t.Fatalf("WARN leaked field value: %s", logs)
+	}
+}
+
 func TestP2CleanOffAndSummaryOnly(t *testing.T) {
 	t.Run("clean_no_warn", func(t *testing.T) {
 		logBuf := &syncLogBuf{}
