@@ -335,7 +335,7 @@ func boolPtr(v bool) *bool { return &v }
 
 func TestLiveCostGuardPresent(t *testing.T) {
 	_ = requireAPIKey(t)
-	if liveRequestCap != 135 {
+	if liveRequestCap != 128 {
 		t.Fatalf("cap=%d", liveRequestCap)
 	}
 	if msg := checkLiveCost(int64(liveRequestCap)+1, int64(liveRequestCap)); msg == "" {
