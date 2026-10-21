@@ -67,7 +67,11 @@ func checkControlOpenAPIDocument(raw []byte) error {
 		if path == "/sessions/" {
 			path = "/sessions"
 		}
-		if _, ok := paths[path]; !ok {
+		pathItem, ok := paths[path].(map[string]any)
+		if !ok {
+			return fmt.Errorf("route %s %s missing from api/control/openapi.yaml", route.Method, route.Path)
+		}
+		if _, ok := pathItem[strings.ToLower(route.Method)]; !ok {
 			return fmt.Errorf("route %s %s missing from api/control/openapi.yaml", route.Method, route.Path)
 		}
 		seen[path] = true

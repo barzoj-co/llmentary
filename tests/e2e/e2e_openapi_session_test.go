@@ -17,7 +17,6 @@ import (
 )
 
 func TestE2EOpenAPISessionSchema(t *testing.T) {
-	_ = requireAPIKey(t)
 	p := startLiveProxy(t, "off", "relaxed")
 	res, err := http.Get(p.controlURL + "/openapi.yaml")
 	if err != nil {
