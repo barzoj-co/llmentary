@@ -65,11 +65,8 @@ func TestNewServerNilStoreParserAndLogger(t *testing.T) {
 
 func TestRouteErrorsAndDefaults(t *testing.T) {
 	s := newAbortTestServer(t, NewMemoryStore())
-	if _, _, _, err := s.route("/u/"); err == nil || !strings.Contains(err.Error(), "unknown upstream") && !strings.Contains(err.Error(), "missing") {
-		// /u/ splits to ["u", ""] so unknown empty name
-		if err == nil {
-			t.Fatal("expected route error")
-		}
+	if _, _, _, err := s.route("/u/"); err == nil || !strings.Contains(err.Error(), "unknown upstream") {
+		t.Fatalf("expected unknown upstream error, got %v", err)
 	}
 	if _, _, _, err := s.route("/u/missing/v1"); err == nil || !strings.Contains(err.Error(), "unknown upstream") {
 		t.Fatalf("missing: %v", err)

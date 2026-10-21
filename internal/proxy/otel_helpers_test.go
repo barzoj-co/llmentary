@@ -144,7 +144,7 @@ func TestProviderNameAndServerAddressPort(t *testing.T) {
 	if h, p := serverAddressPort(":"); h != "" || p != 0 {
 		t.Fatalf("bad url %s %d", h, p)
 	}
-	if h, p := serverAddressPort("mailto:x@y"); p != 0 && h == "" {
+	if h, p := serverAddressPort("mailto:x@y"); h != "" || p != 0 {
 		t.Fatalf("mailto %s %d", h, p)
 	}
 }

@@ -35,13 +35,18 @@ func TestEnumFlagAndRunMoreFlags(t *testing.T) {
 		"--allow-path-prefix", "other",
 		"--propagate-trace", "off",
 		"--upstream", "openai=https://api.openai.com/v1",
-		"--version",
 	}, &stdout, &stderr)
 	if code != 0 {
-		t.Fatalf("version after flags exit=%d stderr=%s", code, stderr.String())
+		t.Fatalf("flags exit=%d stderr=%s", code, stderr.String())
 	}
-	if !strings.HasPrefix(stdout.String(), "llmentary ") {
-		t.Fatalf("stdout=%q", stdout.String())
+	if !strings.Contains(stderr.String(), "proxy listening") {
+		t.Fatalf("startup log=%s", stderr.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	if code := run([]string{"--version"}, &stdout, &stderr); code != 0 || !strings.HasPrefix(stdout.String(), "llmentary ") {
+		t.Fatalf("version exit=%d stdout=%q stderr=%s", code, stdout.String(), stderr.String())
 	}
 
 	stdout.Reset()

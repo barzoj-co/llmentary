@@ -63,7 +63,7 @@ func TestContentTextAndNormalize(t *testing.T) {
 	if normalizeText("  ") != "" {
 		t.Fatal("blank")
 	}
-	if normalizeText("  Hello\tTHERE  ") == "" {
-		t.Fatal("fold")
+	if got := normalizeText("  Hello\tTHERE  "); got != "hello there" {
+		t.Fatalf("fold=%q", got)
 	}
 }

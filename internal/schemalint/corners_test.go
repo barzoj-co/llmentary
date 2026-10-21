@@ -25,10 +25,13 @@ func TestLoadSubsetAndClassify(t *testing.T) {
 		t.Fatalf("supported type=%s", kind)
 	}
 	kind, sev, act := s.Classify("definitely-not-a-keyword", false)
-	if kind == "" || sev == "" || act == "" {
+	if kind != KindUnknownKeyword || sev != SeverityWarning || act != ActionReject {
 		t.Fatalf("unknown keyword classification %q %q %q", kind, sev, act)
 	}
-	_, _, _ = s.Classify("definitely-not-a-keyword", true)
+	kind, sev, act = s.Classify("definitely-not-a-keyword", true)
+	if kind != KindUnknownKeyword || sev != SeverityWarning || act != ActionReject {
+		t.Fatalf("fine-tuned unknown %q %q %q", kind, sev, act)
+	}
 	if s.Hint("unknown_request_field") == "" && s.Hint("x-vendor") == "" {
 		t.Fatal("hints")
 	}
@@ -127,9 +130,19 @@ func TestLintRequestInvalidAndConfirmFallback(t *testing.T) {
 		"messages":[null,{"role":"user","content":[{"type":"text","text":"hi","extra":1}],"mystery":true}],
 		"tools":[{"type":"function","function":{"name":"f","parameters":{"type":"object"},"mystery":1}}]
 	}`))
-	_ = chat
+	if len(chat.Ignored) == 0 {
+		t.Fatalf("chat ignored empty: %+v", chat)
+	}
 	resp := l.LintRequest("openai.responses", []byte(`{"model":"m","tools":[{"type":"function","name":"f","parameters":{"type":"object"}}]}`))
-	_ = resp
+	foundPred := false
+	for _, f := range resp.Ignored {
+		if f.Kind == KindStrictFallbackPred {
+			foundPred = true
+		}
+	}
+	if !foundPred {
+		t.Fatalf("expected strict fallback prediction: %+v", resp.Ignored)
+	}
 }
 
 func TestJoinPtrAndFormatAllowed(t *testing.T) {
@@ -141,8 +154,10 @@ func TestJoinPtrAndFormatAllowed(t *testing.T) {
 	if joinPtr("", "a") != "/a" {
 		t.Fatalf("%s", joinPtr("", "a"))
 	}
-	if !s.FormatAllowed("date-time") && !s.FormatAllowed("email") {
-		// subset may document either; just exercise the lookup
-		_ = s.FormatAllowed("nope")
+	if !s.FormatAllowed("date-time") {
+		t.Fatal("date-time should be allowed")
+	}
+	if s.FormatAllowed("nope") {
+		t.Fatal("unknown format")
 	}
 }

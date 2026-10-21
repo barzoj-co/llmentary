@@ -161,7 +161,9 @@ func TestValidateRequestSkipAndResponseDone(t *testing.T) {
 		t.Fatalf("done %+v", res)
 	}
 	res = eng.ValidateResponse(ProfileRelaxed, "openai.responses", []byte(`{"id":"r"}`), false, nil)
-	_ = res
+	if !res.Checked || len(res.Violations) == 0 {
+		t.Fatalf("relaxed responses body %+v", res)
+	}
 	res = eng.ValidateRequest(ProfileRelaxed, "openai.responses", []byte(`{"model":"m","input":"hi"}`), 0)
 	if !res.Checked {
 		t.Fatalf("relaxed responses %+v", res)

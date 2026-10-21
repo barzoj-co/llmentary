@@ -75,6 +75,19 @@ func TestMemoryStoreStateDefaultSessionAndClone(t *testing.T) {
 	if !ok || len(sess.Calls) != 1 {
 		t.Fatalf("default session %+v ok=%v", sess, ok)
 	}
+	if sess.Calls[0].Normalized.ContentFilter == nil {
+		t.Fatal("missing content filter clone")
+	}
+	sess.Calls[0].Normalized.ContentFilter.Categories["hate"] = FilterResult{}
+	sess.Calls[0].Normalized.ContentFilter.Raw[0] = json.RawMessage(`{}`)
+	again, ok := store.Lookup(DefaultSessionID)
+	if !ok {
+		t.Fatal("second lookup")
+	}
+	cf := again.Calls[0].Normalized.ContentFilter
+	if cf == nil || !cf.Categories["hate"].Filtered || string(cf.Raw[0]) != `{"hate":{"filtered":true}}` {
+		t.Fatalf("lookup result aliases store state: %+v", cf)
+	}
 	store.Delete(DefaultSessionID)
 	if _, ok := store.Lookup(DefaultSessionID); ok {
 		t.Fatal("deleted")

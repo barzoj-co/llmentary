@@ -97,9 +97,8 @@ func TestAddUpstreamCorners(t *testing.T) {
 	if err := cfg.AddUpstream("name=/relative"); err == nil {
 		t.Fatal("relative url")
 	}
-	if err := cfg.AddUpstream("%zz=https://x.example"); err == nil {
-		// url.Parse accepts most names on the left; this is the URL side
-		_ = err
+	if err := cfg.AddUpstream("name=https://%zz"); err == nil {
+		t.Fatal("malformed upstream URL")
 	}
 }
 

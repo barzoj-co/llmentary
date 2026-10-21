@@ -31,7 +31,7 @@ func TestPrechecksSyntaxCorners(t *testing.T) {
 		t.Fatalf("array=%v", notObj)
 	}
 	badJSON := prechecks([]byte(`{`), ProfileStrict, cfg)
-	if !hasKeyword(badJSON, "trailingData") && !hasKeyword(badJSON, "emptyBody") {
+	if !hasKeyword(badJSON, "trailingData") {
 		t.Fatalf("bad json=%v", badJSON)
 	}
 
@@ -41,28 +41,50 @@ func TestPrechecksSyntaxCorners(t *testing.T) {
 	}
 
 	deep := strings.Repeat("[", 130) + strings.Repeat("]", 130)
-	_ = prechecks([]byte(deep), ProfileStrict, cfg)
+	if !hasKeyword(prechecks([]byte(deep), ProfileStrict, cfg), "maxDepth") {
+		t.Fatal("expected maxDepth")
+	}
 
 	inf := prechecks([]byte(`{"n":1e400}`), ProfileStrict, cfg)
-	if !hasKeyword(inf, "numberRange") && len(inf) == 0 {
-		// may be reported as numberRange via walkRaw
-		_ = inf
+	if !hasKeyword(inf, "numberRange") {
+		t.Fatalf("numberRange=%v", inf)
 	}
 
 	s := rawScanner{data: []byte("  "), cfg: cfg, out: &[]Violation{}}
 	s.skipValue()
+	if s.pos != len(s.data) {
+		t.Fatalf("skip ws pos=%d", s.pos)
+	}
 	s = rawScanner{data: []byte(`"hi"`), cfg: cfg, out: &[]Violation{}}
 	s.skipValue()
+	if s.pos != 4 {
+		t.Fatalf("skip string pos=%d", s.pos)
+	}
 	s = rawScanner{data: []byte(`true`), cfg: cfg, out: &[]Violation{}}
 	s.skipValue()
+	if s.pos != 4 {
+		t.Fatalf("skip literal pos=%d", s.pos)
+	}
 	s = rawScanner{data: []byte(`-12`), cfg: cfg, out: &[]Violation{}}
 	s.skipValue()
+	if s.pos != 3 {
+		t.Fatalf("skip number pos=%d", s.pos)
+	}
 	s = rawScanner{data: []byte(`{"a":[1,"x"]}`), cfg: cfg, out: &[]Violation{}}
 	s.skipValue()
+	if s.pos != len(s.data) {
+		t.Fatalf("skip object pos=%d", s.pos)
+	}
 	s = rawScanner{data: []byte(`["a\"b",{"k":1}]`), cfg: cfg, out: &[]Violation{}}
 	s.skipContainer()
+	if s.pos != len(s.data) {
+		t.Fatalf("skip container pos=%d", s.pos)
+	}
 	s = rawScanner{data: []byte(`x`), cfg: cfg, out: &[]Violation{}}
 	s.skipContainer()
+	if s.pos != 0 {
+		t.Fatalf("skip non-container pos=%d", s.pos)
+	}
 	if invalidUTF8Offset([]byte("abc")) != 0 {
 		t.Fatal("valid utf8")
 	}
