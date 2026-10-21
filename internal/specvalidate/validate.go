@@ -107,7 +107,7 @@ func (e *Engine) schemaViolations(sch *jsonschema.Schema, raw []byte, profile, s
 		return nil
 	}
 	var out []Violation
-	for _, item := range flattenSchemaError(err) {
+	for _, item := range dropCoveredUnevaluated(flattenSchemaError(err)) {
 		pointer := item.pointer
 		if pointer == "" {
 			pointer = "/"
@@ -131,11 +131,54 @@ func unknownFieldMessage(item schemaErr, side, apiFamily string) string {
 	if item.keyword != "unevaluatedProperties" && item.keyword != "additionalProperties" {
 		return item.message
 	}
-	field := lastPointerField(item.pointer)
+	field := extraPropertyName(item.message)
+	if field == "" {
+		field = lastPointerField(item.pointer)
+	}
 	if field == "" {
 		return item.message
 	}
 	return fmt.Sprintf("unknown field %q (not in the OpenAI spec for %s %s)", field, specDisplayName(apiFamily), side)
+}
+
+func extraPropertyName(msg string) string {
+	const prefix = "additional properties "
+	lower := strings.ToLower(msg)
+	i := strings.Index(lower, prefix)
+	if i < 0 {
+		return ""
+	}
+	rest := msg[i+len(prefix):]
+	start := strings.Index(rest, "'")
+	if start < 0 {
+		return ""
+	}
+	rest = rest[start+1:]
+	end := strings.Index(rest, "'")
+	if end <= 0 {
+		return ""
+	}
+	return rest[:end]
+}
+
+func dropCoveredUnevaluated(in []schemaErr) []schemaErr {
+	covered := map[string]bool{}
+	for _, item := range in {
+		if item.keyword == "additionalProperties" {
+			covered[item.pointer] = true
+		}
+	}
+	if len(covered) == 0 {
+		return in
+	}
+	out := make([]schemaErr, 0, len(in))
+	for _, item := range in {
+		if item.keyword == "unevaluatedProperties" && covered[item.pointer] {
+			continue
+		}
+		out = append(out, item)
+	}
+	return out
 }
 
 func specDisplayName(apiFamily string) string {

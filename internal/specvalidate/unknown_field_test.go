@@ -58,6 +58,36 @@ func TestUnknownFieldMessageNumericKey(t *testing.T) {
 	}
 }
 
+func TestUnknownFieldMessageNestedAdditionalProperties(t *testing.T) {
+	eng, err := CompileEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	res := eng.ValidateRequest(ProfileStrict, "openai.responses", []byte(`{"model":"gpt-fixture","input":"hi","access_programs":{"cyber":"standard","extra":true}}`), 0)
+	found := false
+	for _, v := range res.Violations {
+		if v.Keyword == "unevaluatedProperties" && v.Pointer == "/access_programs" {
+			t.Fatalf("duplicate parent unevaluatedProperties: %+v", v)
+		}
+		if v.Keyword != "additionalProperties" || v.Pointer != "/access_programs" {
+			continue
+		}
+		found = true
+		if !strings.Contains(v.Message, `unknown field "extra"`) {
+			t.Fatalf("message=%q", v.Message)
+		}
+		if strings.Contains(v.Message, `unknown field "access_programs"`) {
+			t.Fatalf("named the parent instead of the extra key: %q", v.Message)
+		}
+		if strings.Contains(v.Message, "false schema") || strings.Contains(v.Message, "additional properties") {
+			t.Fatalf("still using library wording: %q", v.Message)
+		}
+	}
+	if !found {
+		t.Fatalf("missing additionalProperties /access_programs: %v", res.Violations)
+	}
+}
+
 func TestLastPointerFieldKeepsNumericObjectKey(t *testing.T) {
 	if got := lastPointerField("/123"); got != "123" {
 		t.Fatalf("got %q", got)
