@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.4.1](https://github.com/barzoj-co/llmentary/compare/v0.4.0...v0.4.1) (2026-10-21)
+
+
+### Bug Fixes
+
+* fail isolated_from when the other session is empty ([#42](https://github.com/barzoj-co/llmentary/issues/42)) ([a2d44de](https://github.com/barzoj-co/llmentary/commit/a2d44de3dfd5721dd77facf2e91b43fb482a794e))
+* hide in-flight calls until the settled record is published ([#43](https://github.com/barzoj-co/llmentary/issues/43)) ([46b9dc6](https://github.com/barzoj-co/llmentary/commit/46b9dc61d354be6c8db255b6a9419923a37b4cb1))
+* say list sessions with GET /sessions on 404 ([#41](https://github.com/barzoj-co/llmentary/issues/41)) ([4333d80](https://github.com/barzoj-co/llmentary/commit/4333d806aac8963836c36ebb918cb674b82cea39))
+* stop release-please reformatting openapi.yaml ([#47](https://github.com/barzoj-co/llmentary/issues/47)) ([2264a32](https://github.com/barzoj-co/llmentary/commit/2264a3202f9f94f1649807f50c8e911fd3a15ad8))
+* treat client write errors as after-headers aborts ([#48](https://github.com/barzoj-co/llmentary/issues/48)) ([3a70488](https://github.com/barzoj-co/llmentary/commit/3a7048860f8ee54005920bc6ff6b58b4007f5658))
+
 ## [0.4.0](https://github.com/barzoj-co/llmentary/compare/v0.3.0...v0.4.0) (2026-10-21)
 
 
