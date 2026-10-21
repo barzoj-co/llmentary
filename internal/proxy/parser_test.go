@@ -168,6 +168,33 @@ func TestResponsesStreamParsesFunctionCallFromCompletedEvent(t *testing.T) {
 	}
 }
 
+func TestSSERecorderDoesNotTreatUnterminatedFrameAsComplete(t *testing.T) {
+	rec := newSSERecorder(time.Now())
+	rec.Write([]byte("event: response.completed\ndata: {\"type\":\"response.completed\"}"))
+	_, complete, _ := rec.Finish()
+	if complete {
+		t.Fatal("unterminated pending frame must not mark stream complete")
+	}
+}
+
+func TestSSERecorderDelimitedTerminalMarksComplete(t *testing.T) {
+	rec := newSSERecorder(time.Now())
+	rec.Write([]byte("event: response.completed\ndata: {\"type\":\"response.completed\"}\n\n"))
+	_, complete, _ := rec.Finish()
+	if !complete {
+		t.Fatal("delimited terminal event must mark stream complete")
+	}
+}
+
+func TestSSERecorderUnterminatedDoneIsNotComplete(t *testing.T) {
+	rec := newSSERecorder(time.Now())
+	rec.Write([]byte("data: [DONE]"))
+	_, complete, _ := rec.Finish()
+	if complete {
+		t.Fatal("unterminated [DONE] must not mark stream complete")
+	}
+}
+
 func baseCall(family string, rawRequest, rawResponse []byte, stream bool) Call {
 	now := time.Now()
 	return Call{
