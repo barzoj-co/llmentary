@@ -22,7 +22,15 @@ import (
 	"github.com/barzoj-co/llmentary/internal/proxy"
 )
 
-const liveRequestCap = 125
+// liveRequestCap is the suite-wide OpenAI call budget.
+// 128 is the measured count after main gained isolation (3) and sessions
+// spec-counter (2) live calls plus this branch's three required named
+// abort tests (DOG-28 chat/responses after-headers + DOG-23 abort log).
+// Those abort tests cannot share a call (two API families + a 50ms-cancel
+// log check) and cannot move to the fake upstream (tickets require live
+// OpenAI). DOG-23 seq/spec on a delayed-header fake is already covered
+// by TestClientCancelBeforeHeadersLogsSeqSpec.
+const liveRequestCap = 128
 
 func checkLiveCost(used, cap int64) string {
 	if used > cap {

@@ -20,6 +20,20 @@ keys are snake_case (`checked`, `clean`, `findings`, `request_only`,
 `not_checked`); PascalCase aliases are also serialized. See
 [Proxy — GET /sessions](proxy.md#get-sessions-and-get-sessions).
 
+## Abort cases
+
+| When the client disconnects | `client_aborted` | log `phase` | `http_status` | `finish_reason` | Partial body |
+|---|---|---|---|---|---|
+| Before upstream response headers | `true` | `before_headers` | `0` (never `502`) | `cancelled` | none |
+| After headers / mid-SSE (no terminal event yet) | `true` | `after_headers` | upstream status, usually `200` | `cancelled` | deltas received so far |
+| After `[DONE]` / `response.completed` / `failed` / `incomplete` | `false` | omitted | `200` | parser value (e.g. `stop`) | full stream |
+
+`upstream_called` is true when the outbound request was written
+(`httptrace.WroteRequest`). After-headers aborts are not a `network` error
+and do not set `error.mid_stream` (that flag is for HTTP/SSE *errors* after
+a stream started). The abort `proxy response` line always includes `seq=`
+and `spec=` (`request_only` when the response was not validated).
+
 ## Example: `wait` on a missing session
 
 ```bash

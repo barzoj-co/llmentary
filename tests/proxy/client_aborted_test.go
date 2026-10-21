@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -164,6 +165,28 @@ func waitSession(t *testing.T, controlURL, session string) map[string]any {
 	return out
 }
 
+func TestNonStreamClientCloseAfterBodyNotAborted(t *testing.T) {
+	p := startSpecProxy(t, "off", "relaxed", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, `{"id":"c","model":"gpt-fixture","choices":[{"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}]}`)
+	})
+	sid := newSession()
+	status, _, _ := postJSON(t, p.proxyURL+"/v1/chat/completions", map[string]string{
+		proxy.SessionHeaderName: sid,
+	}, []byte(`{"model":"gpt-fixture","messages":[{"role":"user","content":"hi"}]}`))
+	if status != http.StatusOK {
+		t.Fatalf("status=%d", status)
+	}
+	n := normalized(lastCall(t, waitSession(t, p.controlURL, sid)))
+	if n["client_aborted"] == true {
+		t.Fatalf("complete non-stream marked client_aborted: %+v", n)
+	}
+	if n["finish_reason"] != "stop" {
+		t.Fatalf("finish_reason=%v", n["finish_reason"])
+	}
+}
+
 func TestClientAbortedFalseAfterDone(t *testing.T) {
 	const loops = 20
 	p := startSpecProxy(t, "off", "relaxed", chatStreamWithDelay(delayedTerminator))
@@ -219,14 +242,96 @@ func TestClientAbortedFalseAfterResponsesTerminalEvents(t *testing.T) {
 	}
 }
 
+func responsesStreamAbortAfterFirst() http.HandlerFunc {
+	created := "event: response.created\ndata: {\"type\":\"response.created\",\"sequence_number\":0}\n\n"
+	delta := "event: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"delta\":\"chunk-one\"}\n\n"
+	more := strings.Repeat("event: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"delta\":\"x\"}\n\n", 64)
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		flusher, _ := w.(http.Flusher)
+		_, _ = io.WriteString(w, created)
+		_, _ = io.WriteString(w, delta)
+		if flusher != nil {
+			flusher.Flush()
+		}
+		select {
+		case <-r.Context().Done():
+		case <-time.After(2 * time.Second):
+		}
+		_, _ = io.WriteString(w, more)
+		if flusher != nil {
+			flusher.Flush()
+		}
+	}
+}
+
+func assertAfterHeadersAbort(t *testing.T, call map[string]any, wantText string) {
+	t.Helper()
+	n := normalized(call)
+	if n["client_aborted"] != true {
+		t.Fatalf("client_aborted=%v", n["client_aborted"])
+	}
+	if call["http_status"] != float64(http.StatusOK) {
+		t.Fatalf("http_status=%v want 200", call["http_status"])
+	}
+	if n["finish_reason"] != "cancelled" {
+		t.Fatalf("finish_reason=%v", n["finish_reason"])
+	}
+	if call["upstream_called"] != true {
+		t.Fatalf("upstream_called=%v", call["upstream_called"])
+	}
+	errObj, _ := n["error"].(map[string]any)
+	if fmtString(errObj["normalized"]) == "network" {
+		t.Fatalf("network error: %v", n["error"])
+	}
+	if errObj["mid_stream"] == true {
+		t.Fatalf("mid_stream set: %v", n["error"])
+	}
+	if wantText != "" && !strings.Contains(fmtString(n["output_text"]), wantText) {
+		t.Fatalf("output_text=%q want %q", n["output_text"], wantText)
+	}
+}
+
 func TestClientAbortedTrueBeforeDone(t *testing.T) {
 	p := startSpecProxy(t, "off", "relaxed", chatStreamAbortAfterFirst())
 	body := []byte(`{"model":"gpt-fixture","messages":[{"role":"user","content":"hi"}],"stream":true}`)
 	sid := newSession()
 	postSSECloseAfter(t, p.proxyURL, "/v1/chat/completions", sid, "chunk-one", body)
-	n := normalized(lastCall(t, waitSession(t, p.controlURL, sid)))
-	if n["client_aborted"] != true {
-		t.Fatalf("expected client_aborted after early close: %+v", n)
+	call := lastCall(t, waitSession(t, p.controlURL, sid))
+	assertAfterHeadersAbort(t, call, "chunk-one")
+}
+
+func TestClientCancelAfterHeadersResponses(t *testing.T) {
+	p := startSpecProxy(t, "off", "relaxed", responsesStreamAbortAfterFirst())
+	body := []byte(`{"model":"gpt-fixture","input":"tell a long story","stream":true}`)
+	sid := newSession()
+	postSSECloseAfter(t, p.proxyURL, "/v1/responses", sid, "chunk-one", body)
+	assertAfterHeadersAbort(t, lastCall(t, waitSession(t, p.controlURL, sid)), "chunk-one")
+}
+
+func TestClientCancelAfterHeadersLogsProxyResponse(t *testing.T) {
+	logBuf := &syncLogBuf{}
+	p := startSpecProxy(t, "off", "relaxed", chatStreamAbortAfterFirst(), func(cfg *proxy.Config) {
+		cfg.Logger = slog.New(slog.NewTextHandler(logBuf, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	})
+	sid := newSession()
+	body := []byte(`{"model":"gpt-fixture","messages":[{"role":"user","content":"hi"}],"stream":true}`)
+	postSSECloseAfter(t, p.proxyURL, "/v1/chat/completions", sid, "chunk-one", body)
+	_ = waitSession(t, p.controlURL, sid)
+	var n int
+	for _, line := range strings.Split(logBuf.String(), "\n") {
+		if strings.Contains(line, `msg="proxy response"`) && strings.Contains(line, "client_aborted=true") {
+			n++
+			for _, want := range []string{"status=200", "seq=1", "spec=", "phase=after_headers"} {
+				if !strings.Contains(line, want) {
+					t.Fatalf("abort log missing %s: %s", want, line)
+				}
+			}
+		}
+	}
+	if n != 1 {
+		t.Fatalf("proxy response abort lines=%d log=%s", n, logBuf.String())
 	}
 }
 

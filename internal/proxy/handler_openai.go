@@ -120,12 +120,7 @@ func (s *Server) writeProxyError(w http.ResponseWriter, ex *proxyExchange, err e
 		return
 	}
 	ended := s.finishWithProxyError(ex.session.ID, ex.callID, ex.startedAt, err, http.StatusBadGateway, ex.requestVal, ex.wroteRequest.Load())
-	s.logger().Info("proxy response",
-		"status", http.StatusBadGateway,
-		"call_id", ex.callID,
-		"session", ex.session.ID,
-		"api_family", ended.APIFamily,
-	)
+	s.logProxyResponse(ex, ended, http.StatusBadGateway)
 	if ex.span != nil {
 		finishSpan(ex.span, ended, ended.EndedAt)
 	}
@@ -154,14 +149,7 @@ func (s *Server) finishWithClientAbort(ex *proxyExchange, err error) Call {
 		endedCall = *call
 		endedCall.Normalized.SpecViolations = logCall.Normalized.SpecViolations
 	})
-	s.logger().Info("proxy response",
-		"status", "-",
-		"call_id", ex.callID,
-		"session", ex.session.ID,
-		"api_family", endedCall.APIFamily,
-		"client_aborted", true,
-		"phase", "before_headers",
-	)
+	s.logProxyResponse(ex, endedCall, "-", "client_aborted", true, "phase", AbortPhaseBeforeHeaders)
 	s.logValidationFindings(endedCall)
 	return endedCall
 }
@@ -238,7 +226,7 @@ func (ex *proxyExchange) copyAndFinish(w http.ResponseWriter, resp *http.Respons
 	if headerSSE && !compressed {
 		recorder = newSSERecorder(ex.startedAt)
 	}
-	_, copyErr := copyAndFlush(w, resp.Body, func(chunk []byte) {
+	_, copyErr, copyWriteErr := copyAndFlush(w, resp.Body, func(chunk []byte) {
 		if firstByte == nil {
 			now := time.Now().UTC()
 			firstByte = &now
@@ -248,11 +236,11 @@ func (ex *proxyExchange) copyAndFinish(w http.ResponseWriter, resp *http.Respons
 			recorder.Write(chunk)
 		}
 	})
-	ex.finishCall(resp, rawResp.Bytes(), firstByte, recorder, copyErr, headerSSE)
+	ex.finishCall(resp, rawResp.Bytes(), firstByte, recorder, copyErr, copyWriteErr, headerSSE)
 	return nil
 }
 
-func (ex *proxyExchange) finishCall(resp *http.Response, rawBody []byte, firstByte *time.Time, recorder *sseRecorder, copyErr error, headerSSE bool) {
+func (ex *proxyExchange) finishCall(resp *http.Response, rawBody []byte, firstByte *time.Time, recorder *sseRecorder, copyErr error, copyWriteErr bool, headerSSE bool) {
 	if ex.finished {
 		return
 	}
@@ -288,11 +276,23 @@ func (ex *proxyExchange) finishCall(resp *http.Response, rawBody []byte, firstBy
 		if stream && !complete {
 			call.Normalized.StreamTruncated = true
 		}
-		if copyErr != nil && (!stream || !complete) {
+		clientGone := ex.r != nil && ex.r.Context().Err() != nil
+		// Non-stream: a write failure or a context-canceled body read (doUpstream
+		// binds the upstream request to the client context). Ordinary upstream
+		// read errors stay network failures.
+		incomplete := (stream && !complete) ||
+			(!stream && (copyWriteErr || errors.Is(copyErr, context.Canceled)))
+		if clientGone && incomplete {
 			// A complete SSE stream (terminal [DONE] or Responses
 			// response.completed/failed/incomplete already written) is not
 			// client_aborted when the SDK closes after that event.
 			call.Normalized.ClientAborted = true
+			if copyErr != nil {
+				call.Normalized.ParserWarnings = append(call.Normalized.ParserWarnings, "response copy error: "+copyErr.Error())
+			} else {
+				call.Normalized.ParserWarnings = append(call.Normalized.ParserWarnings, "client canceled after response headers")
+			}
+		} else if copyErr != nil {
 			call.Normalized.ParserWarnings = append(call.Normalized.ParserWarnings, "response copy error: "+copyErr.Error())
 		}
 		recordRequestIDs(call, resp.Header)
@@ -308,18 +308,25 @@ func (ex *proxyExchange) finishCall(resp *http.Response, rawBody []byte, firstBy
 			}
 			mergeResponseValidation(call, vios, extra, dur, trunc)
 		}
+		if call.Normalized.ClientAborted {
+			call.Normalized.FinishReason = "cancelled"
+			if err := call.Normalized.Error; err != nil {
+				if err.Normalized == "network" {
+					call.Normalized.Error = nil
+				} else {
+					err.MidStream = false
+				}
+			}
+		}
 		logCall := snapshotAndCollapseViolations(call)
 		endedCall = *call
 		endedCall.Normalized.SpecViolations = logCall.Normalized.SpecViolations
 	})
-	ex.s.logger().Info("proxy response",
-		"status", resp.StatusCode,
-		"call_id", ex.callID,
-		"session", ex.session.ID,
-		"seq", ex.seq,
-		"api_family", endedCall.APIFamily,
-		"spec", specLogValue(endedCall, ex.s.specMode()),
-	)
+	var extra []any
+	if endedCall.Normalized.ClientAborted {
+		extra = []any{"client_aborted", true, "phase", AbortPhaseAfterHeaders}
+	}
+	ex.s.logProxyResponse(ex, endedCall, resp.StatusCode, extra...)
 	ex.s.logValidationFindings(endedCall)
 	if ex.span != nil {
 		finishSpan(ex.span, endedCall, endedAt)
@@ -400,6 +407,19 @@ func firstJSONBytes(raw []byte) []byte {
 		return raw
 	}
 	return first
+}
+
+func (s *Server) logProxyResponse(ex *proxyExchange, call Call, status any, extra ...any) {
+	args := []any{
+		"status", status,
+		"call_id", ex.callID,
+		"session", ex.session.ID,
+		"seq", ex.seq,
+		"api_family", call.APIFamily,
+		"spec", specLogValue(call, s.specMode()),
+	}
+	args = append(args, extra...)
+	s.logger().Info("proxy response", args...)
 }
 
 func drainAndRestore(r *http.Request) ([]byte, error) {
