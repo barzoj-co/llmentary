@@ -259,7 +259,7 @@ components:
             $ref: "#/components/schemas/SessionSummary"
     SessionSummary:
       type: object
-      required: [id, calls, active, sources]
+      required: [id, calls, active, sources, spec]
       properties:
         id:
           type: string
@@ -277,6 +277,20 @@ components:
         last_ended_at:
           type: string
           format: date-time
+        spec:
+          type: object
+          required: [checked, clean, findings, request_only, not_checked]
+          properties:
+            checked:
+              type: integer
+            clean:
+              type: integer
+            findings:
+              type: integer
+            request_only:
+              type: integer
+            not_checked:
+              type: integer
     Session:
       type: object
       required: [id, calls]

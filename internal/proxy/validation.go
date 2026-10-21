@@ -241,9 +241,6 @@ func specLogValue(call Call, mode string) string {
 	if info == nil {
 		return "off"
 	}
-	if info.SkippedReason != nil && *info.SkippedReason != "" && !info.RequestChecked {
-		return "skipped:" + *info.SkippedReason
-	}
 	findings := 0
 	if call.Normalized.SpecViolations != nil {
 		for _, v := range *call.Normalized.SpecViolations {
@@ -256,6 +253,9 @@ func specLogValue(call Call, mode string) string {
 	}
 	if findings > 0 {
 		return fmt.Sprintf("findings:%d", findings)
+	}
+	if info.SkippedReason != nil && *info.SkippedReason != "" && !info.RequestChecked {
+		return "skipped:" + *info.SkippedReason
 	}
 	if info.RequestChecked && !info.ResponseChecked {
 		return "request_only"
