@@ -1,0 +1,60 @@
+{
+  "id": "out-of-order-seq",
+  "description": "Calls must be walked in seq order. Listing a later call first must not treat replayed history as X's own introduction.",
+  "allow_empty": false,
+  "min_chars": 8,
+  "ignore_texts": [],
+  "x": {
+    "id": "sess-x",
+    "calls": [
+      {
+        "id": "call_x2",
+        "session_id": "sess-x",
+        "seq": 2,
+        "raw_request": {
+          "model": "gpt-4.1-nano",
+          "messages": [
+            {"role": "user", "content": "A later turn from X only."}
+          ]
+        }
+      },
+      {
+        "id": "call_x1",
+        "session_id": "sess-x",
+        "seq": 1,
+        "raw_request": {
+          "model": "gpt-4.1-nano",
+          "messages": [
+            {"role": "user", "content": "What is my biological age?"},
+            {"role": "assistant", "content": "I need more data."},
+            {"role": "user", "content": "Continue from the saved thread."}
+          ]
+        }
+      }
+    ]
+  },
+  "y": {
+    "id": "sess-y",
+    "calls": [
+      {
+        "id": "call_y1",
+        "session_id": "sess-y",
+        "seq": 1,
+        "raw_request": {
+          "model": "gpt-4.1-nano",
+          "messages": [
+            {"role": "user", "content": "What is my biological age?"}
+          ]
+        }
+      }
+    ]
+  },
+  "expect": {
+    "isolated": false,
+    "message_contains": [
+      "user text 'What is my biological age?'",
+      "from session sess-y #1 (call_y1)",
+      "appears in session sess-x #1 (call_x1)"
+    ]
+  }
+}
