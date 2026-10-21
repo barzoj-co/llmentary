@@ -28,6 +28,9 @@ func TestBlackBoxIsolationDocs(t *testing.T) {
 		"IsolatedFrom",
 		"isolated_from",
 		"isolatedFrom",
+		"allow_empty",
+		"Attribution",
+		"nonce",
 	}
 	for _, n := range needles {
 		if !strings.Contains(text, n) {

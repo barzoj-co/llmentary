@@ -183,8 +183,12 @@ the JSON vectors in [`testdata/isolation/`](../testdata/isolation/README.md):
    but Y did. Comparison is an exact match after trim / whitespace-collapse /
    casefold — never a substring. The same canned question sent independently
    by both sessions is not a leak. `"Hi"` is not a leak against
-   `"Hi, what is …"`.
-4. Empty X fails unless `allow_empty` is set.
+   `"Hi, what is …"`. A session introduces **every** user text that first
+   appears in its calls (later calls: each new user message, not only the
+   last). First-call inbound history stays `seen`, not introduced. See
+   [Isolation spec](isolation-spec.md#rule-3-no-foreign-user-turn).
+4. Empty **X** or empty **Y** (never created, mistyped, unused) fails unless
+   `allow_empty` is set. `isolated_from(ghost)` is not a vacuous pass.
 
 Parallel same-scenario (the usual dogfood check):
 
@@ -196,6 +200,13 @@ lm_b.expect().isolated_from(lm_a)
 
 A third session that replays A's first user message as history (checkpointer,
 Mongo thread, copied conversation) fails rule 3 with the spec message.
+
+**Attribution:** that failure names the compared session when it sent the
+same text. If A and B both asked "What is my biological age?" and C continues
+A's thread, `C.isolated_from(B)` fails even though B never touched A's
+Mongo. To attribute a leak, put a nonce or run id in each session's first
+user message; keep the canned question only for `A ⊥ B`. See
+[Isolation spec: Attribution](isolation-spec.md#attribution).
 
 ## Import-time and startup-constructed clients
 

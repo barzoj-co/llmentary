@@ -1,0 +1,34 @@
+{
+  "id": "unknown-other-id",
+  "description": "Y was never created (unknown id, 0 calls). Fail and name that id.",
+  "allow_empty": false,
+  "min_chars": 8,
+  "ignore_texts": [],
+  "x": {
+    "id": "sess-x",
+    "calls": [
+      {
+        "id": "call_x1",
+        "session_id": "sess-x",
+        "seq": 1,
+        "raw_request": {
+          "model": "gpt-4.1-nano",
+          "messages": [
+            {"role": "user", "content": "What is my biological age?"}
+          ]
+        }
+      }
+    ]
+  },
+  "y": {
+    "id": "never-created-session",
+    "calls": []
+  },
+  "expect": {
+    "isolated": false,
+    "message_contains": [
+      "no calls recorded for session never-created-session",
+      "isolated_from needs calls on both sides"
+    ]
+  }
+}

@@ -54,10 +54,32 @@ func TestE2EIsolatedFromSamePromptAndReplay(t *testing.T) {
 	if ok {
 		t.Fatal("C isolated_from A: want fail on history replay")
 	}
-	for _, frag := range []string{"user text", prompt, sidA, sidC} {
+	for _, frag := range []string{"user text", "also introduced by session", prompt, sidA, sidC} {
 		if !strings.Contains(msg, frag) {
 			t.Fatalf("replay message %q missing %q", msg, frag)
 		}
+	}
+
+	// DOG-34: B sent the same canned text and never touched A's thread.
+	ok, msg = isolation.Check(c, b, isolation.Options{})
+	if ok {
+		t.Fatal("C isolated_from B: want fail on shared text (B uninvolved)")
+	}
+	if !strings.Contains(msg, sidB) || !strings.Contains(msg, "also introduced by session") {
+		t.Fatalf("uninvolved-B message %q", msg)
+	}
+
+	// DOG-32: empty / mistyped other is not a vacuous pass (no extra OpenAI call).
+	ghost := isolation.Session{ID: sidA + "-typo"}
+	ok, msg = isolation.Check(a, ghost, isolation.Options{})
+	if ok {
+		t.Fatal("A isolated_from never-created: want fail")
+	}
+	if !strings.Contains(msg, ghost.ID) || !strings.Contains(msg, "isolated_from needs calls on both sides") {
+		t.Fatalf("empty other msg=%q", msg)
+	}
+	if ok, msg = isolation.Check(a, ghost, isolation.Options{AllowEmpty: true}); !ok {
+		t.Fatalf("allow_empty other: %s", msg)
 	}
 }
 
