@@ -288,8 +288,12 @@ and an HTTP `502`. A client cancel before response headers sets
 `error.normalized: "client_aborted"`, and `stream` from the request body. The
 parser is not run on that empty body, so there is no "strict decode failed"
 warning. `upstream_called` is true when the outbound request was written
-(`httptrace.WroteRequest`). Passthrough calls without errors use
-`finish_reason: "unknown"`.
+(`httptrace.WroteRequest`). A cancel after response headers (mid-stream)
+keeps `http_status` from upstream (usually `200`), sets
+`finish_reason: "cancelled"` and `client_aborted: true`, and stores the
+partial SSE / `output_text`. It is not a `network` error and not
+`error.mid_stream`. A close after the terminal stream event is not an
+abort. Passthrough calls without errors use `finish_reason: "unknown"`.
 
 ## Errors inside HTTP 200 streams
 

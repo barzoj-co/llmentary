@@ -13,6 +13,11 @@ import (
 const (
 	SessionHeaderName = "X-Test-Session"
 	DefaultSessionID  = "default"
+
+	// AbortPhaseBeforeHeaders is a client cancel before upstream response headers.
+	AbortPhaseBeforeHeaders = "before_headers"
+	// AbortPhaseAfterHeaders is a client cancel after headers / mid-stream.
+	AbortPhaseAfterHeaders = "after_headers"
 )
 
 type Session struct {

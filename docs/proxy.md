@@ -593,15 +593,21 @@ Every finished call writes one `INFO proxy response` line, including client
 aborts and upstream connection errors.
 
 ```text
-INFO proxy response status=200 call_id=call_1 session=weather api_family=openai.responses
-INFO proxy response status=- call_id=call_2 session=barge api_family=openai.responses client_aborted=true phase=before_headers
-INFO proxy response status=502 call_id=call_3 session=weather api_family=openai.responses
+INFO proxy response status=200 call_id=call_1 session=weather seq=1 api_family=openai.responses spec=clean
+INFO proxy response status=- call_id=call_2 session=barge seq=2 api_family=openai.responses spec=request_only client_aborted=true phase=before_headers
+INFO proxy response status=200 call_id=call_3 session=barge seq=3 api_family=openai.responses spec=request_only client_aborted=true phase=after_headers
+INFO proxy response status=502 call_id=call_4 session=weather seq=4 api_family=openai.responses spec=off
 ```
 
-`status=-` and `phase=before_headers` mean the inbound request context was
-cancelled before the upstream sent headers. That is a client abort, not a
-proxy `502`. A live client plus a refused / DNS / TLS failure stays
-`status=502` with `error.normalized: "network"`.
+Field order is `status call_id session seq api_family spec`, then abort
+fields when they apply. `status=-` and `phase=before_headers` mean the
+inbound request context was cancelled before the upstream sent headers.
+`phase=after_headers` is a cancel after `200` headers (mid-stream); the
+trace keeps `http_status: 200`, partial SSE, `finish_reason: cancelled`.
+Neither abort is a proxy `502`. A live client plus a refused / DNS / TLS
+failure stays `status=502` with `error.normalized: "network"`. A close
+after the terminal SSE event (`[DONE]` / `response.completed`) is **not**
+`client_aborted`.
 
 ## Features
 

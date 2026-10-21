@@ -90,6 +90,60 @@ func TestClientCancelBeforeHeaders(t *testing.T) {
 	}
 }
 
+func TestClientCancelBeforeHeadersLogsSeqSpec(t *testing.T) {
+	logBuf := &syncLogBuf{}
+	p := startSpecProxy(t, "warn", "relaxed", slowHeaders(time.Second), func(cfg *proxy.Config) {
+		cfg.Logger = slog.New(slog.NewTextHandler(logBuf, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	})
+	sid := newSession()
+	postCancelAfter(t, p.proxyURL, "/v1/responses", sid, []byte(`{"model":"gpt-fixture","input":"hi","stream":true}`), 100*time.Millisecond)
+	_ = waitSession(t, p.controlURL, sid)
+	var n int
+	for _, line := range strings.Split(logBuf.String(), "\n") {
+		if strings.Contains(line, `msg="proxy response"`) && strings.Contains(line, "client_aborted=true") {
+			n++
+			for _, want := range []string{"status=-", "seq=1", "spec=request_only", "phase=before_headers"} {
+				if !strings.Contains(line, want) {
+					t.Fatalf("abort log missing %s: %s", want, line)
+				}
+			}
+		}
+	}
+	if n != 1 {
+		t.Fatalf("proxy response abort lines=%d log=%s", n, logBuf.String())
+	}
+}
+
+func TestClientCancelBeforeHeadersLogsFindings(t *testing.T) {
+	logBuf := &syncLogBuf{}
+	p := startSpecProxy(t, "warn", "relaxed", slowHeaders(time.Second), func(cfg *proxy.Config) {
+		cfg.Logger = slog.New(slog.NewTextHandler(logBuf, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	})
+	sid := newSession()
+	body := []byte(`{"model":"gpt-fixture","input":"hi","stream":true,"temprature":0}`)
+	postCancelAfter(t, p.proxyURL, "/v1/responses", sid, body, 100*time.Millisecond)
+	_ = waitSession(t, p.controlURL, sid)
+	var abortLine string
+	var warnN int
+	for _, line := range strings.Split(logBuf.String(), "\n") {
+		if strings.Contains(line, `msg="proxy response"`) && strings.Contains(line, "client_aborted=true") {
+			abortLine = line
+		}
+		if strings.Contains(line, `msg="spec violation"`) && strings.Contains(line, "temprature") {
+			warnN++
+		}
+	}
+	if abortLine == "" {
+		t.Fatalf("missing abort log:\n%s", logBuf.String())
+	}
+	if !strings.Contains(abortLine, "spec=findings:") {
+		t.Fatalf("abort log missing findings: %s", abortLine)
+	}
+	if warnN == 0 {
+		t.Fatalf("missing spec violation WARN:\n%s", logBuf.String())
+	}
+}
+
 func TestClientCancelBeforeHeadersLogsProxyResponse(t *testing.T) {
 	logBuf := &syncLogBuf{}
 	p := startSpecProxy(t, "off", "relaxed", slowHeaders(time.Second), func(cfg *proxy.Config) {
