@@ -327,7 +327,7 @@ ok
 Both return `200 application/json` with no redirect. Cheap: no call bodies.
 
 ```json
-{"sessions":[{"id":"default","calls":3,"active":0,"sources":["default"],"first_started_at":"…","last_ended_at":"…","spec":{"checked":3,"clean":3,"findings":0,"not_checked":0}}]}
+{"sessions":[{"id":"default","calls":3,"active":0,"sources":["default"],"first_started_at":"…","last_ended_at":"…","spec":{"checked":3,"clean":3,"findings":0,"request_only":0,"not_checked":0}}]}
 ```
 
 Sorted by `first_started_at`. Optional `?source=default|header|baggage|path` filters
@@ -517,7 +517,8 @@ headers). In the trace, `spec_violations: []` is clean and an absent
 `spec_violations` key is not checked. Startup logs the effective config once:
 `INFO spec validation mode=warn profile=relaxed spec_sha=… max_bytes=8388608`.
 `GET /sessions` list items also include
-`spec: {"checked","clean","findings","not_checked"}` counters.
+`spec: {"checked","clean","findings","request_only","not_checked"}` counters.
+`request_only` is request checked / response not (not counted as `clean`).
 
 In `warn` and `enforce`, after the call finishes the proxy writes one WARN summary per finding category (`msg="spec violations"` and/or `msg="ignored fields"`), then one WARN line per finding (before identical rows are collapsed). `--spec-log-max` (default 5; `0` is summaries only) is a single per-call budget shared across both categories. Detail lines include `call_id`, pointers, keywords, kinds, and schema messages. Streamed response findings also include `event=<index>` so chunks can be told apart. `unevaluatedProperties` / `additionalProperties` messages name the field (`unknown field "temprature" (not in the OpenAI spec for chat.completions request)`); `keyword` and `pointer` are unchanged. Format-keyword messages are replaced with `format validation failed`. Value-bearing keywords (`pattern`, `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`, `enum`, `minLength`, `maxLength`, `minItems`, `maxItems`) use `schema validation failed`, so rejected field values are not logged. Summaries include `session` (the recorded session id, as in `proxy request` / `proxy response`). They never include request bodies, field values, or `Authorization` / cookie / api-key header values. Enforce rejections use the same WARN lines.
 

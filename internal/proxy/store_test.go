@@ -19,6 +19,17 @@ func TestLookupDoesNotCreateSession(t *testing.T) {
 	}
 }
 
+func TestSpecCountersRequestOnlyNotClean(t *testing.T) {
+	got := specCounters([]Call{{
+		Normalized: Normalized{
+			Validation: &ValidationInfo{RequestChecked: true, ResponseChecked: false},
+		},
+	}})
+	if got.Clean != 0 || got.RequestOnly != 1 || got.Checked != 0 || got.NotChecked != 0 {
+		t.Fatalf("got=%+v", got)
+	}
+}
+
 func TestWaitQuietUnknownSessionNotFound(t *testing.T) {
 	store := NewMemoryStore()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)

@@ -17,10 +17,11 @@ var (
 )
 
 type SpecCounters struct {
-	Checked    int `json:"checked"`
-	Clean      int `json:"clean"`
-	Findings   int `json:"findings"`
-	NotChecked int `json:"not_checked"`
+	Checked     int `json:"checked"`
+	Clean       int `json:"clean"`
+	Findings    int `json:"findings"`
+	RequestOnly int `json:"request_only"`
+	NotChecked  int `json:"not_checked"`
 }
 
 type SessionSummary struct {
@@ -247,16 +248,17 @@ func specCounters(calls []Call) SpecCounters {
 	var out SpecCounters
 	for i := range calls {
 		info := calls[i].Normalized.Validation
-		checked := info != nil && (info.RequestChecked || info.ResponseChecked)
 		findings := calls[i].Normalized.SpecViolations != nil && len(*calls[i].Normalized.SpecViolations) > 0
-		if checked {
+		switch {
+		case findings:
 			out.Checked++
-			if findings {
-				out.Findings++
-			} else {
-				out.Clean++
-			}
-		} else {
+			out.Findings++
+		case info != nil && info.RequestChecked && info.ResponseChecked:
+			out.Checked++
+			out.Clean++
+		case info != nil && info.RequestChecked:
+			out.RequestOnly++
+		default:
 			out.NotChecked++
 		}
 	}
