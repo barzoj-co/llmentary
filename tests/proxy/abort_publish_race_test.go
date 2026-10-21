@@ -74,6 +74,9 @@ func TestAbortRecordPublishedAtomically(t *testing.T) {
 				once.Do(func() { close(entered) })
 				<-release
 			})
+			p := startSpecProxyStore(t, store, "off", "relaxed", tc.upstream)
+			// LIFO: close release before httptest.Server.Close so a Fatal
+			// while Finish is parked on the hook cannot hang server shutdown.
 			t.Cleanup(func() {
 				select {
 				case <-release:
@@ -81,7 +84,6 @@ func TestAbortRecordPublishedAtomically(t *testing.T) {
 					close(release)
 				}
 			})
-			p := startSpecProxyStore(t, store, "off", "relaxed", tc.upstream)
 			sid := newSession()
 
 			reqDone := make(chan error, 1)

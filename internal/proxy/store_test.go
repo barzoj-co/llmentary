@@ -294,6 +294,13 @@ func TestConcurrentGetDuringFinishHook(t *testing.T) {
 		once.Do(func() { close(entered) })
 		<-release
 	})
+	t.Cleanup(func() {
+		select {
+		case <-release:
+		default:
+			close(release)
+		}
+	})
 
 	_, id := store.Begin("s", Call{StartedAt: time.Now().UTC()})
 
@@ -358,46 +365,60 @@ func TestConcurrentGetDuringFinishHook(t *testing.T) {
 }
 
 func TestConcurrentGetNeverSeesPlaceholder(t *testing.T) {
-	store := NewMemoryStore()
-	done := make(chan struct{})
-	errCh := make(chan error, 1)
-	go func() {
-		defer close(errCh)
-		for {
-			select {
-			case <-done:
-				return
-			default:
-			}
-			session, ok := store.Lookup("s")
-			if !ok {
-				continue
-			}
-			for _, call := range session.Calls {
-				if !callSettled(call) {
-					errCh <- errors.New("unsettled call visible")
+	for i := 0; i < 20; i++ {
+		store := NewMemoryStore()
+		started := make(chan struct{})
+		var startOnce sync.Once
+		seenEmpty := make(chan struct{})
+		var seenOnce sync.Once
+		done := make(chan struct{})
+		errCh := make(chan error, 1)
+		go func() {
+			defer close(errCh)
+			startOnce.Do(func() { close(started) })
+			for {
+				select {
+				case <-done:
 					return
+				default:
 				}
-				if call.HTTPStatus == 0 && !call.ClientAborted && call.AbortPhase == "" && call.Normalized.FinishReason == "" {
-					errCh <- errors.New("abort placeholder visible")
-					return
+				session, ok := store.Lookup("s")
+				if !ok {
+					continue
+				}
+				if len(session.Calls) == 0 {
+					seenOnce.Do(func() { close(seenEmpty) })
+				}
+				for _, call := range session.Calls {
+					if !callSettled(call) {
+						errCh <- errors.New("unsettled call visible")
+						return
+					}
+					if call.HTTPStatus == 0 && !call.ClientAborted && call.AbortPhase == "" && call.Normalized.FinishReason == "" {
+						errCh <- errors.New("abort placeholder visible")
+						return
+					}
 				}
 			}
+		}()
+		<-started
+		_, id := store.Begin("s", Call{StartedAt: time.Now().UTC()})
+		select {
+		case <-seenEmpty:
+		case <-time.After(time.Second):
+			t.Fatal("reader never observed in-flight session")
 		}
-	}()
-
-	_, id := store.Begin("s", Call{StartedAt: time.Now().UTC()})
-	time.Sleep(time.Millisecond)
-	store.Finish("s", id, func(call *Call) {
-		call.EndedAt = time.Now().UTC()
-		call.ClientAborted = true
-		call.AbortPhase = AbortPhaseBeforeHeaders
-		call.HTTPStatus = 0
-		call.Normalized.FinishReason = "cancelled"
-		call.Normalized.ClientAborted = true
-	})
-	close(done)
-	if err := <-errCh; err != nil {
-		t.Fatal(err)
+		store.Finish("s", id, func(call *Call) {
+			call.EndedAt = time.Now().UTC()
+			call.ClientAborted = true
+			call.AbortPhase = AbortPhaseBeforeHeaders
+			call.HTTPStatus = 0
+			call.Normalized.FinishReason = "cancelled"
+			call.Normalized.ClientAborted = true
+		})
+		close(done)
+		if err := <-errCh; err != nil {
+			t.Fatal(err)
+		}
 	}
 }
