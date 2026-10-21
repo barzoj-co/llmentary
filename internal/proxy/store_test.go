@@ -19,16 +19,20 @@ func TestLookupDoesNotCreateSession(t *testing.T) {
 	}
 }
 
-func TestWaitQuietUnknownSessionTimesOut(t *testing.T) {
+func TestWaitQuietUnknownSessionNotFound(t *testing.T) {
 	store := NewMemoryStore()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	session, err := store.WaitQuiet(ctx, "empty", time.Millisecond, 40*time.Millisecond, 0)
-	if !errors.Is(err, ErrWaitTimeout) {
-		t.Fatalf("err=%v want wait_timeout", err)
+	start := time.Now()
+	session, err := store.WaitQuiet(ctx, "empty", 200*time.Millisecond, 3*time.Second, 0)
+	if !errors.Is(err, ErrSessionNotFound) {
+		t.Fatalf("err=%v want session_not_found", err)
 	}
 	if session.ID != "empty" || len(session.Calls) != 0 {
 		t.Fatalf("session=%+v", session)
+	}
+	if elapsed := time.Since(start); elapsed > 50*time.Millisecond {
+		t.Fatalf("min_calls=0 wait took %s, want immediate", elapsed)
 	}
 	if _, ok := store.Lookup("empty"); ok {
 		t.Fatal("wait created a phantom session")
@@ -101,11 +105,11 @@ func TestWaitQuietDeleteResetsQuietWindow(t *testing.T) {
 	defer cancel()
 	start := time.Now()
 	_, err := store.WaitQuiet(ctx, "s", 80*time.Millisecond, time.Second, 0)
-	if !errors.Is(err, ErrWaitTimeout) {
-		t.Fatalf("err=%v want wait_timeout", err)
+	if !errors.Is(err, ErrSessionNotFound) {
+		t.Fatalf("err=%v want session_not_found after delete", err)
 	}
-	if elapsed := time.Since(start); elapsed < 80*time.Millisecond {
-		t.Fatalf("returned in %s after delete; quiet window should restart", elapsed)
+	if elapsed := time.Since(start); elapsed > 200*time.Millisecond {
+		t.Fatalf("min_calls=0 after delete took %s", elapsed)
 	}
 }
 

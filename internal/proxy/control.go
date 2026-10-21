@@ -215,7 +215,12 @@ func (s *Server) serveWait(w http.ResponseWriter, r *http.Request, sessionID str
 		writeInvalidParam(w, "min_calls", err.Error())
 		return
 	}
+	started := time.Now()
 	session, err := s.store.WaitQuiet(r.Context(), sessionID, quiet, timeout, minCalls)
+	if errors.Is(err, ErrSessionNotFound) {
+		writeSessionNotFoundWait(w, sessionID, time.Since(started).Milliseconds())
+		return
+	}
 	if errors.Is(err, ErrWaitTimeout) {
 		writeWaitTimeout(w, session, minCalls)
 		return
@@ -297,6 +302,17 @@ func writeSessionNotFound(w http.ResponseWriter, id string) {
 			"type":    "session_not_found",
 			"message": fmt.Sprintf("no calls recorded for session %q; known sessions: GET /sessions", id),
 		},
+	})
+}
+
+func writeSessionNotFoundWait(w http.ResponseWriter, id string, waitedMS int64) {
+	writeJSONStatus(w, http.StatusNotFound, map[string]any{
+		"id": id,
+		"error": map[string]any{
+			"type":    "session_not_found",
+			"message": fmt.Sprintf("no calls recorded for session %q; known sessions: GET /sessions", id),
+		},
+		"waited_ms": waitedMS,
 	})
 }
 

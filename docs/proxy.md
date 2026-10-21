@@ -393,11 +393,21 @@ as base64 strings in JSON.
 Waits until the session has at least `min_calls` **finished** calls, no active calls,
 and has been quiet for `quiet` after the last session activity (a call start or
 finish). That can be immediate when the session is already idle. A session that
-does not exist yet is waited for until it appears. `min_calls=0` on a
-never-created session is not success: after `quiet` it returns `504`
-`wait_timeout` with `calls_seen:0` (not `200` with an empty trace). Use
-`min_calls` when a call is about to start and must be observed; `quiet` is not
-a grace period for that.
+does not exist yet is waited for until it appears **only when `min_calls>=1`**.
+`min_calls=0` on a never-created (or `DELETE`d) session is not success: it
+returns `404` `session_not_found` immediately, with the same error as
+`GET /sessions/{id}` plus `id` and `waited_ms`. `min_calls>=1` on a missing
+session keeps waiting until a call arrives or `timeout`, then `504`
+`wait_timeout` with `calls_seen:0`. Use `min_calls` when a call is about to
+start and must be observed; `quiet` is not a grace period for that.
+
+See [Session lifecycle](session-lifecycle.md) for the status table and an example.
+
+| State | `GET /sessions/{id}` | `wait` `min_calls=0` | `wait` `min_calls>=1` | `DELETE` | `GET /sessions` |
+|---|---|---|---|---|---|
+| Never created | `404` | `404` `session_not_found` immediately | `504` `wait_timeout` after timeout | `204` | absent |
+| Has calls | `200` | `200` after quiet | `200` when quiet and enough calls | `204` | present |
+| Deleted | `404` | `404` `session_not_found` immediately | `504` `wait_timeout` after timeout | `204` | absent |
 
 Query parameters:
 
@@ -411,8 +421,9 @@ Query parameters:
 curl 'http://127.0.0.1:7778/sessions/test-1/wait?quiet=100ms&timeout=5s&min_calls=2'
 ```
 
-`200` is the same session JSON as `GET /sessions/{id}`. `504` includes the partial
-session plus `{"error":{"type":"wait_timeout","calls_seen":k,"min_calls":N}}`.
+`200` is the same session JSON as `GET /sessions/{id}`. `404` names the session
+and includes `waited_ms`. `504` includes the partial session plus
+`{"error":{"type":"wait_timeout","calls_seen":k,"min_calls":N}}`.
 
 ### `GET /sessions/{id}/otlp`
 

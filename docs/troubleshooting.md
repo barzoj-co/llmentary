@@ -122,8 +122,9 @@ req.Header.Set(key, value)
 
 `GET /sessions/{id}/wait` waits until the session has `min_calls` finished calls, no
 active calls, and has been quiet for the requested duration. A session that does not
-exist yet is not an empty `200`: `min_calls=0` returns `504 wait_timeout` after
-`quiet`. Long streams, hung clients, or too-small timeouts can also cause `504`.
+exist yet is not an empty `200`: `min_calls=0` returns `404 session_not_found`
+immediately; `min_calls>=1` returns `504 wait_timeout` after `timeout` if no call
+arrives. Long streams, hung clients, or too-small timeouts can also cause `504`.
 Unknown-id `GET /sessions/{id}` is `404 session_not_found` (GETs never create
 sessions). List known ids with `GET /sessions`.
 

@@ -11,7 +11,10 @@ import (
 	"time"
 )
 
-var ErrWaitTimeout = errors.New("wait_timeout")
+var (
+	ErrWaitTimeout     = errors.New("wait_timeout")
+	ErrSessionNotFound = errors.New("session_not_found")
+)
 
 type SessionSummary struct {
 	ID             string     `json:"id"`
@@ -170,9 +173,9 @@ func (s *MemoryStore) WaitQuiet(ctx context.Context, sessionID string, quiet, ti
 			s.mu.Unlock()
 			return out, nil
 		}
-		if !exists && minCalls == 0 && time.Since(quietSince) >= quiet {
+		if !exists && minCalls == 0 {
 			s.mu.Unlock()
-			return Session{ID: sessionID}, ErrWaitTimeout
+			return Session{ID: sessionID}, ErrSessionNotFound
 		}
 		s.mu.Unlock()
 

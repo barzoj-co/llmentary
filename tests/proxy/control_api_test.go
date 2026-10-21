@@ -219,7 +219,7 @@ func TestP5WaitUnknownAppearsOrTimeout(t *testing.T) {
 	})
 	t.Run("never", func(t *testing.T) {
 		started := time.Now()
-		status, hdr, body := getJSON(t, control+"/sessions/never/wait?quiet=50ms&timeout=200ms")
+		status, hdr, body := getJSON(t, control+"/sessions/never/wait?quiet=50ms&timeout=200ms&min_calls=1")
 		if status != http.StatusGatewayTimeout {
 			t.Fatalf("status=%d body=%v", status, body)
 		}
@@ -276,12 +276,12 @@ func TestP6StrictQueryParams(t *testing.T) {
 			t.Fatalf("%s error=%v", tc.path, body["error"])
 		}
 	}
-	for _, raw := range []string{"90", "90s"} {
+	for _, raw := range []string{"90ms", "0.09"} {
 		status, _, body := getJSON(t, control+"/sessions/equiv/wait?timeout="+raw+"&quiet=20ms")
 		if status == http.StatusBadRequest {
 			t.Fatalf("timeout=%s rejected: %v", raw, body)
 		}
-		if status != http.StatusGatewayTimeout {
+		if status != http.StatusNotFound {
 			t.Fatalf("timeout=%s status=%d body=%v", raw, status, body)
 		}
 	}
@@ -339,7 +339,7 @@ func TestP7ControlErrorsAreJSON(t *testing.T) {
 			return res
 		}},
 		{"504", 504, "wait_timeout", func() *http.Response {
-			res, err := http.Get(control + "/sessions/ghost/wait?quiet=20ms&timeout=40ms")
+			res, err := http.Get(control + "/sessions/ghost/wait?quiet=20ms&timeout=40ms&min_calls=1")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -417,6 +417,71 @@ func TestControlSessionIDEscapedOnce(t *testing.T) {
 	status, _, _ = getJSON(t, control+"/sessions/a/b")
 	if status != http.StatusNotFound {
 		t.Fatalf("literal slash path should 404, got %d", status)
+	}
+}
+
+func TestWaitNeverCreatedMinCallsZeroIs404(t *testing.T) {
+	_, control, _ := startControl(t)
+	start := time.Now()
+	status, _, body := getJSON(t, control+"/sessions/ghost/wait?timeout=3s&quiet=200ms&min_calls=0")
+	elapsed := time.Since(start)
+	if status != http.StatusNotFound {
+		t.Fatalf("status=%d body=%v", status, body)
+	}
+	if elapsed > 100*time.Millisecond {
+		t.Fatalf("min_calls=0 took %s, want immediate", elapsed)
+	}
+	if fmtString(body["id"]) != "ghost" {
+		t.Fatalf("id=%v", body["id"])
+	}
+	errObj, _ := body["error"].(map[string]any)
+	if fmtString(errObj["type"]) != "session_not_found" {
+		t.Fatalf("error=%v", body["error"])
+	}
+	if _, ok := body["waited_ms"]; !ok {
+		t.Fatalf("missing waited_ms: %v", body)
+	}
+}
+
+func TestWaitNeverCreatedMinCallsOneTimesOut(t *testing.T) {
+	_, control, _ := startControl(t)
+	start := time.Now()
+	status, _, body := getJSON(t, control+"/sessions/ghost1/wait?timeout=400ms&quiet=50ms&min_calls=1")
+	elapsed := time.Since(start)
+	if status != http.StatusGatewayTimeout {
+		t.Fatalf("status=%d body=%v", status, body)
+	}
+	errObj, _ := body["error"].(map[string]any)
+	if fmtString(errObj["type"]) != "wait_timeout" {
+		t.Fatalf("error=%v", body["error"])
+	}
+	if elapsed < 200*time.Millisecond || elapsed > 600*time.Millisecond {
+		t.Fatalf("elapsed %s, want timeout ±200ms", elapsed)
+	}
+}
+
+func TestWaitDeletedSessionMinCallsZero(t *testing.T) {
+	proxyURL, control, _ := startControl(t)
+	postCall(t, proxyURL, "gone")
+	req, err := http.NewRequest(http.MethodDelete, control+"/sessions/gone", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = res.Body.Close()
+	start := time.Now()
+	status, _, body := getJSON(t, control+"/sessions/gone/wait?timeout=3s&quiet=200ms&min_calls=0")
+	if status != http.StatusNotFound {
+		t.Fatalf("status=%d body=%v", status, body)
+	}
+	if time.Since(start) > 100*time.Millisecond {
+		t.Fatalf("deleted wait took %s", time.Since(start))
+	}
+	if fmtString(body["id"]) != "gone" {
+		t.Fatalf("id=%v", body["id"])
 	}
 }
 
