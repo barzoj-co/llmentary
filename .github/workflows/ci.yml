@@ -97,6 +97,11 @@ jobs:
           files: ./tests/proxy/coverage-proxy.out
           flags: proxy
           fail_ci_if_error: ${{ vars.CODECOV_REQUIRED == 'true' }}
+      - name: Coverage gate
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          HEAD_REF: ${{ github.head_ref || github.ref_name }}
+        run: bash scripts/coverage-gate.sh coverage-unit.out tests/proxy/coverage-proxy.out
 
   docs-mermaid:
     runs-on: ubuntu-latest

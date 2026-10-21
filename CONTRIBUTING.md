@@ -201,7 +201,24 @@ commit title to choose the next version.
 
 CI uploads unit and proxy fixture coverage to Codecov. Project and
 patch statuses are informational. Separately, the CI upload step fails
-CI only when `vars.CODECOV_REQUIRED == 'true'`.
+CI only when `vars.CODECOV_REQUIRED == 'true'`. Do not treat a Codecov
+upload error as the coverage gate.
+
+The `test` job also runs `scripts/coverage-gate.sh` after both profiles
+exist. That script merges unit + `tests/proxy` coverprofiles (max hit
+count per block), ignores the same paths as `codecov.yml`
+(`internal/openaiapi/gen.go`, `tools/**`), and fails if the floored
+statement percent is below `scripts/coverage-threshold`. Ratchet that
+file up as tests land; do not lower it. Release-please PRs
+(`chore(main): release …` or `release-please--branches--main`) require
+90 regardless. Releases need >=90.
+
+```bash
+go test -covermode=atomic -coverprofile=coverage-unit.out ./...
+(cd tests/proxy && go test -covermode=atomic -coverpkg=github.com/barzoj-co/llmentary/... -coverprofile=coverage-proxy.out ./...)
+bash scripts/coverage-gate.sh coverage-unit.out tests/proxy/coverage-proxy.out
+bash scripts/coverage-gate.sh --self-test
+```
 
 ## Renovate
 
@@ -233,6 +250,9 @@ bash scripts/check-secret-scope.sh --self-test
 
 # e2e-gate case table
 bash scripts/e2e-gate.sh --self-test
+
+# merged unit + fixture coverage floor (also --self-test)
+bash scripts/coverage-gate.sh --self-test
 
 # release tag must be an ancestor of origin/main
 bash scripts/check-ref-on-main.sh --self-test
