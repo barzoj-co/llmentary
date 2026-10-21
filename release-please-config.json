@@ -10,9 +10,8 @@
       "include-component-in-tag": false,
       "extra-files": [
         {
-          "type": "yaml",
-          "path": "api/control/openapi.yaml",
-          "jsonpath": "$.info.version"
+          "type": "generic",
+          "path": "api/control/openapi.yaml"
         }
       ]
     }

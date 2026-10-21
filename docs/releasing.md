@@ -6,6 +6,11 @@ to that existing release. Later versions come from conventional commits
 (`feat`, `fix`). Do not use `!` or a `BREAKING CHANGE:` footer; a 1.0 bump
 needs an explicit maintainer decision.
 
+`api/control/openapi.yaml` `info.version` is bumped by a generic extra-file
+marker (`# x-release-please-version` on that line). Do not use the YAML
+jsonpath updater for this file: it re-serializes the whole document and
+folds long strings, which is not a source-of-truth rewrite.
+
 In an emergency, push an annotated tag `vX.Y.Z` to `main`'s commit. The
 `Release` workflow calls the same reusable GoReleaser job. Official releases
 are built from a clean `vX.Y.Z` tag only (no dirty working tree, no extra

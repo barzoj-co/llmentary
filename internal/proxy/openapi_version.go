@@ -6,6 +6,8 @@ import (
 	"bytes"
 	"fmt"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 // StampOpenAPIVersion rewrites info.version in a control OpenAPI document to
@@ -43,30 +45,21 @@ func StampOpenAPIVersion(src []byte, version string) []byte {
 }
 
 // OpenAPIInfoVersion returns the info.version string from a control spec.
+// The document is parsed as YAML so comments and folded scalars do not
+// change the result.
 func OpenAPIInfoVersion(src []byte) (string, error) {
-	var ver string
-	inInfo := false
-	for _, line := range strings.Split(string(src), "\n") {
-		trim := strings.TrimRight(line, "\r")
-		if trim == "info:" {
-			inInfo = true
-			continue
-		}
-		if inInfo {
-			if strings.HasPrefix(trim, "  version:") {
-				ver = strings.TrimSpace(strings.TrimPrefix(trim, "  version:"))
-				ver = strings.Trim(ver, `"'`)
-				return ver, nil
-			}
-			if len(trim) > 0 && !strings.HasPrefix(trim, " ") && !strings.HasPrefix(trim, "\t") {
-				break
-			}
-		}
+	var spec struct {
+		Info struct {
+			Version string `yaml:"version"`
+		} `yaml:"info"`
 	}
-	if ver == "" {
+	if err := yaml.Unmarshal(src, &spec); err != nil {
+		return "", err
+	}
+	if spec.Info.Version == "" {
 		return "", fmt.Errorf("openapi info.version not found")
 	}
-	return ver, nil
+	return spec.Info.Version, nil
 }
 
 // CheckOpenAPIVersion reports whether info.version equals want (release or
