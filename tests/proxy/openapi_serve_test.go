@@ -36,12 +36,16 @@ func TestGetOpenAPIYAML(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(got) != string(want) {
-		t.Fatalf("served openapi.yaml differs from repo file")
+	stamped := proxy.StampOpenAPIVersion(want, proxy.VersionString())
+	if string(got) != string(stamped) {
+		t.Fatalf("served openapi.yaml differs from stamped repo file")
 	}
 	var spec struct {
 		OpenAPI string         `yaml:"openapi"`
-		Paths   map[string]any `yaml:"paths"`
+		Info    struct {
+			Version string `yaml:"version"`
+		} `yaml:"info"`
+		Paths map[string]any `yaml:"paths"`
 	}
 	if err := yaml.Unmarshal(got, &spec); err != nil {
 		t.Fatal(err)
@@ -49,8 +53,39 @@ func TestGetOpenAPIYAML(t *testing.T) {
 	if !strings.HasPrefix(spec.OpenAPI, "3.") {
 		t.Fatalf("openapi=%q", spec.OpenAPI)
 	}
+	if spec.Info.Version != proxy.VersionString() {
+		t.Fatalf("served info.version=%q want %q", spec.Info.Version, proxy.VersionString())
+	}
 	if _, ok := spec.Paths["/sessions/{id}/wait"]; !ok {
 		t.Fatal("missing wait path")
+	}
+
+	proxy.SetBuildInfo("9.9.9", "deadbeef", "2026-10-21T00:00:00Z")
+	t.Cleanup(func() { proxy.SetBuildInfo("devel", "", "") })
+	_, stampedControl, _ := startControl(t)
+	stampedRes, err := http.Get(stampedControl + "/openapi.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stampedBody, err := io.ReadAll(stampedRes.Body)
+	_ = stampedRes.Body.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, _, ver := getJSON(t, stampedControl+"/version")
+	if status != http.StatusOK || fmtString(ver["version"]) != "9.9.9" {
+		t.Fatalf("GET /version=%d %v", status, ver)
+	}
+	var stampedSpec struct {
+		Info struct {
+			Version string `yaml:"version"`
+		} `yaml:"info"`
+	}
+	if err := yaml.Unmarshal(stampedBody, &stampedSpec); err != nil {
+		t.Fatal(err)
+	}
+	if stampedSpec.Info.Version != "9.9.9" {
+		t.Fatalf("ldflags stamp info.version=%q", stampedSpec.Info.Version)
 	}
 
 	tokCfg := proxy.Config{ListenAddr: ":0", ControlAddr: "127.0.0.1:0", ControlToken: "secret"}
