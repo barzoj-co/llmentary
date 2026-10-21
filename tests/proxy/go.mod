@@ -2,6 +2,8 @@ module github.com/barzoj-co/llmentary/tests/proxy
 
 go 1.26.0
 
+toolchain go1.26.10
+
 require github.com/barzoj-co/llmentary v0.0.0
 
 require (

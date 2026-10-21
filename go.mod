@@ -2,6 +2,8 @@ module github.com/barzoj-co/llmentary
 
 go 1.26.0
 
+toolchain go1.26.10
+
 require (
 	github.com/andybalholm/brotli v1.2.6
 	github.com/dlclark/regexp2 v1.12.0
