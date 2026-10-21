@@ -56,6 +56,12 @@ func assertBeforeHeadersAbort(t *testing.T, call map[string]any) {
 	if n["client_aborted"] != true {
 		t.Fatalf("client_aborted=%v", n["client_aborted"])
 	}
+	if call["client_aborted"] != true {
+		t.Fatalf("top-level client_aborted=%v", call["client_aborted"])
+	}
+	if fmtString(call["abort_phase"]) != proxy.AbortPhaseBeforeHeaders {
+		t.Fatalf("abort_phase=%v", call["abort_phase"])
+	}
 	if call["http_status"] == float64(http.StatusBadGateway) || call["http_status"] == http.StatusBadGateway {
 		t.Fatalf("http_status=502")
 	}

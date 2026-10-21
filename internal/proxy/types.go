@@ -48,6 +48,8 @@ type Call struct {
 	RetryCount     *int              `json:"retry_count,omitempty"`
 	RetryAfter     string            `json:"retry_after,omitempty"`
 	UpstreamCalled bool              `json:"upstream_called"`
+	ClientAborted  bool              `json:"client_aborted"`
+	AbortPhase     string            `json:"abort_phase,omitempty"`
 	Normalized     Normalized        `json:"normalized"`
 }
 

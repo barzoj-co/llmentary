@@ -361,11 +361,24 @@ components:
           type: string
         http_status:
           type: integer
+          description: Upstream status. `0` when the client cancelled before headers (never a synthetic 502).
         stream:
           type: boolean
+        client_aborted:
+          type: boolean
+          description: True when the inbound client cancelled before a terminal stream event.
+        abort_phase:
+          type: string
+          nullable: true
+          enum: [before_headers, after_headers]
+          description: Present only when client_aborted is true. before_headers = cancel before upstream response headers; after_headers = cancel after headers / mid-stream.
         normalized:
           type: object
           additionalProperties: true
+          description: >
+            Cross-provider view. normalized.client_aborted is a deprecated 0.x
+            alias of the top-level client_aborted field. finish_reason is
+            cancelled on an abort.
   responses:
     InvalidParameter:
       description: Unknown or unparsable query parameter
