@@ -132,7 +132,7 @@ func unknownFieldMessage(item schemaErr, side, apiFamily string) string {
 	if item.keyword != "unevaluatedProperties" && item.keyword != "additionalProperties" {
 		return item.message
 	}
-	fields := item.extraNames
+	fields := append([]string(nil), item.extraNames...)
 	if len(fields) == 0 {
 		if name := lastPointerField(item.pointer); name != "" {
 			fields = []string{name}
@@ -141,6 +141,7 @@ func unknownFieldMessage(item schemaErr, side, apiFamily string) string {
 	if len(fields) == 0 {
 		return item.message
 	}
+	sort.Strings(fields)
 	quoted := make([]string, len(fields))
 	for i, field := range fields {
 		quoted[i] = fmt.Sprintf("%q", field)

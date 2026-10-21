@@ -113,6 +113,17 @@ func TestUnknownFieldMessageMultipleAndApostropheKeys(t *testing.T) {
 	}
 }
 
+func TestUnknownFieldMessageSortsExtraNames(t *testing.T) {
+	msg := unknownFieldMessage(schemaErr{
+		keyword:    "additionalProperties",
+		pointer:    "/access_programs",
+		extraNames: []string{"zeta", "alpha"},
+	}, "request", "openai.responses")
+	if !strings.Contains(msg, `"alpha", "zeta"`) {
+		t.Fatalf("message=%q", msg)
+	}
+}
+
 func TestLastPointerFieldKeepsNumericObjectKey(t *testing.T) {
 	if got := lastPointerField("/123"); got != "123" {
 		t.Fatalf("got %q", got)
