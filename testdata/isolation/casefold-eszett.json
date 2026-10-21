@@ -1,0 +1,47 @@
+{
+  "id": "casefold-eszett",
+  "description": "Normalization uses Unicode casefold, so Straße and STRASSE match on a history replay.",
+  "allow_empty": false,
+  "min_chars": 8,
+  "ignore_texts": [],
+  "x": {
+    "id": "sess-x",
+    "calls": [
+      {
+        "id": "call_x1",
+        "session_id": "sess-x",
+        "seq": 1,
+        "raw_request": {
+          "model": "gpt-4.1-nano",
+          "messages": [
+            {"role": "user", "content": "DIE STRASSE IST NASS HEUTE"},
+            {"role": "assistant", "content": "Ok."},
+            {"role": "user", "content": "Continue from the saved thread."}
+          ]
+        }
+      }
+    ]
+  },
+  "y": {
+    "id": "sess-y",
+    "calls": [
+      {
+        "id": "call_y1",
+        "session_id": "sess-y",
+        "seq": 1,
+        "raw_request": {
+          "model": "gpt-4.1-nano",
+          "input": "Die Straße ist nass heute"
+        }
+      }
+    ]
+  },
+  "expect": {
+    "isolated": false,
+    "message_contains": [
+      "user text 'DIE STRASSE IST NASS HEUTE'",
+      "from session sess-y #1 (call_y1)",
+      "appears in session sess-x #1 (call_x1)"
+    ]
+  }
+}

@@ -7,8 +7,11 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"unicode"
+
+	"golang.org/x/text/cases"
 )
 
 const DefaultMinChars = 8
@@ -105,23 +108,18 @@ func Check(x, y Session, opts Options) (bool, string) {
 }
 
 func introduced(s Session) []userTurn {
+	calls := append([]Call(nil), s.Calls...)
+	sort.SliceStable(calls, func(i, j int) bool { return calls[i].Seq < calls[j].Seq })
 	var out []userTurn
 	seen := map[string]struct{}{}
-	for i, c := range s.Calls {
+	for i, c := range calls {
 		turns := userTurns(c)
-		if i == 0 && len(turns) > 1 {
-			turns = turns[len(turns)-1:]
-		} else if i > 0 {
-			var fresh []userTurn
-			for _, t := range turns {
-				if _, ok := seen[t.Normalized]; !ok {
-					fresh = append(fresh, t)
-				}
-			}
-			turns = fresh
-		}
-		for _, t := range turns {
+		for j, t := range turns {
 			if t.Normalized == "" {
+				continue
+			}
+			if i == 0 && j < len(turns)-1 {
+				seen[t.Normalized] = struct{}{}
 				continue
 			}
 			if _, ok := seen[t.Normalized]; ok {
@@ -246,7 +244,7 @@ func normalizeText(s string) string {
 	}
 	fields := strings.FieldsFunc(s, unicode.IsSpace)
 	s = strings.Join(fields, " ")
-	return strings.ToLower(s)
+	return cases.Fold().String(s)
 }
 
 func trimSpaceJSON(raw json.RawMessage) json.RawMessage {
