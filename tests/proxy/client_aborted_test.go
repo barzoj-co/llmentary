@@ -118,19 +118,28 @@ func postSSECloseAfter(t *testing.T, proxyURL, path, session, marker string, bod
 		n, err := conn.Read(buf)
 		if n > 0 {
 			got = append(got, buf[:n]...)
-			if bytes.Contains(got, []byte(marker)) {
+			if sseFrameComplete(got, marker) {
 				_ = conn.Close()
 				return
 			}
 		}
 		if err != nil {
 			_ = conn.Close()
-			if !bytes.Contains(got, []byte(marker)) {
-				t.Fatalf("closed without %q: %v body=%q", marker, err, got)
+			if !sseFrameComplete(got, marker) {
+				t.Fatalf("closed without complete %q frame: %v body=%q", marker, err, got)
 			}
 			return
 		}
 	}
+}
+
+func sseFrameComplete(buf []byte, marker string) bool {
+	idx := bytes.Index(buf, []byte(marker))
+	if idx < 0 {
+		return false
+	}
+	rest := buf[idx:]
+	return bytes.Contains(rest, []byte("\n\n")) || bytes.Contains(rest, []byte("\r\n\r\n"))
 }
 
 func waitSession(t *testing.T, controlURL, session string) map[string]any {
