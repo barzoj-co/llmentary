@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: llmentary control API
-  version: 0.4.0
+  version: 0.4.0 # x-release-please-version
   description: >
     Local control API for session traces. Success bodies for session detail
     match the Session/Call shapes in docs/data-model.md. Errors use

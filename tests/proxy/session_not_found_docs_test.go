@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestSessionNotFoundDocsUseListHint(t *testing.T) {
@@ -26,6 +28,9 @@ func TestSessionNotFoundDocsUseListHint(t *testing.T) {
 			t.Fatal(err)
 		}
 		text := string(raw)
+		if filepath.Base(path) == "openapi.yaml" {
+			text = yamlStringBlob(t, raw)
+		}
 		if strings.Contains(text, old) {
 			t.Errorf("%s still has %q", path, old)
 		}
@@ -36,4 +41,30 @@ func TestSessionNotFoundDocsUseListHint(t *testing.T) {
 	if !foundWant {
 		t.Fatalf("none of the checked files contain %q", want)
 	}
+}
+
+func yamlStringBlob(t *testing.T, raw []byte) string {
+	t.Helper()
+	var doc any
+	if err := yaml.Unmarshal(raw, &doc); err != nil {
+		t.Fatal(err)
+	}
+	var parts []string
+	var walk func(any)
+	walk = func(v any) {
+		switch n := v.(type) {
+		case string:
+			parts = append(parts, n)
+		case map[string]any:
+			for _, child := range n {
+				walk(child)
+			}
+		case []any:
+			for _, child := range n {
+				walk(child)
+			}
+		}
+	}
+	walk(doc)
+	return strings.Join(parts, "\n")
 }

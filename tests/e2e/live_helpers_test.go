@@ -23,13 +23,9 @@ import (
 )
 
 // liveRequestCap is the suite-wide OpenAI call budget.
-// 128 is the measured count after main gained isolation (3) and sessions
-// spec-counter (2) live calls plus this branch's three required named
-// abort tests (DOG-28 chat/responses after-headers + DOG-23 abort log).
-// Those abort tests cannot share a call (two API families + a 50ms-cancel
-// log check) and cannot move to the fake upstream (tickets require live
-// OpenAI). DOG-23 seq/spec on a delayed-header fake is already covered
-// by TestClientCancelBeforeHeadersLogsSeqSpec.
+// 128 is the hard ceiling. The OpenAPI session-schema check does not
+// spend a live call, leaving slack for a token-delta retry when
+// usage.input_tokens is 0 on a 200. Do not raise this.
 const liveRequestCap = 128
 
 func checkLiveCost(used, cap int64) string {
