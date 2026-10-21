@@ -165,6 +165,28 @@ func waitSession(t *testing.T, controlURL, session string) map[string]any {
 	return out
 }
 
+func TestNonStreamClientCloseAfterBodyNotAborted(t *testing.T) {
+	p := startSpecProxy(t, "off", "relaxed", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, `{"id":"c","model":"gpt-fixture","choices":[{"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}]}`)
+	})
+	sid := newSession()
+	status, _, _ := postJSON(t, p.proxyURL+"/v1/chat/completions", map[string]string{
+		proxy.SessionHeaderName: sid,
+	}, []byte(`{"model":"gpt-fixture","messages":[{"role":"user","content":"hi"}]}`))
+	if status != http.StatusOK {
+		t.Fatalf("status=%d", status)
+	}
+	n := normalized(lastCall(t, waitSession(t, p.controlURL, sid)))
+	if n["client_aborted"] == true {
+		t.Fatalf("complete non-stream marked client_aborted: %+v", n)
+	}
+	if n["finish_reason"] != "stop" {
+		t.Fatalf("finish_reason=%v", n["finish_reason"])
+	}
+}
+
 func TestClientAbortedFalseAfterDone(t *testing.T) {
 	const loops = 20
 	p := startSpecProxy(t, "off", "relaxed", chatStreamWithDelay(delayedTerminator))

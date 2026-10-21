@@ -277,7 +277,7 @@ func (ex *proxyExchange) finishCall(resp *http.Response, rawBody []byte, firstBy
 			call.Normalized.StreamTruncated = true
 		}
 		clientGone := ex.r != nil && ex.r.Context().Err() != nil
-		if clientGone && (!stream || !complete) {
+		if clientGone && (copyErr != nil || (stream && !complete)) {
 			// A complete SSE stream (terminal [DONE] or Responses
 			// response.completed/failed/incomplete already written) is not
 			// client_aborted when the SDK closes after that event.
