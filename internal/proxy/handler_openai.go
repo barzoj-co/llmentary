@@ -6,9 +6,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptrace"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -56,6 +58,7 @@ type proxyExchange struct {
 	decodeWarning string
 	finished      bool
 	requestVal    requestValidation
+	wroteRequest  atomic.Bool
 }
 
 func withExchange(ctx context.Context, ex *proxyExchange) context.Context {
@@ -107,12 +110,68 @@ func (s *Server) handleResponseError(w http.ResponseWriter, r *http.Request, err
 }
 
 func (s *Server) writeProxyError(w http.ResponseWriter, ex *proxyExchange, err error) {
-	ended := s.finishWithProxyError(ex.session.ID, ex.callID, ex.startedAt, err, http.StatusBadGateway, ex.requestVal)
+	if ex != nil && errors.Is(err, context.Canceled) && ex.r != nil && ex.r.Context().Err() != nil {
+		ended := s.finishWithClientAbort(ex, err)
+		if ex.span != nil {
+			finishSpan(ex.span, ended, ended.EndedAt)
+		}
+		ex.finished = true
+		return
+	}
+	ended := s.finishWithProxyError(ex.session.ID, ex.callID, ex.startedAt, err, http.StatusBadGateway, ex.requestVal, ex.wroteRequest.Load())
+	s.logger().Info("proxy response",
+		"status", http.StatusBadGateway,
+		"call_id", ex.callID,
+		"session", ex.session.ID,
+		"api_family", ended.APIFamily,
+	)
 	if ex.span != nil {
 		finishSpan(ex.span, ended, ended.EndedAt)
 	}
 	ex.finished = true
 	http.Error(w, err.Error(), http.StatusBadGateway)
+}
+
+func (s *Server) finishWithClientAbort(ex *proxyExchange, err error) Call {
+	endedAt := time.Now().UTC()
+	var endedCall Call
+	s.store.Finish(ex.session.ID, ex.callID, func(call *Call) {
+		call.EndedAt = endedAt
+		call.LatencyMS = endedAt.Sub(ex.startedAt).Milliseconds()
+		call.HTTPStatus = 0
+		call.Stream = requestStreamFlag(ex.rawReq)
+		call.UpstreamCalled = ex.wroteRequest.Load()
+		call.Normalized.DerivedVersion = derivedVersion
+		call.Normalized.ClientAborted = true
+		call.Normalized.FinishReason = "cancelled"
+		call.Normalized.Error = &CallError{
+			Message:    err.Error(),
+			Normalized: "client_aborted",
+		}
+		applyRequestValidation(call, ex.requestVal)
+		logCall := snapshotAndCollapseViolations(call)
+		endedCall = *call
+		endedCall.Normalized.SpecViolations = logCall.Normalized.SpecViolations
+	})
+	s.logger().Info("proxy response",
+		"status", "-",
+		"call_id", ex.callID,
+		"session", ex.session.ID,
+		"api_family", endedCall.APIFamily,
+		"client_aborted", true,
+		"phase", "before_headers",
+	)
+	s.logValidationFindings(endedCall)
+	return endedCall
+}
+
+func requestStreamFlag(raw []byte) bool {
+	var body map[string]any
+	if json.Unmarshal(firstJSONBytes(raw), &body) != nil {
+		return false
+	}
+	stream, ok := body["stream"].(bool)
+	return ok && stream
 }
 
 type upstreamResponse struct {
@@ -151,6 +210,11 @@ func (ex *proxyExchange) doUpstream() (*http.Response, error) {
 	if targetURL := req.URL; targetURL != nil {
 		req.Host = targetURL.Host
 	}
+	req = req.WithContext(httptrace.WithClientTrace(req.Context(), &httptrace.ClientTrace{
+		WroteRequest: func(httptrace.WroteRequestInfo) {
+			ex.wroteRequest.Store(true)
+		},
+	}))
 	UpstreamCallCount.Add(1)
 	return ex.s.client.Do(req)
 }
