@@ -133,6 +133,46 @@ Helpers produce the path prefix (and percent-encode the session id):
 `lm.OpenAIBaseURL("openai")` remains the in-process named-upstream URL
 (`{proxy}/u/openai`) and does **not** insert `/s/{session}`.
 
+## What a path prefix isolates
+
+A path prefix is chosen by whoever **builds** the SDK client. The proxy records
+each request under `/s/{session}`; it does not split conversations inside one
+process that already constructed a single client.
+
+One process with one env-configured client (`OPENAI_BASE_URL` set once, typical
+`NewClient` / `OpenAI()`) is **one session**. For N parallel conversations use
+one of:
+
+1. **One worker process per session.** The livekit compose pattern: a second
+   runtime with its own `OPENAI_BASE_URL`.
+
+   ```yaml
+   runtime-b:
+     environment:
+       OPENAI_BASE_URL: http://llmentary:7777/s/barge/v1
+       KAFKA_TOPIC: conversation-b
+   ```
+
+2. **Construct the SDK client per conversation** with
+   `base_url=lm.path_base_url()` (Go `lm.PathBaseURL()`, JS `lm.pathBaseURL()`).
+
+3. **Headers or baggage from the app** when it can set them (see
+   [Session attribution](proxy.md#session-attribution)).
+
+4. **Run conversations sequentially** and `DELETE /sessions/{id}` between them.
+
+Bus-driven systems: a second worker needs its own topic or partition
+assignment. Two consumer groups on one topic both get every event.
+
+### Proving isolation
+
+Do not substring-search raw request JSON for the other session's tool names or
+system-prompt keywords. Shared instructions and tool definitions are not a
+leak. Use the client helper instead (`lm.Expect(ctx).IsolatedFrom(...)` /
+`lm.expect().isolated_from(...)` / `lm.expect().isolatedFrom(...)`). It
+compares **user-role** texts only (Chat `messages[role=user]`, Responses
+`input[role=user]`), plus `session_id` and call-id disjointness.
+
 ## Import-time and startup-constructed clients
 
 Rule: set the env **before** the app module is imported or its startup runs.
