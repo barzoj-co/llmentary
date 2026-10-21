@@ -300,7 +300,7 @@ func writeSessionNotFound(w http.ResponseWriter, id string) {
 	writeJSONStatus(w, http.StatusNotFound, map[string]any{
 		"error": map[string]any{
 			"type":    "session_not_found",
-			"message": fmt.Sprintf("no calls recorded for session %q; known sessions: GET /sessions", id),
+			"message": fmt.Sprintf("no calls recorded for session %q; list sessions with GET /sessions", id),
 		},
 	})
 }
@@ -310,7 +310,7 @@ func writeSessionNotFoundWait(w http.ResponseWriter, id string, waitedMS int64) 
 		"id": id,
 		"error": map[string]any{
 			"type":    "session_not_found",
-			"message": fmt.Sprintf("no calls recorded for session %q; known sessions: GET /sessions", id),
+			"message": fmt.Sprintf("no calls recorded for session %q; list sessions with GET /sessions", id),
 		},
 		"waited_ms": waitedMS,
 	})

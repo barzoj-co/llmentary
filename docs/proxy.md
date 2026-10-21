@@ -357,7 +357,7 @@ the list. Zero sessions: `{"sessions":[]}`.
 ### `GET /sessions/{id}`
 
 Returns the current session immediately. Unknown ids (never recorded, or deleted)
-return `404` `{"error":{"type":"session_not_found","message":"no calls recorded for session \"{id}\"; known sessions: GET /sessions"}}`. GETs never create sessions.
+return `404` `{"error":{"type":"session_not_found","message":"no calls recorded for session \"{id}\"; list sessions with GET /sessions"}}`. GETs never create sessions.
 
 ```bash
 curl http://127.0.0.1:7778/sessions/test-1

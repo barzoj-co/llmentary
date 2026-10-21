@@ -69,7 +69,7 @@ Content-Type: application/json
   "id": "ghost",
   "error": {
     "type": "session_not_found",
-    "message": "no calls recorded for session \"ghost\"; known sessions: GET /sessions"
+    "message": "no calls recorded for session \"ghost\"; list sessions with GET /sessions"
   },
   "waited_ms": 1
 }
