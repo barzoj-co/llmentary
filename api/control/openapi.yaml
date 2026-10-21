@@ -289,6 +289,7 @@ components:
       properties:
         id:
           type: string
+          description: Unique within one proxy process, shared counter across sessions. Do not use it for order; use seq.
         session_id:
           type: string
         session_source:

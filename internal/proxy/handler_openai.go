@@ -59,6 +59,7 @@ type proxyExchange struct {
 	finished      bool
 	requestVal    requestValidation
 	wroteRequest  atomic.Bool
+	seq           int
 }
 
 func withExchange(ctx context.Context, ex *proxyExchange) context.Context {
@@ -315,6 +316,7 @@ func (ex *proxyExchange) finishCall(resp *http.Response, rawBody []byte, firstBy
 		"status", resp.StatusCode,
 		"call_id", ex.callID,
 		"session", ex.session.ID,
+		"seq", ex.seq,
 		"api_family", endedCall.APIFamily,
 	)
 	ex.s.logValidationFindings(endedCall)
