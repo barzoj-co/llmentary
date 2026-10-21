@@ -52,8 +52,10 @@ func TestSpecCountersJSONAliases(t *testing.T) {
 	}
 	pairs := [][2]string{{"checked", "Checked"}, {"clean", "Clean"}, {"findings", "Findings"}, {"request_only", "RequestOnly"}, {"not_checked", "NotChecked"}}
 	for _, p := range pairs {
-		if m[p[0]] != m[p[1]] {
-			t.Fatalf("%s=%d %s=%d body=%s", p[0], m[p[0]], p[1], m[p[1]], raw)
+		a, okA := m[p[0]]
+		b, okB := m[p[1]]
+		if !okA || !okB || a != b {
+			t.Fatalf("%s=%d(%v) %s=%d(%v) body=%s", p[0], a, okA, p[1], b, okB, raw)
 		}
 	}
 	if m["clean"] != 1 || m["request_only"] != 2 || m["findings"] != 0 || m["checked"] != 1 || m["not_checked"] != 0 {

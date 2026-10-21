@@ -44,7 +44,19 @@ func TestE2ESessionsSpecCounters(t *testing.T) {
 	}
 	_ = stream.Err()
 	_ = stream.Close()
-	_ = waitLiveControl(t, p.controlURL, sid)
+	reqWait, err := http.NewRequestWithContext(context.Background(), http.MethodGet, p.controlURL+"/sessions/"+sid+"/wait?quiet=50ms&timeout=15s&min_calls=2", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resWait, err := http.DefaultClient.Do(reqWait)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = io.ReadAll(resWait.Body)
+	_ = resWait.Body.Close()
+	if resWait.StatusCode != 200 {
+		t.Fatalf("wait min_calls=2 status=%d", resWait.StatusCode)
+	}
 
 	req, err := http.NewRequest(http.MethodGet, p.controlURL+"/sessions", nil)
 	if err != nil {
@@ -82,8 +94,10 @@ func TestE2ESessionsSpecCounters(t *testing.T) {
 		t.Fatalf("spec=%v want clean=1 request_only=1", spec)
 	}
 	for _, pair := range [][2]string{{"checked", "Checked"}, {"clean", "Clean"}, {"findings", "Findings"}, {"request_only", "RequestOnly"}, {"not_checked", "NotChecked"}} {
-		if spec[pair[0]] != spec[pair[1]] {
-			t.Fatalf("alias mismatch %s=%v %s=%v", pair[0], spec[pair[0]], pair[1], spec[pair[1]])
+		a, okA := spec[pair[0]]
+		b, okB := spec[pair[1]]
+		if !okA || !okB || a != b {
+			t.Fatalf("alias mismatch %s=%v(%v) %s=%v(%v)", pair[0], a, okA, pair[1], b, okB)
 		}
 	}
 }

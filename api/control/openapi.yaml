@@ -289,7 +289,7 @@ components:
           properties:
             checked:
               type: integer
-              description: Calls whose request and response were both validated (`spec=clean` or `spec=findings:N`).
+              description: Calls with findings, or calls whose request and response were both validated (`spec=findings:N` or `spec=clean`).
             clean:
               type: integer
               description: Checked calls with zero findings (`spec=clean`).
@@ -298,7 +298,7 @@ components:
               description: Checked calls with one or more findings (`spec=findings:N`).
             request_only:
               type: integer
-              description: Request validated, response not (abort, 4xx, skip-after-request). Log token `spec=request_only`.
+              description: Calls with no findings where the request was validated but the response was not (abort, 4xx, skip-after-request). Log token `spec=request_only`.
             not_checked:
               type: integer
               description: Validation off or skipped (`spec=off`, `spec=skipped:*`).
