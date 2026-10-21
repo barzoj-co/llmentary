@@ -277,7 +277,11 @@ func (ex *proxyExchange) finishCall(resp *http.Response, rawBody []byte, firstBy
 			call.Normalized.StreamTruncated = true
 		}
 		clientGone := ex.r != nil && ex.r.Context().Err() != nil
-		incomplete := (stream && !complete) || (!stream && copyWriteErr)
+		// Non-stream: a write failure or a context-canceled body read (doUpstream
+		// binds the upstream request to the client context). Ordinary upstream
+		// read errors stay network failures.
+		incomplete := (stream && !complete) ||
+			(!stream && (copyWriteErr || errors.Is(copyErr, context.Canceled)))
 		if clientGone && incomplete {
 			// A complete SSE stream (terminal [DONE] or Responses
 			// response.completed/failed/incomplete already written) is not
