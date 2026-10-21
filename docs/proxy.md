@@ -301,9 +301,9 @@ curl http://127.0.0.1:7778/openapi.yaml
 
 | State | `GET /sessions/{id}` | `wait` `min_calls=0` | `wait` `min_calls>=1` | `DELETE` | `GET /sessions` |
 |---|---|---|---|---|---|
-| Never created | `404` | `404` `session_not_found` immediately | `504` `wait_timeout` after timeout | `204` | absent |
+| Never created | `404` | `504` `wait_timeout` after `quiet` | `504` `wait_timeout` after timeout | `204` | absent |
 | Has calls | `200` | `200` after quiet | `200` when quiet and enough calls | `204` | present |
-| Deleted | `404` | `404` `session_not_found` immediately | `504` `wait_timeout` after timeout | `204` | absent |
+| Deleted | `404` | `504` `wait_timeout` after `quiet` | `504` `wait_timeout` after timeout | `204` | absent |
 
 The wait statuses are implemented by `serveWait` / `WaitQuiet`. See
 `GET /sessions/{id}/wait` below for the request shape.
