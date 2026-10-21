@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.4.0](https://github.com/barzoj-co/llmentary/compare/v0.3.0...v0.4.0) (2026-10-21)
+
+
+### Features
+
+* add typed client_aborted and abort_phase on Call ([#39](https://github.com/barzoj-co/llmentary/issues/39)) ([8a9a031](https://github.com/barzoj-co/llmentary/commit/8a9a0310812098d4d9553cc8f035033f3d7f99d2))
+* document sessions spec counters and emit PascalCase aliases ([#38](https://github.com/barzoj-co/llmentary/issues/38)) ([ba358d6](https://github.com/barzoj-co/llmentary/commit/ba358d67688474027967ff53700527e97976870a))
+
+
+### Bug Fixes
+
+* record mid-stream cancel as after_headers and log seq/spec ([#36](https://github.com/barzoj-co/llmentary/issues/36)) ([041b6c4](https://github.com/barzoj-co/llmentary/commit/041b6c47c1541eab3e7d0dae7097269033be9c5f))
+* stamp OpenAPI info.version from the binary release ([#37](https://github.com/barzoj-co/llmentary/issues/37)) ([4ade02d](https://github.com/barzoj-co/llmentary/commit/4ade02d5ed89361fce57ee72666875d6e893e9cb))
+
 ## [0.3.0](https://github.com/barzoj-co/llmentary/compare/v0.2.2...v0.3.0) (2026-10-21)
 
 
