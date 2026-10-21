@@ -137,6 +137,32 @@ func TestP2UnknownSessionNoSideEffect(t *testing.T) {
 	}
 }
 
+func TestSessionNotFoundHintOnEveryRoute(t *testing.T) {
+	_, control, _ := startControl(t)
+	paths := []string{
+		"/sessions/ghost-hint",
+		"/sessions/ghost-hint/wait?min_calls=0&timeout=1s&quiet=50ms",
+		"/sessions/ghost-hint/otlp",
+	}
+	for _, path := range paths {
+		status, _, body := getJSON(t, control+path)
+		if status != http.StatusNotFound {
+			t.Fatalf("%s status=%d body=%v", path, status, body)
+		}
+		errObj, _ := body["error"].(map[string]any)
+		msg := fmtString(errObj["message"])
+		if fmtString(errObj["type"]) != "session_not_found" {
+			t.Fatalf("%s error=%v", path, body["error"])
+		}
+		if !strings.Contains(msg, `list sessions with GET /sessions`) {
+			t.Fatalf("%s message=%q missing new hint", path, msg)
+		}
+		if strings.Contains(msg, "known sessions:") {
+			t.Fatalf("%s message=%q still has old hint", path, msg)
+		}
+	}
+}
+
 func TestP3DeleteUnknownAndKnown(t *testing.T) {
 	proxyURL, control, _ := startControl(t)
 	req, err := http.NewRequest(http.MethodDelete, control+"/sessions/missing", nil)
@@ -437,6 +463,10 @@ func TestWaitNeverCreatedMinCallsZeroIs404(t *testing.T) {
 	errObj, _ := body["error"].(map[string]any)
 	if fmtString(errObj["type"]) != "session_not_found" {
 		t.Fatalf("error=%v", body["error"])
+	}
+	msg := fmtString(errObj["message"])
+	if !strings.Contains(msg, `list sessions with GET /sessions`) || strings.Contains(msg, "known sessions:") {
+		t.Fatalf("message=%q", msg)
 	}
 	if _, ok := body["waited_ms"]; !ok {
 		t.Fatalf("missing waited_ms: %v", body)

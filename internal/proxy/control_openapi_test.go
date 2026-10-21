@@ -44,4 +44,10 @@ func TestControlOpenAPIMatchesRouteTable(t *testing.T) {
 	if !strings.Contains(string(raw), "session_not_found") {
 		t.Fatal("openapi must document session_not_found")
 	}
+	if !strings.Contains(string(raw), "list sessions with GET /sessions") {
+		t.Fatal("openapi example must use the list-sessions hint")
+	}
+	if strings.Contains(string(raw), "known sessions: GET /sessions") {
+		t.Fatal("openapi still has the old known-sessions hint")
+	}
 }
