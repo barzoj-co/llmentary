@@ -21,9 +21,10 @@ produces `llmentary_0.1.0_linux_amd64.tar.gz`. `<os>` is `linux`, `darwin`, or
 `windows`. `<arch>` is `amd64` or `arm64`.
 
 Each archive contains the binary `llmentary` (`llmentary.exe` on Windows), plus
-`LICENSE` and `README.md`. The release also publishes `checksums.txt` and
-`checksums.txt.sigstore.json`. Clients that download GitHub release assets
-must match `llmentary_<version>_<os>_<arch>.(tar.gz|zip)` exactly.
+`LICENSE`, `README.md`, and `openapi.yaml` (the control API contract). The
+release also publishes `checksums.txt` and `checksums.txt.sigstore.json`.
+Clients that download GitHub release assets must match
+`llmentary_<version>_<os>_<arch>.(tar.gz|zip)` exactly.
 
 ## Verify a download
 

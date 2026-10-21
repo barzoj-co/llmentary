@@ -49,6 +49,8 @@ archives:
     files:
       - LICENSE
       - README.md
+      - src: api/control/openapi.yaml
+        dst: openapi.yaml
 
 checksum:
   name_template: checksums.txt
