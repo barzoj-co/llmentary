@@ -146,8 +146,9 @@ the same canned question and C replays A's turn, both
 `C.isolated_from(A)` and `C.isolated_from(B)` fail. The message names B
 even though B never touched A's thread.
 
-That is inherent to exact text match. The helper reports every other
-session that introduced the leaked text; it cannot tell which one leaked.
+That is inherent to exact text match. The helper names the compared
+session when that session introduced the leaked text; it does not search
+other sessions, and it cannot tell which one leaked.
 
 **Recipe when you need to know which session leaked:** make each run's
 **first** user message unique (a run id, nonce, or per-session user name

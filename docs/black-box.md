@@ -201,8 +201,8 @@ lm_b.expect().isolated_from(lm_a)
 A third session that replays A's first user message as history (checkpointer,
 Mongo thread, copied conversation) fails rule 3 with the spec message.
 
-**Attribution:** that failure names every other session that sent the same
-text. If A and B both asked "What is my biological age?" and C continues
+**Attribution:** that failure names the compared session when it sent the
+same text. If A and B both asked "What is my biological age?" and C continues
 A's thread, `C.isolated_from(B)` fails even though B never touched A's
 Mongo. To attribute a leak, put a nonce or run id in each session's first
 user message; keep the canned question only for `A ⊥ B`. See
