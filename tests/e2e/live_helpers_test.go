@@ -22,7 +22,7 @@ import (
 	"github.com/barzoj-co/llmentary/internal/proxy"
 )
 
-const liveRequestCap = 120
+const liveRequestCap = 125
 
 func checkLiveCost(used, cap int64) string {
 	if used > cap {
