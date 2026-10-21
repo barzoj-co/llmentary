@@ -74,13 +74,13 @@ func run(args []string, stdout, stderr io.Writer) int {
 	proxy.SetBuildInfo(version, commit, date)
 	for _, arg := range args {
 		if arg == "-version" || arg == "--version" {
-			fmt.Fprintln(stdout, proxy.VersionLine())
+			_, _ = fmt.Fprintln(stdout, proxy.VersionLine())
 			return 0
 		}
 	}
 	cfg, err := proxy.ConfigFromEnv()
 	if err != nil {
-		fmt.Fprintln(stderr, err)
+		_, _ = fmt.Fprintln(stderr, err)
 		return 1
 	}
 	fs := flag.NewFlagSet("llmentary", flag.ContinueOnError)
@@ -117,12 +117,12 @@ func run(args []string, stdout, stderr io.Writer) int {
 	}
 	cfg.SpecLogMax = &specLogMax
 	if *showVersion {
-		fmt.Fprintln(stdout, proxy.VersionLine())
+		_, _ = fmt.Fprintln(stdout, proxy.VersionLine())
 		return 0
 	}
 	sources, err := proxy.ParseSessionFrom(sessionFrom)
 	if err != nil {
-		fmt.Fprintln(stderr, err)
+		_, _ = fmt.Fprintln(stderr, err)
 		fs.Usage()
 		return 2
 	}
@@ -132,25 +132,25 @@ func run(args []string, stdout, stderr io.Writer) int {
 	}
 	for _, spec := range upstreams {
 		if err := cfg.AddUpstream(spec); err != nil {
-			fmt.Fprintln(stderr, err)
+			_, _ = fmt.Fprintln(stderr, err)
 			return 1
 		}
 	}
 	if err := cfg.Validate(); err != nil {
-		fmt.Fprintln(stderr, err)
+		_, _ = fmt.Fprintln(stderr, err)
 		fs.Usage()
 		return 2
 	}
 	server, err := proxy.NewServer(cfg, proxy.NewMemoryStore(), proxy.TolerantParser{})
 	if err != nil {
-		fmt.Fprintln(stderr, err)
+		_, _ = fmt.Fprintln(stderr, err)
 		return 1
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	fmt.Fprintf(stderr, "llmentary %s proxy listening on %s; control API on %s\n", proxy.VersionString(), cfg.ListenAddr, cfg.ControlAddr)
+	_, _ = fmt.Fprintf(stderr, "llmentary %s proxy listening on %s; control API on %s\n", proxy.VersionString(), cfg.ListenAddr, cfg.ControlAddr)
 	if err := listenAndServe(ctx, server); err != nil {
-		fmt.Fprintln(stderr, err)
+		_, _ = fmt.Fprintln(stderr, err)
 		return 1
 	}
 	return 0
