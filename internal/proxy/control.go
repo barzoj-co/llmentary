@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	controlapi "github.com/barzoj-co/llmentary/api/control"
 )
 
 const controlDurationCap = 10 * time.Minute
@@ -22,6 +24,7 @@ var ControlRoutes = []struct {
 	Path   string
 }{
 	{http.MethodGet, "/healthz"},
+	{http.MethodGet, "/openapi.yaml"},
 	{http.MethodGet, "/config"},
 	{http.MethodGet, "/version"},
 	{http.MethodGet, "/sessions"},
@@ -54,6 +57,8 @@ func (s *Server) serveControl(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case path == "/healthz":
 		s.serveHealthz(w, r)
+	case path == "/openapi.yaml":
+		s.serveOpenAPI(w, r)
 	case path == "/config":
 		s.serveConfig(w, r)
 	case path == "/version":
@@ -63,8 +68,20 @@ func (s *Server) serveControl(w http.ResponseWriter, r *http.Request) {
 	case strings.HasPrefix(path, "/sessions/"):
 		s.serveSession(w, r)
 	default:
-		writeControlError(w, http.StatusNotFound, "not_found", "unknown control path")
+		writeControlError(w, http.StatusNotFound, "not_found", "unknown control path; see GET /openapi.yaml")
 	}
+}
+
+func (s *Server) serveOpenAPI(w http.ResponseWriter, r *http.Request) {
+	if rejectControlMethod(w, r, http.MethodGet) {
+		return
+	}
+	if rejectUnknownQuery(w, r) {
+		return
+	}
+	w.Header().Set("Content-Type", "application/yaml")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(controlapi.OpenAPIYAML)
 }
 
 func (s *Server) serveHealthz(w http.ResponseWriter, r *http.Request) {
@@ -135,7 +152,7 @@ func (s *Server) serveSession(w http.ResponseWriter, r *http.Request) {
 		rest = strings.TrimSuffix(strings.TrimSuffix(rest, "/otlp"), "/")
 	}
 	if rest == "" || strings.Contains(rest, "/") {
-		writeControlError(w, http.StatusNotFound, "not_found", "unknown control path")
+		writeControlError(w, http.StatusNotFound, "not_found", "unknown control path; see GET /openapi.yaml")
 		return
 	}
 	sessionID, err := url.PathUnescape(rest)
@@ -164,7 +181,7 @@ func (s *Server) serveSession(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, session)
 	case http.MethodDelete:
 		if wait || otlp {
-			writeControlError(w, http.StatusNotFound, "not_found", "unknown control path")
+			writeControlError(w, http.StatusNotFound, "not_found", "unknown control path; see GET /openapi.yaml")
 			return
 		}
 		if rejectUnknownQuery(w, r) {

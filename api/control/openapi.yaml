@@ -7,6 +7,22 @@ info:
     the Session/Call shapes in docs/data-model.md. Errors use
     {"error":{"type","message"}}.
 paths:
+  /openapi.yaml:
+    get:
+      summary: This OpenAPI document
+      responses:
+        "200":
+          description: Control API contract
+          content:
+            application/yaml:
+              schema:
+                type: string
+        "400":
+          $ref: "#/components/responses/InvalidParameter"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
   /healthz:
     get:
       summary: Liveness

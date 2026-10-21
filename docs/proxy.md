@@ -280,11 +280,33 @@ If the control address is non-loopback, validation fails unless a control token 
 ## Control endpoints
 
 All endpoints are on the control listener, not the proxy listener. The machine-readable
-contract is `api/control/openapi.yaml`. Unknown query parameters and unparsable values
+contract is `GET /openapi.yaml` (the same bytes as `api/control/openapi.yaml`).
+Unknown query parameters and unparsable values
 return `400` `{"error":{"type":"invalid_parameter","param":"…","message":"…"}}`.
 `timeout` and `quiet` accept Go durations (`30s`, `500ms`) and plain seconds (`90`,
 `0.2`). Values `<= 0` or above 10 minutes are `400`. Every error response
 (`400`/`401`/`404`/`405`/`504`) is `application/json` with `error.type`.
+
+### `GET /openapi.yaml`
+
+Returns the control API OpenAPI document (`application/yaml`), same bytes as
+`api/control/openapi.yaml`. Requires the control token when `--control-token`
+is set.
+
+```bash
+curl http://127.0.0.1:7778/openapi.yaml
+```
+
+### Session lifecycle
+
+| State | `GET /sessions/{id}` | `wait` `min_calls=0` | `wait` `min_calls>=1` | `DELETE` | `GET /sessions` |
+|---|---|---|---|---|---|
+| Never created | `404` | `404` `session_not_found` immediately | `504` `wait_timeout` after timeout | `204` | absent |
+| Has calls | `200` | `200` after quiet | `200` when quiet and enough calls | `204` | present |
+| Deleted | `404` | `404` `session_not_found` immediately | `504` `wait_timeout` after timeout | `204` | absent |
+
+The wait statuses are implemented by `serveWait` / `WaitQuiet`. See
+`GET /sessions/{id}/wait` below for the request shape.
 
 ### `GET /healthz`
 
