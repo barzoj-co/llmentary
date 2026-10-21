@@ -474,7 +474,16 @@ Where findings show up: trace (`normalized.spec_violations`), proxy log (WARN), 
 | `spec_violations` | Findings from the spec validator. | `[]` means checked and clean. Absent means not checked. |
 | `ignored_fields` | Silently ignored request content (unknown schema keywords, unknown request fields, strict fallback). | Same empty-vs-absent rule as `spec_violations`. |
 
-In `warn` and `enforce`, after the call finishes the proxy writes one WARN summary per finding category (`msg="spec violations"` and/or `msg="ignored fields"`), then one WARN line per finding. `--spec-log-max` (default 5; `0` is summaries only) is a single per-call budget shared across both categories. Detail lines include `call_id`, pointers, keywords, kinds, and schema messages. Format-keyword messages are replaced with `format validation failed`. Value-bearing keywords (`pattern`, `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`, `enum`, `minLength`, `maxLength`, `minItems`, `maxItems`) use `schema validation failed`, so rejected field values are not logged. Summaries include `session` (the recorded session id, as in `proxy request` / `proxy response`). They never include request bodies, field values, or `Authorization` / cookie / api-key header values. Enforce rejections use the same WARN lines.
+In `warn` and `enforce`, after the call finishes the proxy writes one WARN summary per finding category (`msg="spec violations"` and/or `msg="ignored fields"`), then one WARN line per finding (before identical rows are collapsed). `--spec-log-max` (default 5; `0` is summaries only) is a single per-call budget shared across both categories. Detail lines include `call_id`, pointers, keywords, kinds, and schema messages. Streamed response findings also include `event=<index>` so chunks can be told apart. `unevaluatedProperties` / `additionalProperties` messages name the field (`unknown field "temprature" (not in the OpenAI spec for chat.completions request)`); `keyword` and `pointer` are unchanged. Format-keyword messages are replaced with `format validation failed`. Value-bearing keywords (`pattern`, `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`, `enum`, `minLength`, `maxLength`, `minItems`, `maxItems`) use `schema validation failed`, so rejected field values are not logged. Summaries include `session` (the recorded session id, as in `proxy request` / `proxy response`). They never include request bodies, field values, or `Authorization` / cookie / api-key header values. Enforce rejections use the same WARN lines.
+
+Example:
+
+```text
+level=WARN msg="spec violation" call_id=call_1 side=request pointer=/temprature keyword=unevaluatedProperties message="unknown field \"temprature\" (not in the OpenAI spec for chat.completions request)"
+level=WARN msg="spec violation" call_id=call_2 side=response pointer=/ keyword=required message="missing property 'created'" event=3
+```
+
+Identical findings (same side, keyword, pointer, message) on one call are stored once with `count=N` and the first `event_index`. WARN lines are the per-occurrence lines above.
 
 | Mode | Behavior |
 |---|---|

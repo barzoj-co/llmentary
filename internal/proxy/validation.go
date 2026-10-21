@@ -230,13 +230,20 @@ func (s *Server) logValidationFindings(call Call) {
 				break
 			}
 			remaining--
-			logger.Warn("spec violation",
+			args := []any{
 				"call_id", call.ID,
 				"side", v.Side,
 				"pointer", v.Pointer,
 				"keyword", v.Keyword,
 				"message", warnViolationMessage(v),
-			)
+			}
+			if v.EventIndex != nil {
+				args = append(args, "event", *v.EventIndex)
+			}
+			if v.Count > 1 {
+				args = append(args, "count", v.Count)
+			}
+			logger.Warn("spec violation", args...)
 		}
 	}
 
@@ -299,6 +306,18 @@ func applyRequestValidation(call *Call, rv requestValidation) {
 	call.Normalized.SpecViolations = &vs
 	call.Normalized.IgnoredFields = &ig
 	call.Normalized.ParserWarnings = append(call.Normalized.ParserWarnings, rv.warnings...)
+}
+
+func snapshotAndCollapseViolations(call *Call) Call {
+	logCopy := *call
+	if call.Normalized.SpecViolations == nil {
+		return logCopy
+	}
+	raw := append([]specvalidate.Violation(nil), (*call.Normalized.SpecViolations)...)
+	logCopy.Normalized.SpecViolations = &raw
+	collapsed := specvalidate.CollapseDuplicates(*call.Normalized.SpecViolations)
+	call.Normalized.SpecViolations = &collapsed
+	return logCopy
 }
 
 func mergeResponseValidation(call *Call, violations []specvalidate.Violation, extraIgnored []schemalint.Finding, duration int64, truncated bool) {

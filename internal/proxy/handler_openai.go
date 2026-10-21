@@ -243,7 +243,9 @@ func (ex *proxyExchange) finishCall(resp *http.Response, rawBody []byte, firstBy
 			}
 			mergeResponseValidation(call, vios, extra, dur, trunc)
 		}
+		logCall := snapshotAndCollapseViolations(call)
 		endedCall = *call
+		endedCall.Normalized.SpecViolations = logCall.Normalized.SpecViolations
 	})
 	ex.s.logger().Info("proxy response",
 		"status", resp.StatusCode,
@@ -288,7 +290,9 @@ func (s *Server) rejectLocal(w http.ResponseWriter, ex *proxyExchange, rv reques
 		applyRequestValidation(call, rv)
 		call.Normalized.Error.Source = "proxy"
 		call.Normalized.Error.HTTPStatus = http.StatusBadRequest
+		logCall := snapshotAndCollapseViolations(call)
 		endedCall = *call
+		endedCall.Normalized.SpecViolations = logCall.Normalized.SpecViolations
 	})
 	s.logValidationFindings(endedCall)
 	if ex.span != nil {
