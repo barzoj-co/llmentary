@@ -379,7 +379,13 @@ session keeps waiting until a call arrives or `timeout`, then `504`
 `wait_timeout` with `calls_seen:0`. Use `min_calls` when a call is about to
 start and must be observed; `quiet` is not a grace period for that.
 
-See [Session lifecycle](session-lifecycle.md) for a table and an example.
+See [Session lifecycle](session-lifecycle.md) for the status table and an example.
+
+| State | `GET /sessions/{id}` | `wait` `min_calls=0` | `wait` `min_calls>=1` | `DELETE` | `GET /sessions` |
+|---|---|---|---|---|---|
+| Never created | `404` | `404` `session_not_found` immediately | `504` `wait_timeout` after timeout | `204` | absent |
+| Has calls | `200` | `200` after quiet | `200` when quiet and enough calls | `204` | present |
+| Deleted | `404` | `404` `session_not_found` immediately | `504` `wait_timeout` after timeout | `204` | absent |
 
 Query parameters:
 
