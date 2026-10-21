@@ -22,7 +22,19 @@
   },
   "y": {
     "id": "sess-y",
-    "calls": []
+    "calls": [
+      {
+        "id": "call_y1",
+        "session_id": "sess-y",
+        "seq": 1,
+        "raw_request": {
+          "model": "gpt-4.1-nano",
+          "messages": [
+            {"role": "user", "content": "Weather in Berlin?"}
+          ]
+        }
+      }
+    ]
   },
   "expect": {
     "isolated": false,

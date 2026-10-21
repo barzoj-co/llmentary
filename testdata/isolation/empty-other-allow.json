@@ -1,0 +1,31 @@
+{
+  "id": "empty-other-allow",
+  "description": "Empty Y passes when allow_empty is true.",
+  "allow_empty": true,
+  "min_chars": 8,
+  "ignore_texts": [],
+  "x": {
+    "id": "sess-x",
+    "calls": [
+      {
+        "id": "call_x1",
+        "session_id": "sess-x",
+        "seq": 1,
+        "raw_request": {
+          "model": "gpt-4.1-nano",
+          "messages": [
+            {"role": "user", "content": "What is my biological age?"}
+          ]
+        }
+      }
+    ]
+  },
+  "y": {
+    "id": "sess-ghost",
+    "calls": []
+  },
+  "expect": {
+    "isolated": true,
+    "message_contains": []
+  }
+}

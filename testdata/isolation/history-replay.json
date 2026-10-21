@@ -42,7 +42,7 @@
     "isolated": false,
     "message_contains": [
       "user text 'What is my biological age?'",
-      "from session sess-y #1 (call_y1)",
+      "also introduced by session sess-y #1 (call_y1)",
       "appears in session sess-x #1 (call_x1)"
     ]
   }

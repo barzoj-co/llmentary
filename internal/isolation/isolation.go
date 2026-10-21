@@ -51,6 +51,12 @@ func Check(x, y Session, opts Options) (bool, string) {
 		}
 		return false, fmt.Sprintf("no calls recorded for session %s", x.ID)
 	}
+	if len(y.Calls) == 0 {
+		if opts.AllowEmpty {
+			return true, ""
+		}
+		return false, fmt.Sprintf("no calls recorded for session %s (isolated_from needs calls on both sides)", y.ID)
+	}
 	for _, c := range x.Calls {
 		if c.SessionID != x.ID {
 			return false, fmt.Sprintf("call %s in session %s has session_id %s", c.ID, x.ID, c.SessionID)
@@ -98,7 +104,7 @@ func Check(x, y Session, opts Options) (bool, string) {
 			}
 			if foreign, ok := yIntroSet[turn.Normalized]; ok {
 				return false, fmt.Sprintf(
-					"user text '%s' from session %s #%d (%s) appears in session %s #%d (%s)",
+					"user text '%s' also introduced by session %s #%d (%s) appears in session %s #%d (%s)",
 					turn.Display, y.ID, foreign.Seq, foreign.CallID, x.ID, c.Seq, c.ID,
 				)
 			}

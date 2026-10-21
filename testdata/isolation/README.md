@@ -29,3 +29,14 @@ Chat `messages` or Responses `input` as defined in the spec.
 
 `message_contains` is a list of fragments that must all appear in the failure
 text when `isolated` is false. Pass cases leave it empty.
+
+Added for DOG-32 / DOG-33 / DOG-34:
+
+| Vector | Verdict | Why |
+|---|---|---|
+| `empty-other.json` | fail | Y has no calls; names Y |
+| `empty-other-allow.json` | pass | same, `allow_empty` |
+| `missing-other-id.json` | fail | Y id is a typo and has no calls |
+| `later-call-two-new-user-messages.json` | pass | X call 2 introduces both new user texts |
+| `later-call-two-new-user-messages-responses.json` | pass | Responses `input[]` variant |
+| `shared-text-uninvolved.json` | fail | C vs B: same canned text, B never touched A's thread |

@@ -1,0 +1,56 @@
+{
+  "id": "later-call-two-new-user-messages-responses",
+  "description": "Responses input[] variant of later-call-two-new-user-messages. X call 2 introduces both new role=user items.",
+  "allow_empty": false,
+  "min_chars": 8,
+  "ignore_texts": [],
+  "x": {
+    "id": "sess-p",
+    "calls": [
+      {
+        "id": "call_p1",
+        "session_id": "sess-p",
+        "seq": 1,
+        "raw_request": {
+          "model": "gpt-4.1-nano",
+          "input": [
+            {"role": "user", "content": [{"type": "input_text", "text": "Opening question number one"}]}
+          ]
+        }
+      },
+      {
+        "id": "call_p2",
+        "session_id": "sess-p",
+        "seq": 2,
+        "raw_request": {
+          "model": "gpt-4.1-nano",
+          "input": [
+            {"role": "user", "content": [{"type": "input_text", "text": "Opening question number one"}]},
+            {"role": "user", "content": [{"type": "input_text", "text": "Second message sent by P itself"}]},
+            {"role": "user", "content": [{"type": "input_text", "text": "Third message sent by P itself"}]}
+          ]
+        }
+      }
+    ]
+  },
+  "y": {
+    "id": "sess-q",
+    "calls": [
+      {
+        "id": "call_q1",
+        "session_id": "sess-q",
+        "seq": 1,
+        "raw_request": {
+          "model": "gpt-4.1-nano",
+          "input": [
+            {"role": "user", "content": [{"type": "input_text", "text": "Second message sent by P itself"}]}
+          ]
+        }
+      }
+    ]
+  },
+  "expect": {
+    "isolated": true,
+    "message_contains": []
+  }
+}
