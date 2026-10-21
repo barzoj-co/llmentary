@@ -50,6 +50,10 @@ func TestStreamedResponseFindingsHaveEventAndCount(t *testing.T) {
 		}
 		count, _ := m["count"].(float64)
 		if count == 5 {
+			eventIndex, ok := m["event_index"].(float64)
+			if !ok || eventIndex != 0 {
+				t.Fatalf("stored finding event_index=%v, want 0: %v", m["event_index"], m)
+			}
 			foundCount5 = true
 		}
 	}

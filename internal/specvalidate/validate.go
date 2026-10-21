@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
+	"github.com/santhosh-tekuri/jsonschema/v6/kind"
 )
 
 func (e *Engine) ValidateRequest(profile, apiFamily string, raw []byte, maxBytes int) Result {
@@ -131,34 +132,20 @@ func unknownFieldMessage(item schemaErr, side, apiFamily string) string {
 	if item.keyword != "unevaluatedProperties" && item.keyword != "additionalProperties" {
 		return item.message
 	}
-	field := extraPropertyName(item.message)
-	if field == "" {
-		field = lastPointerField(item.pointer)
+	fields := item.extraNames
+	if len(fields) == 0 {
+		if name := lastPointerField(item.pointer); name != "" {
+			fields = []string{name}
+		}
 	}
-	if field == "" {
+	if len(fields) == 0 {
 		return item.message
 	}
-	return fmt.Sprintf("unknown field %q (not in the OpenAI spec for %s %s)", field, specDisplayName(apiFamily), side)
-}
-
-func extraPropertyName(msg string) string {
-	const prefix = "additional properties "
-	lower := strings.ToLower(msg)
-	i := strings.Index(lower, prefix)
-	if i < 0 {
-		return ""
+	quoted := make([]string, len(fields))
+	for i, field := range fields {
+		quoted[i] = fmt.Sprintf("%q", field)
 	}
-	rest := msg[i+len(prefix):]
-	start := strings.Index(rest, "'")
-	if start < 0 {
-		return ""
-	}
-	rest = rest[start+1:]
-	end := strings.Index(rest, "'")
-	if end <= 0 {
-		return ""
-	}
-	return rest[:end]
+	return fmt.Sprintf("unknown field %s (not in the OpenAI spec for %s %s)", strings.Join(quoted, ", "), specDisplayName(apiFamily), side)
 }
 
 func dropCoveredUnevaluated(in []schemaErr) []schemaErr {
@@ -199,10 +186,11 @@ func lastPointerField(pointer string) string {
 }
 
 type schemaErr struct {
-	pointer   string
-	keyword   string
-	message   string
-	schemaRef string
+	pointer    string
+	keyword    string
+	message    string
+	schemaRef  string
+	extraNames []string
 }
 
 func flattenSchemaError(err error) []schemaErr {
@@ -240,6 +228,9 @@ func flattenSchemaError(err error) []schemaErr {
 			keyword:   kw,
 			message:   msg,
 			schemaRef: e.SchemaURL,
+		}
+		if ap, ok := e.ErrorKind.(*kind.AdditionalProperties); ok {
+			item.extraNames = append([]string(nil), ap.Properties...)
 		}
 		if isWrapperSchemaErr(item) || isCompositionArtifact(item) {
 			return
@@ -387,8 +378,15 @@ func capAndSort(in []Violation, truncated *bool, side string) []Violation {
 // and sets Count to the number of copies. The first event_index is kept.
 // Streamed per-chunk copies therefore become one stored row with count=N.
 func CollapseDuplicates(in []Violation) []Violation {
-	if len(in) <= 1 {
+	if len(in) == 0 {
 		return in
+	}
+	if len(in) == 1 {
+		cp := in[0]
+		if cp.Count < 1 {
+			cp.Count = 1
+		}
+		return []Violation{cp}
 	}
 	type key struct {
 		side, keyword, pointer, message string

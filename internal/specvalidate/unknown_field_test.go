@@ -3,6 +3,7 @@
 package specvalidate
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -88,6 +89,30 @@ func TestUnknownFieldMessageNestedAdditionalProperties(t *testing.T) {
 	}
 }
 
+func TestUnknownFieldMessageMultipleAndApostropheKeys(t *testing.T) {
+	eng, err := CompileEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	res := eng.ValidateRequest(ProfileStrict, "openai.responses", []byte(`{"model":"gpt-fixture","input":"hi","access_programs":{"cyber":"standard","extra":true,"o'brien":1}}`), 0)
+	found := false
+	for _, v := range res.Violations {
+		if v.Keyword != "additionalProperties" || v.Pointer != "/access_programs" {
+			continue
+		}
+		found = true
+		if !strings.Contains(v.Message, `unknown field "extra"`) || !strings.Contains(v.Message, `"o'brien"`) {
+			t.Fatalf("message=%q", v.Message)
+		}
+		if strings.Contains(v.Message, `unknown field "access_programs"`) || strings.Contains(v.Message, `o\`) {
+			t.Fatalf("truncated or parent name: %q", v.Message)
+		}
+	}
+	if !found {
+		t.Fatalf("missing additionalProperties /access_programs: %v", res.Violations)
+	}
+}
+
 func TestLastPointerFieldKeepsNumericObjectKey(t *testing.T) {
 	if got := lastPointerField("/123"); got != "123" {
 		t.Fatalf("got %q", got)
@@ -117,5 +142,24 @@ func TestCollapseDuplicatesCounts(t *testing.T) {
 	}
 	if out[1].Count != 1 || out[1].Pointer != "/foo" {
 		t.Fatalf("request=%+v", out[1])
+	}
+}
+
+func TestCollapseDuplicatesSingletonCount(t *testing.T) {
+	out := CollapseDuplicates([]Violation{{
+		Side:    SideRequest,
+		Keyword: "required",
+		Pointer: "/",
+		Message: "missing property 'model'",
+	}})
+	if len(out) != 1 || out[0].Count != 1 {
+		t.Fatalf("%+v", out)
+	}
+	raw, err := json.Marshal(out[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"count":1`) {
+		t.Fatalf("json=%s", raw)
 	}
 }
