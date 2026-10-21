@@ -1,6 +1,6 @@
 {
   "id": "empty-other",
-  "description": "Empty Y (never created / unused) fails unless allow_empty is set. Names Y.",
+  "description": "Y exists as an id but has 0 recorded calls (unused session). Fail and name Y.",
   "allow_empty": false,
   "min_chars": 8,
   "ignore_texts": [],

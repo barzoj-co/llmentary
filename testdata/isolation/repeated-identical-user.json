@@ -1,0 +1,56 @@
+{
+  "id": "repeated-identical-user",
+  "description": "X introduces a user text on call 1 and repeats it on call 2. Y sends the same text. Both introduced it; not a leak.",
+  "allow_empty": false,
+  "min_chars": 8,
+  "ignore_texts": [],
+  "x": {
+    "id": "sess-x",
+    "calls": [
+      {
+        "id": "call_x1",
+        "session_id": "sess-x",
+        "seq": 1,
+        "raw_request": {
+          "model": "gpt-4.1-nano",
+          "messages": [
+            {"role": "user", "content": "Please summarize the visit notes"}
+          ]
+        }
+      },
+      {
+        "id": "call_x2",
+        "session_id": "sess-x",
+        "seq": 2,
+        "raw_request": {
+          "model": "gpt-4.1-nano",
+          "messages": [
+            {"role": "user", "content": "Please summarize the visit notes"},
+            {"role": "assistant", "content": "Sure."},
+            {"role": "user", "content": "Please summarize the visit notes"}
+          ]
+        }
+      }
+    ]
+  },
+  "y": {
+    "id": "sess-y",
+    "calls": [
+      {
+        "id": "call_y1",
+        "session_id": "sess-y",
+        "seq": 1,
+        "raw_request": {
+          "model": "gpt-4.1-nano",
+          "messages": [
+            {"role": "user", "content": "Please summarize the visit notes"}
+          ]
+        }
+      }
+    ]
+  },
+  "expect": {
+    "isolated": true,
+    "message_contains": []
+  }
+}

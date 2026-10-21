@@ -1,0 +1,45 @@
+{
+  "id": "shared-text-nonce-pass",
+  "description": "Attribution recipe: A/C share a unique first message; B sent a different canned question. C.isolated_from(B) passes.",
+  "allow_empty": false,
+  "min_chars": 8,
+  "ignore_texts": [],
+  "x": {
+    "id": "sess-c",
+    "calls": [
+      {
+        "id": "call_c1",
+        "session_id": "sess-c",
+        "seq": 1,
+        "raw_request": {
+          "model": "gpt-4.1-nano",
+          "messages": [
+            {"role": "user", "content": "run-aaa What is my biological age?"},
+            {"role": "assistant", "content": "I need more data."},
+            {"role": "user", "content": "Continue from the saved thread."}
+          ]
+        }
+      }
+    ]
+  },
+  "y": {
+    "id": "sess-b",
+    "calls": [
+      {
+        "id": "call_b1",
+        "session_id": "sess-b",
+        "seq": 1,
+        "raw_request": {
+          "model": "gpt-4.1-nano",
+          "messages": [
+            {"role": "user", "content": "run-bbb What is my biological age?"}
+          ]
+        }
+      }
+    ]
+  },
+  "expect": {
+    "isolated": true,
+    "message_contains": []
+  }
+}
