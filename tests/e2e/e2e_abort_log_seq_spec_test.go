@@ -65,10 +65,14 @@ func TestE2EAbortLogHasSeqAndSpec(t *testing.T) {
 	for _, line := range strings.Split(logBuf.String(), "\n") {
 		if strings.Contains(line, `msg="proxy response"`) && strings.Contains(line, "client_aborted=true") {
 			n++
-			for _, want := range []string{"seq=1", "spec=request_only", "phase=before_headers"} {
+			for _, want := range []string{"seq=1", "spec=request_only"} {
 				if !strings.Contains(line, want) {
 					t.Fatalf("abort log missing %s: %s\nfull:\n%s", want, line, logBuf.String())
 				}
+			}
+			if !strings.Contains(line, "phase=before_headers") &&
+				!strings.Contains(line, "phase=after_headers") {
+				t.Fatalf("abort log missing valid phase: %s\nfull:\n%s", line, logBuf.String())
 			}
 		}
 	}

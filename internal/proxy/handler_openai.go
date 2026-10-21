@@ -226,7 +226,7 @@ func (ex *proxyExchange) copyAndFinish(w http.ResponseWriter, resp *http.Respons
 	if headerSSE && !compressed {
 		recorder = newSSERecorder(ex.startedAt)
 	}
-	_, copyErr := copyAndFlush(w, resp.Body, func(chunk []byte) {
+	_, copyErr, copyWriteErr := copyAndFlush(w, resp.Body, func(chunk []byte) {
 		if firstByte == nil {
 			now := time.Now().UTC()
 			firstByte = &now
@@ -236,11 +236,11 @@ func (ex *proxyExchange) copyAndFinish(w http.ResponseWriter, resp *http.Respons
 			recorder.Write(chunk)
 		}
 	})
-	ex.finishCall(resp, rawResp.Bytes(), firstByte, recorder, copyErr, headerSSE)
+	ex.finishCall(resp, rawResp.Bytes(), firstByte, recorder, copyErr, copyWriteErr, headerSSE)
 	return nil
 }
 
-func (ex *proxyExchange) finishCall(resp *http.Response, rawBody []byte, firstByte *time.Time, recorder *sseRecorder, copyErr error, headerSSE bool) {
+func (ex *proxyExchange) finishCall(resp *http.Response, rawBody []byte, firstByte *time.Time, recorder *sseRecorder, copyErr error, copyWriteErr bool, headerSSE bool) {
 	if ex.finished {
 		return
 	}
@@ -277,7 +277,8 @@ func (ex *proxyExchange) finishCall(resp *http.Response, rawBody []byte, firstBy
 			call.Normalized.StreamTruncated = true
 		}
 		clientGone := ex.r != nil && ex.r.Context().Err() != nil
-		if clientGone && (copyErr != nil || (stream && !complete)) {
+		incomplete := (stream && !complete) || (!stream && copyWriteErr)
+		if clientGone && incomplete {
 			// A complete SSE stream (terminal [DONE] or Responses
 			// response.completed/failed/incomplete already written) is not
 			// client_aborted when the SDK closes after that event.

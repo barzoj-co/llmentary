@@ -273,9 +273,8 @@ func (s *Server) finishWithProxyError(sessionID, callID string, startedAt time.T
 	return endedCall
 }
 
-func copyAndFlush(w http.ResponseWriter, r io.Reader, onChunk func([]byte)) (int64, error) {
+func copyAndFlush(w http.ResponseWriter, r io.Reader, onChunk func([]byte)) (written int64, err error, writeErr bool) {
 	buf := make([]byte, 32*1024)
-	var written int64
 	flusher, _ := w.(http.Flusher)
 	for {
 		nr, er := r.Read(buf)
@@ -287,10 +286,10 @@ func copyAndFlush(w http.ResponseWriter, r io.Reader, onChunk func([]byte)) (int
 				flusher.Flush()
 			}
 			if ew != nil {
-				return written, ew
+				return written, ew, true
 			}
 			if nr != nw {
-				return written, io.ErrShortWrite
+				return written, io.ErrShortWrite, true
 			}
 			if onChunk != nil {
 				onChunk(chunk)
@@ -298,9 +297,9 @@ func copyAndFlush(w http.ResponseWriter, r io.Reader, onChunk func([]byte)) (int
 		}
 		if er != nil {
 			if er == io.EOF {
-				return written, nil
+				return written, nil, false
 			}
-			return written, er
+			return written, er, false
 		}
 	}
 }
