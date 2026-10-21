@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -109,6 +110,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 	fs.StringVar(&cfg.PropagateTrace, "propagate-trace", cfg.PropagateTrace, "outbound traceparent: off (default, pass client headers through) or auto (inject/continue) (env LLMENTARY_PROPAGATE_TRACE)")
 	fs.Bool("tls", false, "TODO: optional local TLS listener")
 	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
 		return 2
 	}
 	cfg.SpecLogMax = &specLogMax

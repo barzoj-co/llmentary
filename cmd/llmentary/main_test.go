@@ -76,6 +76,19 @@ func TestRunNonLoopbackControlRequiresToken(t *testing.T) {
 	}
 }
 
+func TestRunHelp(t *testing.T) {
+	clearProxyEnv(t)
+	for _, arg := range []string{"--help", "-h"} {
+		var stdout, stderr bytes.Buffer
+		if code := run([]string{arg}, &stdout, &stderr); code != 0 {
+			t.Fatalf("%s exit=%d stderr=%s", arg, code, stderr.String())
+		}
+		if !strings.Contains(stderr.String(), "Usage of llmentary") && !strings.Contains(stderr.String(), "-listen") {
+			t.Fatalf("%s usage=%s", arg, stderr.String())
+		}
+	}
+}
+
 func TestRunUnknownFlag(t *testing.T) {
 	clearProxyEnv(t)
 	var stdout, stderr bytes.Buffer
