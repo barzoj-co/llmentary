@@ -81,7 +81,7 @@ func (s *Server) serveOpenAPI(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/yaml")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(controlapi.OpenAPIYAML)
+	_, _ = w.Write(StampOpenAPIVersion(controlapi.OpenAPIYAML, VersionString()))
 }
 
 func (s *Server) serveHealthz(w http.ResponseWriter, r *http.Request) {

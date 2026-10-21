@@ -280,7 +280,8 @@ If the control address is non-loopback, validation fails unless a control token 
 ## Control endpoints
 
 All endpoints are on the control listener, not the proxy listener. The machine-readable
-contract is `GET /openapi.yaml` (the same bytes as `api/control/openapi.yaml`).
+contract is `GET /openapi.yaml`, based on `api/control/openapi.yaml` with
+`info.version` stamped at serve time.
 Unknown query parameters and unparsable values
 return `400` `{"error":{"type":"invalid_parameter","param":"…","message":"…"}}`.
 `timeout` and `quiet` accept Go durations (`30s`, `500ms`) and plain seconds (`90`,
@@ -289,9 +290,11 @@ return `400` `{"error":{"type":"invalid_parameter","param":"…","message":"…"
 
 ### `GET /openapi.yaml`
 
-Returns the control API OpenAPI document (`application/yaml`), same bytes as
-`api/control/openapi.yaml`. Requires the control token when `--control-token`
-is set.
+Returns the control API OpenAPI document (`application/yaml`). `info.version`
+is stamped at serve time from the same release version as `--version` and
+`GET /version` (dev builds serve `devel`). The file shipped in release
+tarballs / npm / PyPI is kept in sync by release-please. Requires the
+control token when `--control-token` is set.
 
 ```bash
 curl http://127.0.0.1:7778/openapi.yaml
@@ -484,7 +487,7 @@ Unsupported methods return `405` `{"error":{"type":"method_not_allowed"}}` with 
 Returns the effective spec-validation settings so clients can tell "validated, clean" from "not validated", plus the clean binary version:
 
 ```json
-{"spec_validation":"warn","spec_profile":"relaxed","spec_sha":"…","schema_subset_retrieved":"2026-10-18","upstreams":{"openai":"https://api.openai.com/v1"},"version":"0.1.0"}
+{"spec_validation":"warn","spec_profile":"relaxed","spec_sha":"…","schema_subset_retrieved":"2026-10-18","upstreams":{"openai":"https://api.openai.com/v1"},"version":"0.3.0"}
 ```
 
 ### `GET /version`
@@ -492,8 +495,15 @@ Returns the effective spec-validation settings so clients can tell "validated, c
 Returns the clean version and commit (no `v` prefix):
 
 ```json
-{"version":"0.1.0","commit":"…","date":"…"}
+{"version":"0.3.0","commit":"…","date":"…"}
 ```
+
+### Versions
+
+The **release version** is the single source of truth. `--version`,
+`GET /version`, `GET /config` `version`, and served `GET /openapi.yaml`
+`info.version` always match. Clients print that string in the test header
+(DOG-13). `go build` / `go install` without ldflags use `devel`.
 
 ## Spec validation
 
