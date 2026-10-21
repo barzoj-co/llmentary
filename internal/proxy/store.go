@@ -67,18 +67,24 @@ func (s *MemoryStore) Begin(sessionID string, call Call) (int, string) {
 func (s *MemoryStore) Finish(sessionID, callID string, update func(*Call)) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	state := s.state(sessionID)
+	if sessionID == "" {
+		sessionID = DefaultSessionID
+	}
+	state, ok := s.sessions[sessionID]
+	if !ok {
+		return
+	}
 	for i := range state.calls {
 		if state.calls[i].ID == callID {
 			update(&state.calls[i])
-			break
+			if state.active > 0 {
+				state.active--
+			}
+			state.version++
+			state.lastChangeAt = time.Now()
+			return
 		}
 	}
-	if state.active > 0 {
-		state.active--
-	}
-	state.version++
-	state.lastChangeAt = time.Now()
 }
 
 func (s *MemoryStore) Lookup(sessionID string) (Session, bool) {

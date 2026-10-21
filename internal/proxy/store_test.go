@@ -109,6 +109,48 @@ func TestWaitQuietDeleteResetsQuietWindow(t *testing.T) {
 	}
 }
 
+func TestFinishIgnoresStaleCallAfterReuse(t *testing.T) {
+	store := NewMemoryStore()
+	_, oldID := store.Begin("s", Call{StartedAt: time.Now().UTC()})
+	store.Delete("s")
+	_, newID := store.Begin("s", Call{StartedAt: time.Now().UTC()})
+	store.Finish("s", oldID, func(call *Call) { call.EndedAt = time.Now().UTC() })
+
+	session, ok := store.Lookup("s")
+	if !ok {
+		t.Fatal("reused session missing")
+	}
+	if len(session.Calls) != 1 || session.Calls[0].ID != newID {
+		t.Fatalf("calls=%+v", session.Calls)
+	}
+	if !session.Calls[0].EndedAt.IsZero() {
+		t.Fatal("stale finish updated the new generation")
+	}
+	summaries := store.List("")
+	if len(summaries) != 1 || summaries[0].Active != 1 {
+		t.Fatalf("summaries=%+v", summaries)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	_, err := store.WaitQuiet(ctx, "s", 40*time.Millisecond, 80*time.Millisecond, 0)
+	if !errors.Is(err, ErrWaitTimeout) {
+		t.Fatalf("err=%v want wait_timeout while reused call is still active", err)
+	}
+	if elapsed := time.Since(start); elapsed < 40*time.Millisecond {
+		t.Fatalf("wait returned in %s; stale finish must not idle the new call", elapsed)
+	}
+}
+
+func TestFinishUnknownSessionDoesNotCreate(t *testing.T) {
+	store := NewMemoryStore()
+	store.Finish("empty", "call_1", func(call *Call) { call.EndedAt = time.Now().UTC() })
+	if _, ok := store.Lookup("empty"); ok {
+		t.Fatal("finish created a phantom session")
+	}
+}
+
 func TestWaitQuietActiveCallThenQuiet(t *testing.T) {
 	store := NewMemoryStore()
 	started := make(chan struct{})
