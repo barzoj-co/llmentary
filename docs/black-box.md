@@ -171,10 +171,31 @@ assignment. Two consumer groups on one topic both get every event.
 
 Do not substring-search raw request JSON for the other session's tool names or
 system-prompt keywords. Shared instructions and tool definitions are not a
-leak. Use the client helper instead (`lm.Expect(ctx).IsolatedFrom(...)` /
-`lm.expect().isolated_from(...)` / `lm.expect().isolatedFrom(...)`). It
-compares **user-role** texts only (Chat `messages[role=user]`, Responses
-`input[role=user]`), plus `session_id` and call-id disjointness.
+leak. Use the client helper (`lm.Expect(ctx).IsolatedFrom(...)` /
+`lm.expect().isolated_from(...)` / `lm.expect().isolatedFrom(...)`).
+
+The rule is defined once in [Isolation spec](isolation-spec.md) and pinned by
+the JSON vectors in [`testdata/isolation/`](../testdata/isolation/README.md):
+
+1. Every call in X has `session_id == X`.
+2. No call id appears in both sessions.
+3. No **foreign user turn**: a user-role message in X that X never introduced
+   but Y did. Comparison is an exact match after trim / whitespace-collapse /
+   casefold — never a substring. The same canned question sent independently
+   by both sessions is not a leak. `"Hi"` is not a leak against
+   `"Hi, what is …"`.
+4. Empty X fails unless `allow_empty` is set.
+
+Parallel same-scenario (the usual dogfood check):
+
+```python
+# two app boots, same icebreaker
+lm_a.expect().isolated_from(lm_b)
+lm_b.expect().isolated_from(lm_a)
+```
+
+A third session that replays A's first user message as history (checkpointer,
+Mongo thread, copied conversation) fails rule 3 with the spec message.
 
 ## Import-time and startup-constructed clients
 

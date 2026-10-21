@@ -1,0 +1,35 @@
+{
+  "id": "foreign-session-id",
+  "description": "A call whose session_id is not X fails rule 1.",
+  "allow_empty": false,
+  "min_chars": 8,
+  "ignore_texts": [],
+  "x": {
+    "id": "sess-x",
+    "calls": [
+      {
+        "id": "call_x1",
+        "session_id": "sess-other",
+        "seq": 1,
+        "raw_request": {
+          "model": "gpt-4.1-nano",
+          "messages": [
+            {"role": "user", "content": "Weather in Paris?"}
+          ]
+        }
+      }
+    ]
+  },
+  "y": {
+    "id": "sess-y",
+    "calls": []
+  },
+  "expect": {
+    "isolated": false,
+    "message_contains": [
+      "session_id",
+      "sess-x",
+      "call_x1"
+    ]
+  }
+}
