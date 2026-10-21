@@ -142,17 +142,22 @@ func (s *MemoryStore) WaitQuiet(ctx context.Context, sessionID string, quiet, ti
 	defer ticker.Stop()
 
 	quietSince := time.Now()
+	wasPresent := false
 	for {
 		s.mu.Lock()
 		state, exists := s.sessions[sessionID]
 		finished := 0
 		active := 0
 		if exists {
+			wasPresent = true
 			active = state.active
 			finished = finishedCallCount(state)
 			if !state.lastChangeAt.IsZero() {
 				quietSince = state.lastChangeAt
 			}
+		} else if wasPresent {
+			quietSince = time.Now()
+			wasPresent = false
 		}
 		if exists && finished >= minCalls && active == 0 && time.Since(quietSince) >= quiet {
 			out := copySession(state)

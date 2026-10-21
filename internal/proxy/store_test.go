@@ -89,6 +89,26 @@ func TestWaitQuietCountsFromLastChange(t *testing.T) {
 	}
 }
 
+func TestWaitQuietDeleteResetsQuietWindow(t *testing.T) {
+	store := NewMemoryStore()
+	store.Begin("s", Call{StartedAt: time.Now().UTC()})
+	time.Sleep(150 * time.Millisecond)
+	go func() {
+		time.Sleep(20 * time.Millisecond)
+		store.Delete("s")
+	}()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	start := time.Now()
+	_, err := store.WaitQuiet(ctx, "s", 80*time.Millisecond, time.Second, 0)
+	if !errors.Is(err, ErrWaitTimeout) {
+		t.Fatalf("err=%v want wait_timeout", err)
+	}
+	if elapsed := time.Since(start); elapsed < 80*time.Millisecond {
+		t.Fatalf("returned in %s after delete; quiet window should restart", elapsed)
+	}
+}
+
 func TestWaitQuietActiveCallThenQuiet(t *testing.T) {
 	store := NewMemoryStore()
 	started := make(chan struct{})
