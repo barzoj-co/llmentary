@@ -15,6 +15,11 @@ A never-created session is never a `200` with an empty `calls` array. Use
 Machine-readable contract: [`api/control/openapi.yaml`](../api/control/openapi.yaml).
 Control API reference: [Proxy](proxy.md#get-sessionsidwait).
 
+`GET /sessions[].spec` counts how each finished call was validated. Canonical
+keys are snake_case (`checked`, `clean`, `findings`, `request_only`,
+`not_checked`); PascalCase aliases are also serialized. See
+[Proxy — GET /sessions](proxy.md#get-sessions-and-get-sessions).
+
 ## Example: `wait` on a missing session
 
 ```bash

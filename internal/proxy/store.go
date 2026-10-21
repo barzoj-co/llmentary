@@ -24,6 +24,44 @@ type SpecCounters struct {
 	NotChecked  int `json:"not_checked"`
 }
 
+func (s SpecCounters) MarshalJSON() ([]byte, error) {
+	return json.Marshal(map[string]int{
+		"checked":      s.Checked,
+		"clean":        s.Clean,
+		"findings":     s.Findings,
+		"request_only": s.RequestOnly,
+		"not_checked":  s.NotChecked,
+		// Deprecated 0.x aliases (PascalCase dump livekit printed).
+		"Checked":     s.Checked,
+		"Clean":       s.Clean,
+		"Findings":    s.Findings,
+		"RequestOnly": s.RequestOnly,
+		"NotChecked":  s.NotChecked,
+	})
+}
+
+func (s *SpecCounters) UnmarshalJSON(raw []byte) error {
+	var keys map[string]int
+	if err := json.Unmarshal(raw, &keys); err != nil {
+		return err
+	}
+	s.Checked = firstInt(keys, "checked", "Checked")
+	s.Clean = firstInt(keys, "clean", "Clean")
+	s.Findings = firstInt(keys, "findings", "Findings")
+	s.RequestOnly = firstInt(keys, "request_only", "RequestOnly")
+	s.NotChecked = firstInt(keys, "not_checked", "NotChecked")
+	return nil
+}
+
+func firstInt(keys map[string]int, names ...string) int {
+	for _, name := range names {
+		if v, ok := keys[name]; ok {
+			return v
+		}
+	}
+	return 0
+}
+
 type SessionSummary struct {
 	ID             string       `json:"id"`
 	Calls          int          `json:"calls"`
