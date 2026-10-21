@@ -279,18 +279,49 @@ components:
           format: date-time
         spec:
           type: object
+          description: >
+            Per-session spec-validation counters. Canonical keys match the
+            `proxy response` `spec=` tokens. Invariant:
+            `calls == checked + request_only + not_checked` and
+            `checked == clean + findings`. `spec=off` and `spec=skipped:*`
+            increment `not_checked`. `request_only` is not part of `checked`.
           required: [checked, clean, findings, request_only, not_checked]
           properties:
             checked:
               type: integer
+              description: Calls whose request and response were both validated (`spec=clean` or `spec=findings:N`).
             clean:
               type: integer
+              description: Checked calls with zero findings (`spec=clean`).
             findings:
               type: integer
+              description: Checked calls with one or more findings (`spec=findings:N`).
             request_only:
               type: integer
+              description: Request validated, response not (abort, 4xx, skip-after-request). Log token `spec=request_only`.
             not_checked:
               type: integer
+              description: Validation off or skipped (`spec=off`, `spec=skipped:*`).
+            Checked:
+              type: integer
+              deprecated: true
+              description: Alias of `checked` (0.x).
+            Clean:
+              type: integer
+              deprecated: true
+              description: Alias of `clean` (0.x).
+            Findings:
+              type: integer
+              deprecated: true
+              description: Alias of `findings` (0.x).
+            RequestOnly:
+              type: integer
+              deprecated: true
+              description: Alias of `request_only` (0.x).
+            NotChecked:
+              type: integer
+              deprecated: true
+              description: Alias of `not_checked` (0.x).
     Session:
       type: object
       required: [id, calls]

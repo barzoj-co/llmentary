@@ -4,6 +4,7 @@ package proxy
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -30,6 +31,38 @@ func TestSpecCountersRequestOnlyNotClean(t *testing.T) {
 	if got.Clean != 0 || got.RequestOnly != 1 || got.Checked != 0 || got.NotChecked != 0 {
 		t.Fatalf("got=%+v", got)
 	}
+}
+
+func TestSpecCountersJSONAliases(t *testing.T) {
+	got := specCounters([]Call{
+		{Normalized: Normalized{Validation: &ValidationInfo{RequestChecked: true, ResponseChecked: true}}},
+		{Normalized: Normalized{Validation: &ValidationInfo{RequestChecked: true, ResponseChecked: false}}},
+		{Normalized: Normalized{Validation: &ValidationInfo{RequestChecked: true, ResponseChecked: false}}},
+	})
+	if got.CallsInvariantBroken(3) {
+		t.Fatalf("invariant: %+v", got)
+	}
+	raw, err := json.Marshal(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m map[string]int
+	if err := json.Unmarshal(raw, &m); err != nil {
+		t.Fatal(err)
+	}
+	pairs := [][2]string{{"checked", "Checked"}, {"clean", "Clean"}, {"findings", "Findings"}, {"request_only", "RequestOnly"}, {"not_checked", "NotChecked"}}
+	for _, p := range pairs {
+		if m[p[0]] != m[p[1]] {
+			t.Fatalf("%s=%d %s=%d body=%s", p[0], m[p[0]], p[1], m[p[1]], raw)
+		}
+	}
+	if m["clean"] != 1 || m["request_only"] != 2 || m["findings"] != 0 || m["checked"] != 1 || m["not_checked"] != 0 {
+		t.Fatalf("counters=%v", m)
+	}
+}
+
+func (s SpecCounters) CallsInvariantBroken(calls int) bool {
+	return calls != s.Checked+s.RequestOnly+s.NotChecked || s.Checked != s.Clean+s.Findings
 }
 
 func TestSpecLogValueFindingsBeatSkipped(t *testing.T) {
