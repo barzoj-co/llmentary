@@ -184,6 +184,7 @@ func (s *Server) serveProxy(w http.ResponseWriter, r *http.Request) {
 		"path", origPath,
 		"session", session.ID,
 		"call_id", callID,
+		"seq", seq,
 		"upstream", call.Upstream.URL,
 	)
 	traceCtx := s.tracing.Propagator.Extract(r.Context(), propagation.HeaderCarrier(r.Header))
@@ -204,6 +205,7 @@ func (s *Server) serveProxy(w http.ResponseWriter, r *http.Request) {
 		startedAt: startedAt,
 		span:      span,
 		target:    target.String(),
+		seq:       seq,
 	}
 
 	if rewritten, ok := matchSpecOperation(r.Method, restPath); ok {

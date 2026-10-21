@@ -60,7 +60,7 @@ JSON shape and normalization rules.
 
 | Field | Type | Meaning |
 |---|---|---|
-| `id` | string | Proxy-generated id, currently `call_` plus base-36 counter. |
+| `id` | string | Proxy-generated id, currently `call_` plus base-36 counter. Unique within one proxy process, shared counter across sessions. Do not use it for order; use `seq`. |
 | `session_id` | string | Session bucket. |
 | `session_source` | string | `header`, `baggage`, `path`, or `default`. |
 | `seq` | number | 1-based order within the session. |
