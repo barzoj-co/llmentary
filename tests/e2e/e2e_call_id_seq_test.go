@@ -14,18 +14,31 @@ func TestE2ECallIDProcessGlobal(t *testing.T) {
 	a := liveSession()
 	b := liveSession()
 	body := []byte(`{"model":` + quoteJSON(liveModel()) + `,"input":"Reply with the single word pong.","max_output_tokens":16}`)
-	if status, _, resp, _ := postLive(t, apiKey, p, "/responses", a, body); status != 200 {
+	status, _, resp, a1Session := postLive(t, apiKey, p, "/responses", a, body)
+	if status != 200 {
 		t.Fatalf("A1 status=%d body=%s", status, redactLiveBody(resp))
 	}
 	_, _, _, bSession := postLive(t, apiKey, p, "/responses", b, body)
-	if status, _, resp, _ := postLive(t, apiKey, p, "/responses", a, body); status != 200 {
+	status, _, resp, a2Session := postLive(t, apiKey, p, "/responses", a, body)
+	if status != 200 {
 		t.Fatalf("A2 status=%d body=%s", status, redactLiveBody(resp))
 	}
-	call := liveLastCall(t, bSession)
-	if call["seq"] != float64(1) {
-		t.Fatalf("B seq=%v want 1 id=%v", call["seq"], call["id"])
+	a1Call := liveLastCall(t, a1Session)
+	bCall := liveLastCall(t, bSession)
+	a2Call := liveLastCall(t, a2Session)
+	a1ID, _ := a1Call["id"].(string)
+	bID, _ := bCall["id"].(string)
+	a2ID, _ := a2Call["id"].(string)
+	if a1ID == "" || bID == "" || a2ID == "" {
+		t.Fatalf("empty id A1=%q B=%q A2=%q", a1ID, bID, a2ID)
 	}
-	if call["id"] == "call_1" {
+	if bCall["seq"] != float64(1) {
+		t.Fatalf("B seq=%v want 1 id=%v", bCall["seq"], bID)
+	}
+	if bID == "call_1" {
 		t.Fatalf("B id unexpectedly call_1")
+	}
+	if a1ID == bID || a1ID == a2ID || bID == a2ID {
+		t.Fatalf("call IDs are not distinct: A1=%q B=%q A2=%q", a1ID, bID, a2ID)
 	}
 }
