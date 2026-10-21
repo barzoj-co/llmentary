@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/barzoj-co/llmentary/compare/v0.2.0...v0.2.1) (2026-10-21)
+
+
+### Bug Fixes
+
+* build with Go 1.26.10 ([#22](https://github.com/barzoj-co/llmentary/issues/22)) ([4b60a8c](https://github.com/barzoj-co/llmentary/commit/4b60a8ccb7e2b14c708e2a0a1f81336f487660f9))
+
 ## [0.2.0](https://github.com/barzoj-co/llmentary/compare/v0.1.0...v0.2.0) (2026-10-20)
 
 
