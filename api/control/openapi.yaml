@@ -1,76 +1,76 @@
 openapi: 3.1.0
 info:
   title: llmentary control API
-  version: 0.3.0
+  version: 0.4.0
   description: >
-    Local control API for session traces. Success bodies for session detail match
-    the Session/Call shapes in docs/data-model.md. Errors use
+    Local control API for session traces. Success bodies for session detail
+    match the Session/Call shapes in docs/data-model.md. Errors use
     {"error":{"type","message"}}.
 paths:
   /openapi.yaml:
     get:
       summary: This OpenAPI document
       responses:
-        "200":
+        '200':
           description: Control API contract
           content:
             application/yaml:
               schema:
                 type: string
-        "400":
-          $ref: "#/components/responses/InvalidParameter"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "405":
-          $ref: "#/components/responses/MethodNotAllowed"
+        '400':
+          $ref: '#/components/responses/InvalidParameter'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
   /healthz:
     get:
       summary: Liveness
       responses:
-        "200":
+        '200':
           description: ok
           content:
             text/plain:
               schema:
                 type: string
-        "400":
-          $ref: "#/components/responses/InvalidParameter"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "405":
-          $ref: "#/components/responses/MethodNotAllowed"
+        '400':
+          $ref: '#/components/responses/InvalidParameter'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
   /config:
     get:
       summary: Effective proxy configuration
       responses:
-        "200":
+        '200':
           description: config
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Config"
-        "400":
-          $ref: "#/components/responses/InvalidParameter"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "405":
-          $ref: "#/components/responses/MethodNotAllowed"
+                $ref: '#/components/schemas/Config'
+        '400':
+          $ref: '#/components/responses/InvalidParameter'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
   /version:
     get:
       summary: Clean version and commit
       responses:
-        "200":
+        '200':
           description: version
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Version"
-        "400":
-          $ref: "#/components/responses/InvalidParameter"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "405":
-          $ref: "#/components/responses/MethodNotAllowed"
+                $ref: '#/components/schemas/Version'
+        '400':
+          $ref: '#/components/responses/InvalidParameter'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
   /sessions:
     get:
       summary: List sessions without call bodies
@@ -79,54 +79,58 @@ paths:
           in: query
           schema:
             type: string
-            enum: [default, header, baggage, path]
+            enum:
+              - default
+              - header
+              - baggage
+              - path
       responses:
-        "200":
+        '200':
           description: session summaries
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SessionList"
-        "400":
-          $ref: "#/components/responses/InvalidParameter"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "405":
-          $ref: "#/components/responses/MethodNotAllowed"
+                $ref: '#/components/schemas/SessionList'
+        '400':
+          $ref: '#/components/responses/InvalidParameter'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
   /sessions/{id}:
     parameters:
-      - $ref: "#/components/parameters/SessionID"
+      - $ref: '#/components/parameters/SessionID'
     get:
       summary: Session detail
       responses:
-        "200":
+        '200':
           description: session
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Session"
-        "400":
-          $ref: "#/components/responses/InvalidParameter"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/SessionNotFound"
-        "405":
-          $ref: "#/components/responses/MethodNotAllowed"
+                $ref: '#/components/schemas/Session'
+        '400':
+          $ref: '#/components/responses/InvalidParameter'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/SessionNotFound'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
     delete:
       summary: Delete a session (idempotent)
       responses:
-        "204":
+        '204':
           description: deleted or already absent
-        "400":
-          $ref: "#/components/responses/InvalidParameter"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "405":
-          $ref: "#/components/responses/MethodNotAllowed"
+        '400':
+          $ref: '#/components/responses/InvalidParameter'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
   /sessions/{id}/wait:
     parameters:
-      - $ref: "#/components/parameters/SessionID"
+      - $ref: '#/components/parameters/SessionID'
       - name: timeout
         in: query
         schema:
@@ -150,42 +154,42 @@ paths:
         returns 404 session_not_found immediately. min_calls>=1 keeps waiting
         until the session appears or timeout, then 504 wait_timeout.
       responses:
-        "200":
+        '200':
           description: session
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Session"
-        "400":
-          $ref: "#/components/responses/InvalidParameter"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/SessionNotFoundWait"
-        "405":
-          $ref: "#/components/responses/MethodNotAllowed"
-        "504":
-          $ref: "#/components/responses/WaitTimeout"
+                $ref: '#/components/schemas/Session'
+        '400':
+          $ref: '#/components/responses/InvalidParameter'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/SessionNotFoundWait'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '504':
+          $ref: '#/components/responses/WaitTimeout'
   /sessions/{id}/otlp:
     parameters:
-      - $ref: "#/components/parameters/SessionID"
+      - $ref: '#/components/parameters/SessionID'
     get:
       summary: OTLP/JSON spans for the session
       responses:
-        "200":
+        '200':
           description: OTLP export
           content:
             application/json:
               schema:
                 type: object
-        "400":
-          $ref: "#/components/responses/InvalidParameter"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/SessionNotFound"
-        "405":
-          $ref: "#/components/responses/MethodNotAllowed"
+        '400':
+          $ref: '#/components/responses/InvalidParameter'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/SessionNotFound'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
 components:
   parameters:
     SessionID:
@@ -197,7 +201,9 @@ components:
   schemas:
     Error:
       type: object
-      required: [type, message]
+      required:
+        - type
+        - message
       properties:
         type:
           type: string
@@ -218,10 +224,11 @@ components:
           type: integer
     ErrorBody:
       type: object
-      required: [error]
+      required:
+        - error
       properties:
         error:
-          $ref: "#/components/schemas/Error"
+          $ref: '#/components/schemas/Error'
     Config:
       type: object
       properties:
@@ -241,7 +248,8 @@ components:
           type: string
     Version:
       type: object
-      required: [version]
+      required:
+        - version
       properties:
         version:
           type: string
@@ -251,15 +259,21 @@ components:
           type: string
     SessionList:
       type: object
-      required: [sessions]
+      required:
+        - sessions
       properties:
         sessions:
           type: array
           items:
-            $ref: "#/components/schemas/SessionSummary"
+            $ref: '#/components/schemas/SessionSummary'
     SessionSummary:
       type: object
-      required: [id, calls, active, sources, spec]
+      required:
+        - id
+        - calls
+        - active
+        - sources
+        - spec
       properties:
         id:
           type: string
@@ -281,15 +295,22 @@ components:
           type: object
           description: >
             Per-session spec-validation counters. Canonical keys match the
-            `proxy response` `spec=` tokens. Invariant:
-            `calls == checked + request_only + not_checked` and
-            `checked == clean + findings`. `spec=off` and `spec=skipped:*`
-            increment `not_checked`. `request_only` is not part of `checked`.
-          required: [checked, clean, findings, request_only, not_checked]
+            `proxy response` `spec=` tokens. Invariant: `calls == checked +
+            request_only + not_checked` and `checked == clean + findings`.
+            `spec=off` and `spec=skipped:*` increment `not_checked`.
+            `request_only` is not part of `checked`.
+          required:
+            - checked
+            - clean
+            - findings
+            - request_only
+            - not_checked
           properties:
             checked:
               type: integer
-              description: Calls with findings, or calls whose request and response were both validated (`spec=findings:N` or `spec=clean`).
+              description: >-
+                Calls with findings, or calls whose request and response were
+                both validated (`spec=findings:N` or `spec=clean`).
             clean:
               type: integer
               description: Checked calls with zero findings (`spec=clean`).
@@ -298,7 +319,10 @@ components:
               description: Checked calls with one or more findings (`spec=findings:N`).
             request_only:
               type: integer
-              description: Calls with no findings where the request was validated but the response was not (abort, 4xx, skip-after-request). Log token `spec=request_only`.
+              description: >-
+                Calls with no findings where the request was validated but the
+                response was not (abort, 4xx, skip-after-request). Log token
+                `spec=request_only`.
             not_checked:
               type: integer
               description: Validation off or skipped (`spec=off`, `spec=skipped:*`).
@@ -324,7 +348,9 @@ components:
               description: Alias of `not_checked` (0.x).
     Session:
       type: object
-      required: [id, calls]
+      required:
+        - id
+        - calls
       description: Full session trace. Call fields follow docs/data-model.md.
       properties:
         id:
@@ -332,7 +358,7 @@ components:
         calls:
           type: array
           items:
-            $ref: "#/components/schemas/Call"
+            $ref: '#/components/schemas/Call'
     Call:
       type: object
       description: Recorded LLM call. See docs/data-model.md for the full field set.
@@ -340,7 +366,9 @@ components:
       properties:
         id:
           type: string
-          description: Unique within one proxy process, shared counter across sessions. Do not use it for order; use seq.
+          description: >-
+            Unique within one proxy process, shared counter across sessions. Do
+            not use it for order; use seq.
         session_id:
           type: string
         session_source:
@@ -361,17 +389,26 @@ components:
           type: string
         http_status:
           type: integer
-          description: Upstream status. `0` when the client cancelled before headers (never a synthetic 502).
+          description: >-
+            Upstream status. `0` when the client cancelled before headers (never
+            a synthetic 502).
         stream:
           type: boolean
         client_aborted:
           type: boolean
-          description: True when the inbound client cancelled before a terminal stream event.
+          description: >-
+            True when the inbound client cancelled before a terminal stream
+            event.
         abort_phase:
           type: string
           nullable: true
-          enum: [before_headers, after_headers]
-          description: Present only when client_aborted is true. before_headers = cancel before upstream response headers; after_headers = cancel after headers / mid-stream.
+          enum:
+            - before_headers
+            - after_headers
+          description: >-
+            Present only when client_aborted is true. before_headers = cancel
+            before upstream response headers; after_headers = cancel after
+            headers / mid-stream.
         normalized:
           type: object
           additionalProperties: true
@@ -385,36 +422,38 @@ components:
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/ErrorBody"
+            $ref: '#/components/schemas/ErrorBody'
     Unauthorized:
       description: Missing or wrong bearer token
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/ErrorBody"
+            $ref: '#/components/schemas/ErrorBody'
     MethodNotAllowed:
       description: Unsupported method
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/ErrorBody"
+            $ref: '#/components/schemas/ErrorBody'
     SessionNotFound:
       description: No calls recorded for this session
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/ErrorBody"
+            $ref: '#/components/schemas/ErrorBody'
     SessionNotFoundWait:
       description: >
-        Wait with min_calls=0 on a session that was never created or was DELETE'd.
-        Same error as GET /sessions/{id}, plus id and waited_ms.
+        Wait with min_calls=0 on a session that was never created or was
+        DELETE'd. Same error as GET /sessions/{id}, plus id and waited_ms.
       content:
         application/json:
           schema:
             allOf:
-              - $ref: "#/components/schemas/ErrorBody"
+              - $ref: '#/components/schemas/ErrorBody'
               - type: object
-                required: [id, waited_ms]
+                required:
+                  - id
+                  - waited_ms
                 properties:
                   id:
                     type: string
@@ -426,8 +465,8 @@ components:
         application/json:
           schema:
             allOf:
-              - $ref: "#/components/schemas/Session"
+              - $ref: '#/components/schemas/Session'
               - type: object
                 properties:
                   error:
-                    $ref: "#/components/schemas/Error"
+                    $ref: '#/components/schemas/Error'
