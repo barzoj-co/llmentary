@@ -1,0 +1,180 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package proxy
+
+import (
+	"bytes"
+	"compress/gzip"
+	"encoding/json"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/barzoj-co/llmentary/internal/schemalint"
+	"github.com/barzoj-co/llmentary/internal/specvalidate"
+)
+
+func TestGunzipSplitJSONAndMergeValidation(t *testing.T) {
+	t.Parallel()
+	if _, err := gunzipBytes([]byte("nope"), 16); err == nil {
+		t.Fatal("bad gzip")
+	}
+	var buf bytes.Buffer
+	zw := gzip.NewWriter(&buf)
+	_, _ = zw.Write(bytes.Repeat([]byte("x"), 32))
+	_ = zw.Close()
+	if _, err := gunzipBytes(buf.Bytes(), 8); err == nil {
+		t.Fatal("too large")
+	}
+	var small bytes.Buffer
+	zw = gzip.NewWriter(&small)
+	_, _ = zw.Write([]byte(`{"ok":true}`))
+	_ = zw.Close()
+	got, err := gunzipBytes(small.Bytes(), 0)
+	if err != nil || string(got) != `{"ok":true}` {
+		t.Fatalf("%q %v", got, err)
+	}
+
+	first, rest, err := splitFirstJSON([]byte("\uFEFF{\"a\":1}  true"))
+	if err != nil || string(first) != `{"a":1}` || !strings.Contains(string(rest), "true") {
+		t.Fatalf("first=%q rest=%q err=%v", first, rest, err)
+	}
+	if _, _, err := splitFirstJSON([]byte(`{`)); err == nil {
+		t.Fatal("bad json")
+	}
+
+	call := &Call{Normalized: Normalized{Validation: &ValidationInfo{}}}
+	mergeResponseValidation(call, []specvalidate.Violation{{Keyword: "type"}}, []schemalint.Finding{{Key: "x"}}, 3, true)
+	if !call.Normalized.Validation.ResponseChecked || !call.Normalized.Validation.Truncated {
+		t.Fatalf("%+v", call.Normalized.Validation)
+	}
+	mergeResponseValidation(&Call{}, nil, nil, 0, false)
+
+	warns := requestDecodeWarnings("openai.chat", []byte(`{}`), "application/json")
+	if len(warns) == 0 || !strings.Contains(warns[0], "messages") {
+		t.Fatalf("%v", warns)
+	}
+	warns = requestDecodeWarnings("openai.responses", []byte(`{}`), "application/json")
+	if len(warns) == 0 || !strings.Contains(warns[0], "model") {
+		t.Fatalf("%v", warns)
+	}
+	warns = requestDecodeWarnings("openai.chat", []byte(`not-json`), "text/plain")
+	if len(warns) == 0 {
+		t.Fatal("bad json warning")
+	}
+	if !looksLikeJSON("application/json", nil) || !looksLikeJSON("", []byte(`[]`)) || looksLikeJSON("text/plain", []byte("x")) {
+		t.Fatal("looksLikeJSON")
+	}
+}
+
+func TestWriteEnforceRejectKinds(t *testing.T) {
+	t.Parallel()
+	rec := httptest.NewRecorder()
+	writeEnforceReject(rec, requestValidation{
+		reject:     true,
+		rejectKind: "spec_violation",
+		info:       ValidationInfo{Profile: "strict"},
+		violations: []specvalidate.Violation{
+			{Side: specvalidate.SideRequest, Pointer: "/model", Path: "model", Message: "missing"},
+			{Side: specvalidate.SideRequest, Pointer: "/messages", Path: "messages", Message: "missing"},
+			{Side: specvalidate.SideResponse, Pointer: "/id", Message: "skip"},
+		},
+	})
+	if rec.Code != 400 || !strings.Contains(rec.Body.String(), "+1 more") || rec.Header().Get("X-Llmentary-Rejected") != "spec_violation" {
+		t.Fatalf("%d %s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	writeEnforceReject(rec, requestValidation{
+		reject:     true,
+		rejectKind: "ignored_field",
+		info:       ValidationInfo{Profile: "relaxed"},
+		ignored: []schemalint.Finding{
+			{Action: schemalint.ActionReject, Pointer: "/x", Path: "x", Hint: "drop"},
+			{Action: schemalint.ActionReject, Pointer: "/y", Path: "y", Hint: "drop"},
+			{Action: schemalint.ActionReport, Pointer: "/z", Hint: "ignore"},
+		},
+	})
+	if rec.Code != 400 || !strings.Contains(rec.Body.String(), "llmentary_ignored_field") {
+		t.Fatalf("%s", rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	writeEnforceReject(rec, requestValidation{info: ValidationInfo{Profile: "strict"}})
+	if rec.Code != 400 || !strings.Contains(rec.Body.String(), "llmentary_spec_violation") {
+		t.Fatalf("%s", rec.Body.String())
+	}
+}
+
+func TestSpecModeAndOpenAPIStampCorners(t *testing.T) {
+	t.Parallel()
+	s := newAbortTestServer(t, NewMemoryStore())
+	if s.specMode() == "" {
+		t.Fatal("mode")
+	}
+	if (*Server)(nil).specMode() != DefaultSpecValidation {
+		t.Fatal("nil server")
+	}
+	if string(StampOpenAPIVersion([]byte("openapi: 3.1.0\n"), "1.2.3")) != "openapi: 3.1.0\n" {
+		t.Fatal("no info")
+	}
+	got := StampOpenAPIVersion([]byte("info:\n  title: x\n  version: 0\n"), "")
+	if !strings.Contains(string(got), "version: devel") {
+		t.Fatalf("%s", got)
+	}
+	if _, err := OpenAPIInfoVersion([]byte(":\n")); err == nil {
+		t.Fatal("bad yaml")
+	}
+	if _, err := OpenAPIInfoVersion([]byte("info:\n  title: x\n")); err == nil {
+		t.Fatal("missing version")
+	}
+	if err := CheckOpenAPIVersion([]byte("info:\n  version: 1\n"), "2"); err == nil {
+		t.Fatal("mismatch")
+	}
+}
+
+func TestParseChatHelpersAndSSEDelimiter(t *testing.T) {
+	t.Parallel()
+	if coalesce("", "x") != "x" || coalesce("a", "x") != "a" {
+		t.Fatal("coalesce")
+	}
+	if unionString(nil) != "" || unionString("hi") != "hi" {
+		t.Fatal("unionString")
+	}
+	if unionContentString("hi") != "hi" {
+		t.Fatal("unionContent")
+	}
+	idx, n := sseDelimiter([]byte("a\r\n\r\nb"))
+	if idx < 0 || n != 4 {
+		t.Fatalf("crlf %d %d", idx, n)
+	}
+	idx, n = sseDelimiter([]byte("a\n\nb"))
+	if idx < 0 || n != 2 {
+		t.Fatalf("lf %d %d", idx, n)
+	}
+	if i, _ := sseDelimiter([]byte("plain")); i != -1 {
+		t.Fatal("none")
+	}
+	if schemaHash(nil) != "" {
+		t.Fatal("empty hash")
+	}
+	if schemaHash(json.RawMessage(`{"b":1,"a":2}`)) == "" {
+		t.Fatal("schema hash")
+	}
+	args, argErr := parseJSONArguments("{")
+	if argErr == "" || args != nil {
+		t.Fatalf("%s %s", args, argErr)
+	}
+	if _, argErr := parseJSONArguments(""); argErr != "" {
+		t.Fatal("empty args")
+	}
+	if !hasNestedJSONKey(json.RawMessage(`{"a":{"b":1}}`), "a", "b") {
+		t.Fatal("nested")
+	}
+	if string(jsonField(json.RawMessage(`{"k":"v"}`), "k")) != `"v"` {
+		t.Fatal("jsonField")
+	}
+	if jsonField(json.RawMessage(`{`), "k") != nil {
+		t.Fatal("bad jsonField")
+	}
+}
