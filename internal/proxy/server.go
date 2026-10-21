@@ -275,9 +275,6 @@ func copyAndFlush(w http.ResponseWriter, r io.Reader, onChunk func([]byte)) (int
 		nr, er := r.Read(buf)
 		if nr > 0 {
 			chunk := append([]byte(nil), buf[:nr]...)
-			if onChunk != nil {
-				onChunk(chunk)
-			}
 			nw, ew := w.Write(chunk)
 			written += int64(nw)
 			if flusher != nil {
@@ -288,6 +285,9 @@ func copyAndFlush(w http.ResponseWriter, r io.Reader, onChunk func([]byte)) (int
 			}
 			if nr != nw {
 				return written, io.ErrShortWrite
+			}
+			if onChunk != nil {
+				onChunk(chunk)
 			}
 		}
 		if er != nil {

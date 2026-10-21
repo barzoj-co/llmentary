@@ -205,7 +205,7 @@ func parseSSE(raw []byte, startedAt time.Time) ([]SSEEvent, bool, []string) {
 		complete  bool
 		warnings  []string
 	)
-	flush := func() {
+	flush := func(markComplete bool) {
 		if eventName == "" && len(dataLines) == 0 {
 			return
 		}
@@ -216,7 +216,7 @@ func parseSSE(raw []byte, startedAt time.Time) ([]SSEEvent, bool, []string) {
 			AtMS:  time.Since(startedAt).Milliseconds(),
 		}
 		events = append(events, evt)
-		if bytes.Equal(bytes.TrimSpace(data), []byte("[DONE]")) {
+		if markComplete && sseTerminalSeen(eventName, data) {
 			complete = true
 		}
 		eventName = ""
@@ -226,7 +226,7 @@ func parseSSE(raw []byte, startedAt time.Time) ([]SSEEvent, bool, []string) {
 		line := scanner.Bytes()
 		line = bytes.TrimSuffix(line, []byte("\r"))
 		if len(line) == 0 {
-			flush()
+			flush(true)
 			continue
 		}
 		if bytes.HasPrefix(line, []byte(":")) {
@@ -248,7 +248,7 @@ func parseSSE(raw []byte, startedAt time.Time) ([]SSEEvent, bool, []string) {
 		}
 	}
 	if len(dataLines) > 0 || eventName != "" {
-		flush()
+		flush(false)
 	}
 	if err := scanner.Err(); err != nil {
 		warnings = append(warnings, "sse scan error: "+err.Error())
@@ -277,29 +277,50 @@ func (r *sseRecorder) Write(chunk []byte) {
 		}
 		block := append([]byte(nil), r.pending[:idx+delimLen]...)
 		r.pending = append([]byte(nil), r.pending[idx+delimLen:]...)
-		r.recordBlock(block)
+		r.recordBlock(block, true)
 	}
 }
 
 func (r *sseRecorder) Finish() ([]SSEEvent, bool, []string) {
 	if len(bytes.TrimSpace(r.pending)) > 0 {
-		r.recordBlock(r.pending)
+		r.recordBlock(r.pending, false)
 		r.pending = nil
 	}
 	return r.events, r.complete, r.warnings
 }
 
-func (r *sseRecorder) recordBlock(block []byte) {
+func (r *sseRecorder) recordBlock(block []byte, allowTerminal bool) {
 	events, complete, warnings := parseSSE(block, r.startedAt)
 	atMS := time.Since(r.startedAt).Milliseconds()
 	for _, event := range events {
 		event.AtMS = atMS
 		r.events = append(r.events, event)
 	}
-	if complete {
+	if complete && allowTerminal {
 		r.complete = true
 	}
 	r.warnings = append(r.warnings, warnings...)
+}
+
+func sseTerminalSeen(eventName string, data []byte) bool {
+	if bytes.Equal(bytes.TrimSpace(data), []byte("[DONE]")) {
+		return true
+	}
+	name := eventName
+	if name == "" {
+		var probe struct {
+			Type string `json:"type"`
+		}
+		if json.Unmarshal(data, &probe) == nil {
+			name = probe.Type
+		}
+	}
+	switch name {
+	case "response.completed", "response.failed", "response.incomplete":
+		return true
+	default:
+		return false
+	}
 }
 
 func sseDelimiter(b []byte) (int, int) {
