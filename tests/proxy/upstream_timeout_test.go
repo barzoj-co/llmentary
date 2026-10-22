@@ -416,6 +416,17 @@ func TestHeaderTimeoutDocsMatchWroteRequestContract(t *testing.T) {
 			t.Errorf("%s still claims header timeout always sets upstream_called: true", rel)
 		}
 	}
+	model, err := os.ReadFile(filepath.Join("..", "..", "docs", "data-model.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(model)
+	if !strings.Contains(text, `"upstream_called":`) {
+		t.Fatal("Call JSON example missing upstream_called")
+	}
+	if !strings.Contains(text, "| `upstream_called` | boolean |") {
+		t.Fatal("Call field table missing upstream_called")
+	}
 }
 
 func TestDefaultConfigOmitsUpstreamTimeouts(t *testing.T) {

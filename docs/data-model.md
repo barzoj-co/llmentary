@@ -54,6 +54,7 @@ JSON shape and normalization rules.
   "http_status": 200,
   "retry_count": 0,
   "retry_after": "",
+  "upstream_called": true,
   "normalized": {}
 }
 ```
@@ -79,6 +80,7 @@ JSON shape and normalization rules.
 | `sse_events` | array | Parsed SSE events for streaming responses. |
 | `stream` | boolean | Whether the response was detected as SSE. When the client aborts before response headers, this is the request body's `stream` flag. |
 | `http_status` | number | Upstream HTTP status, or proxy error status. `0` when the client cancelled before response headers (never a synthetic `502`). |
+| `upstream_called` | boolean | True when the outbound request was written (`httptrace.WroteRequest`). False if a header timeout or cancel happens before that. |
 | `retry_count` | number, optional | Integer parsed from `x-stainless-retry-count`. |
 | `retry_after` | string, optional | `retry-after-ms` or `retry-after` response header. |
 | `client_aborted` | boolean | True when the inbound client cancelled before a terminal stream event. |
