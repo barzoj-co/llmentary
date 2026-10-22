@@ -3,10 +3,12 @@
 package proxy
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"testing"
 )
 
@@ -54,8 +56,14 @@ func TestIsIncompleteUpstreamBody(t *testing.T) {
 	if !isIncompleteUpstreamBody(errors.New("http2: server sent GOAWAY and closed the connection; LastStreamID=1, ErrCode=NO_ERROR, debug=\"\"")) {
 		t.Fatal("http2 goaway")
 	}
-	if isIncompleteUpstreamBody(errors.New("context canceled")) {
+	if !isIncompleteUpstreamBody(http.ErrLineTooLong) {
+		t.Fatal("oversized chunk header")
+	}
+	if isIncompleteUpstreamBody(context.Canceled) {
 		t.Fatal("canceled is not an incomplete body")
+	}
+	if isIncompleteUpstreamBody(fmt.Errorf("read: %w", context.Canceled)) {
+		t.Fatal("wrapped cancel is not an incomplete body")
 	}
 }
 

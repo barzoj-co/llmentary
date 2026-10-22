@@ -3,9 +3,9 @@
 package proxy
 
 import (
+	"context"
 	"errors"
 	"io"
-	"strings"
 )
 
 const (
@@ -16,27 +16,17 @@ const (
 )
 
 // isIncompleteUpstreamBody reports a read that ended before the HTTP
-// framing was complete (no chunked terminator, short Content-Length).
-// A clean io.EOF after a complete body is not incomplete.
+// framing was complete. Classification is by provenance: any upstream
+// body-read error except a clean EOF or a client cancel. Write failures
+// and an already-gone client are filtered in shouldAbortClientResponse.
 func isIncompleteUpstreamBody(err error) bool {
-	if err == nil {
+	if err == nil || errors.Is(err, io.EOF) {
 		return false
 	}
-	if errors.Is(err, io.ErrUnexpectedEOF) {
-		return true
+	if errors.Is(err, context.Canceled) {
+		return false
 	}
-	msg := err.Error()
-	return strings.Contains(msg, "unexpected EOF") ||
-		strings.Contains(msg, "incomplete chunked") ||
-		strings.Contains(msg, "malformed chunked") ||
-		strings.Contains(msg, "invalid byte in chunk length") ||
-		strings.Contains(msg, "http chunk length too large") ||
-		strings.Contains(msg, "empty hex number for chunk length") ||
-		strings.Contains(msg, "stream error:") ||
-		strings.Contains(msg, "connection error:") ||
-		strings.Contains(msg, "server sent GOAWAY and closed the connection") ||
-		strings.Contains(msg, "connection reset") ||
-		strings.Contains(msg, "peer closed")
+	return true
 }
 
 // shouldAbortClientResponse reports whether the inbound HTTP handler
