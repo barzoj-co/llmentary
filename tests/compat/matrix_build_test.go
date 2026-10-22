@@ -93,21 +93,21 @@ func expectedWant(target, mode, surface, provider string, req []byte) matrixWant
 		return matrixWant{Status: 400, UpstreamCalled: false, Spec: "findings", Reject: true}
 	}
 	want := matrixWant{Status: 200, UpstreamCalled: true, Spec: "clean"}
+	if target == proxy.SpecTargetCompatible {
+		// Compatible response extras are stored as response_shape info
+		// and do not count as spec=findings. These fixtures have no
+		// request-side warn findings.
+		return want
+	}
 	noisyJSON := provider == "together" || provider == "openrouter" || provider == "groq" || provider == "deepseek"
 	if strings.HasPrefix(surface, "responses.") {
 		want.Spec = "findings"
 		return want
 	}
-	if target == proxy.SpecTargetOpenAI {
-		if surface == "chat.json" && (noisyJSON || provider == "ollama" || provider == "llamacpp" || provider == "mistral" || provider == "gemini" || vendorReq) {
-			want.Spec = "findings"
-		}
-		if surface == "chat.sse" && (provider == "together" || provider == "openrouter") {
-			want.Spec = "findings"
-		}
-		return want
+	if surface == "chat.json" && (noisyJSON || provider == "ollama" || provider == "llamacpp" || provider == "mistral" || provider == "gemini" || vendorReq) {
+		want.Spec = "findings"
 	}
-	if (surface == "chat.json" && noisyJSON) || (surface == "chat.sse" && (provider == "together" || provider == "openrouter")) {
+	if surface == "chat.sse" && (provider == "together" || provider == "openrouter") {
 		want.Spec = "findings"
 	}
 	return want

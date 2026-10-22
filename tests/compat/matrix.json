@@ -20,7 +20,7 @@
     "want": {
       "status": 200,
       "upstream_called": true,
-      "spec": "findings"
+      "spec": "clean"
     }
   },
   {
@@ -68,7 +68,7 @@
     "want": {
       "status": 200,
       "upstream_called": true,
-      "spec": "findings"
+      "spec": "clean"
     }
   },
   {
@@ -91,7 +91,7 @@
     "want": {
       "status": 200,
       "upstream_called": true,
-      "spec": "findings"
+      "spec": "clean"
     }
   },
   {
@@ -365,7 +365,7 @@
     "want": {
       "status": 200,
       "upstream_called": true,
-      "spec": "findings"
+      "spec": "clean"
     }
   },
   {
@@ -383,7 +383,7 @@
     "want": {
       "status": 200,
       "upstream_called": true,
-      "spec": "findings"
+      "spec": "clean"
     }
   },
   {
@@ -438,7 +438,7 @@
     "want": {
       "status": 200,
       "upstream_called": true,
-      "spec": "findings"
+      "spec": "clean"
     }
   },
   {
@@ -777,7 +777,7 @@
     "want": {
       "status": 200,
       "upstream_called": true,
-      "spec": "findings"
+      "spec": "clean"
     }
   },
   {
@@ -795,7 +795,7 @@
     "want": {
       "status": 200,
       "upstream_called": true,
-      "spec": "findings"
+      "spec": "clean"
     }
   },
   {
@@ -850,7 +850,7 @@
     "want": {
       "status": 200,
       "upstream_called": true,
-      "spec": "findings"
+      "spec": "clean"
     }
   },
   {
@@ -1238,7 +1238,7 @@
     "want": {
       "status": 200,
       "upstream_called": true,
-      "spec": "findings"
+      "spec": "clean"
     }
   },
   {
@@ -1256,7 +1256,7 @@
     "want": {
       "status": 200,
       "upstream_called": true,
-      "spec": "findings"
+      "spec": "clean"
     }
   },
   {
@@ -1311,7 +1311,7 @@
     "want": {
       "status": 200,
       "upstream_called": true,
-      "spec": "findings"
+      "spec": "clean"
     }
   },
   {
@@ -1354,7 +1354,7 @@
     "want": {
       "status": 200,
       "upstream_called": true,
-      "spec": "findings"
+      "spec": "clean"
     }
   },
   {
@@ -1402,7 +1402,7 @@
     "want": {
       "status": 200,
       "upstream_called": true,
-      "spec": "findings"
+      "spec": "clean"
     }
   },
   {
@@ -1425,7 +1425,7 @@
     "want": {
       "status": 200,
       "upstream_called": true,
-      "spec": "findings"
+      "spec": "clean"
     }
   },
   {
@@ -1699,7 +1699,7 @@
     "want": {
       "status": 200,
       "upstream_called": true,
-      "spec": "findings"
+      "spec": "clean"
     }
   },
   {
@@ -1717,7 +1717,7 @@
     "want": {
       "status": 200,
       "upstream_called": true,
-      "spec": "findings"
+      "spec": "clean"
     }
   },
   {
@@ -1772,7 +1772,7 @@
     "want": {
       "status": 200,
       "upstream_called": true,
-      "spec": "findings"
+      "spec": "clean"
     }
   },
   {
@@ -2160,7 +2160,7 @@
     "want": {
       "status": 200,
       "upstream_called": true,
-      "spec": "findings"
+      "spec": "clean"
     }
   },
   {
@@ -2178,7 +2178,7 @@
     "want": {
       "status": 200,
       "upstream_called": true,
-      "spec": "findings"
+      "spec": "clean"
     }
   },
   {
@@ -2233,7 +2233,7 @@
     "want": {
       "status": 200,
       "upstream_called": true,
-      "spec": "findings"
+      "spec": "clean"
     }
   },
   {
@@ -2572,7 +2572,7 @@
     "want": {
       "status": 200,
       "upstream_called": true,
-      "spec": "findings"
+      "spec": "clean"
     }
   },
   {
@@ -2590,7 +2590,7 @@
     "want": {
       "status": 200,
       "upstream_called": true,
-      "spec": "findings"
+      "spec": "clean"
     }
   },
   {
@@ -2645,7 +2645,7 @@
     "want": {
       "status": 200,
       "upstream_called": true,
-      "spec": "findings"
+      "spec": "clean"
     }
   },
   {
@@ -3033,7 +3033,7 @@
     "want": {
       "status": 200,
       "upstream_called": true,
-      "spec": "findings"
+      "spec": "clean"
     }
   },
   {
@@ -3051,7 +3051,7 @@
     "want": {
       "status": 200,
       "upstream_called": true,
-      "spec": "findings"
+      "spec": "clean"
     }
   },
   {
@@ -3106,7 +3106,7 @@
     "want": {
       "status": 200,
       "upstream_called": true,
-      "spec": "findings"
+      "spec": "clean"
     }
   },
   {
@@ -3148,7 +3148,7 @@
     "want": {
       "status": 200,
       "upstream_called": true,
-      "spec": "findings"
+      "spec": "clean"
     }
   },
   {
@@ -3171,7 +3171,7 @@
     "want": {
       "status": 200,
       "upstream_called": true,
-      "spec": "findings"
+      "spec": "clean"
     }
   },
   {
@@ -3241,7 +3241,7 @@
     "want": {
       "status": 200,
       "upstream_called": true,
-      "spec": "findings"
+      "spec": "clean"
     }
   },
   {
@@ -3445,7 +3445,7 @@
     "want": {
       "status": 200,
       "upstream_called": true,
-      "spec": "findings"
+      "spec": "clean"
     }
   },
   {
@@ -3463,7 +3463,7 @@
     "want": {
       "status": 200,
       "upstream_called": true,
-      "spec": "findings"
+      "spec": "clean"
     }
   },
   {
@@ -3518,7 +3518,7 @@
     "want": {
       "status": 200,
       "upstream_called": true,
-      "spec": "findings"
+      "spec": "clean"
     }
   },
   {
@@ -3560,7 +3560,7 @@
     "want": {
       "status": 200,
       "upstream_called": true,
-      "spec": "findings"
+      "spec": "clean"
     }
   },
   {
@@ -3583,7 +3583,7 @@
     "want": {
       "status": 200,
       "upstream_called": true,
-      "spec": "findings"
+      "spec": "clean"
     }
   },
   {
@@ -3653,7 +3653,7 @@
     "want": {
       "status": 200,
       "upstream_called": true,
-      "spec": "findings"
+      "spec": "clean"
     }
   },
   {
@@ -3857,7 +3857,7 @@
     "want": {
       "status": 200,
       "upstream_called": true,
-      "spec": "findings"
+      "spec": "clean"
     }
   },
   {
@@ -3875,7 +3875,7 @@
     "want": {
       "status": 200,
       "upstream_called": true,
-      "spec": "findings"
+      "spec": "clean"
     }
   },
   {
@@ -3930,7 +3930,7 @@
     "want": {
       "status": 200,
       "upstream_called": true,
-      "spec": "findings"
+      "spec": "clean"
     }
   },
   {
