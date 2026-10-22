@@ -44,11 +44,11 @@ func TestGunzipSplitJSONAndMergeValidation(t *testing.T) {
 	}
 
 	call := &Call{Normalized: Normalized{Validation: &ValidationInfo{}}}
-	mergeResponseValidation(call, []specvalidate.Violation{{Keyword: "type"}}, []schemalint.Finding{{Key: "x"}}, 3, true)
+	mergeResponseValidation(call, []specvalidate.Violation{{Keyword: "type"}}, []schemalint.Finding{{Key: "x"}}, 3, true, 50)
 	if !call.Normalized.Validation.ResponseChecked || !call.Normalized.Validation.Truncated {
 		t.Fatalf("%+v", call.Normalized.Validation)
 	}
-	mergeResponseValidation(&Call{}, nil, nil, 0, false)
+	mergeResponseValidation(&Call{}, nil, nil, 0, false, 50)
 
 	warns := requestDecodeWarnings("openai.chat", []byte(`{}`), "application/json")
 	if len(warns) == 0 || !strings.Contains(warns[0], "messages") {

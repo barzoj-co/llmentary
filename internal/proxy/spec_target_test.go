@@ -154,6 +154,38 @@ func TestApplySpecTargetCompatible(t *testing.T) {
 	}
 }
 
+func TestApplyCompatibleSummarizesAndDropsResponseNoise(t *testing.T) {
+	t.Parallel()
+	vs := []specvalidate.Violation{
+		{Side: specvalidate.SideResponse, Keyword: "unevaluatedProperties", Pointer: "/timings", Message: "unknown field timings"},
+		{Side: specvalidate.SideResponse, Keyword: "additionalProperties", Pointer: "/x_groq", Message: "unknown field x_groq"},
+		{Side: specvalidate.SideResponse, Keyword: "enum", Pointer: "/choices/0/finish_reason", Path: "choices[0].finish_reason", Message: "value must be one of"},
+		{Side: specvalidate.SideResponse, Keyword: "enum", Pointer: "/choices/0/finish_reason", Path: "choices[0].finish_reason", Message: "value must be one of", Count: 2},
+		{Side: specvalidate.SideRequest, Keyword: "type", Pointer: "/max_tokens", Message: "got string, want integer"},
+	}
+	got, ig := applyCompatibleTarget(vs, nil, nil)
+	if len(ig) != 0 {
+		t.Fatalf("ignored=%v", ig)
+	}
+	var shape, req int
+	for _, v := range got {
+		switch {
+		case v.Keyword == specvalidate.KeywordResponseShape:
+			shape++
+			if v.Severity != specvalidate.SeverityInfo || v.Count != 3 || v.Pointer != "/choices/0/finish_reason" {
+				t.Fatalf("shape=%+v", v)
+			}
+		case v.Pointer == "/max_tokens":
+			req++
+		default:
+			t.Fatalf("unexpected %+v", v)
+		}
+	}
+	if shape != 1 || req != 1 {
+		t.Fatalf("got=%v", got)
+	}
+}
+
 func TestApplySpecTargetCompatibleRelaxesResponseRequired(t *testing.T) {
 	t.Parallel()
 	vs := []specvalidate.Violation{
@@ -176,10 +208,13 @@ func TestApplySpecTargetCompatibleRelaxesResponseRequired(t *testing.T) {
 		if v.Keyword == "required" && strings.Contains(v.Message, "error") {
 			t.Fatalf("response error stayed a violation: %+v", v)
 		}
-		if v.Keyword == "required" && strings.Contains(v.Message, "message") {
+		if v.Keyword == specvalidate.KeywordResponseShape && v.Severity != specvalidate.SeverityInfo {
+			t.Fatalf("response_shape severity=%q", v.Severity)
+		}
+		if v.Keyword == specvalidate.KeywordResponseShape && v.Pointer == "/choices/0" && strings.Contains(v.Message, "message") {
 			keptMessage = true
 		}
-		if v.Keyword == "type" && v.Pointer == "/choices/0/logprobs" {
+		if (v.Keyword == "type" || v.Keyword == specvalidate.KeywordResponseShape) && v.Pointer == "/choices/0/logprobs" {
 			keptType = true
 		}
 	}

@@ -48,6 +48,7 @@ variables plus CLI flags.
 | `--spec-profile` | `LLMENTARY_SPEC_PROFILE` | `relaxed` | Spec profile: `strict` (pinned spec + closed-world) or `relaxed` (strict plus `api/openai/relax-overlay.yaml`). |
 | `--spec-validation-max-bytes` | `LLMENTARY_SPEC_VALIDATION_MAX_BYTES` | `8388608` | Maximum request body size to validate. Larger bodies are forwarded and marked `skipped_reason: body_too_large`. |
 | `--spec-log-max` | `LLMENTARY_SPEC_LOG_MAX` | `5` | After the summary WARN, log at most this many per-finding WARN lines. `0` logs the summary only. |
+| `--spec-response-findings-max` | `LLMENTARY_SPEC_RESPONSE_FINDINGS_MAX` | `50` | Maximum stored response-side spec findings per call. Further distinct findings set `validation.truncated`. `0` uses the default. |
 | `--session-from` | `LLMENTARY_SESSION_FROM` | `header,baggage,path,default` | Ordered session sources. Invalid values exit non-zero. |
 | `--default-session` | `LLMENTARY_DEFAULT_SESSION` | `default` | Session id used when `default` is in `--session-from` and the call has no other marker. |
 | `--allow-path-prefix` | `LLMENTARY_ALLOW_PATH_PREFIXES` | empty | Extra first path segments allowed after `/s/{session}` and `/u/{name}` are stripped. Repeatable, or comma-separated in the env var. |
@@ -628,7 +629,14 @@ Where findings show up: trace (`normalized.spec_violations`), proxy log (WARN), 
 
 How to tell a clean run from an unchecked one: the `INFO proxy response` line
 always carries a compact `spec=` field. `spec=clean` means request and response
-were checked and produced zero findings. `spec=findings:N` is the finding count.
+were checked and produced zero findings. `spec=findings:N` is the WARN finding count
+(request findings and target-`openai` response findings). Target `openai-compatible`
+summarizes remaining response findings as `response_shape` at `severity=info`; those
+rows are stored but never counted in `spec=findings:N` and are not WARN-logged.
+Vendor extra fields on compatible responses (`timings`, `x_groq`, `provider`, …)
+produce no finding. Stored response findings are capped at
+`--spec-response-findings-max` (default 50) for both targets; overflow sets
+`validation.truncated`.
 `spec=off` is validation disabled. `spec=skipped:<reason>` is a skip
 (`body_too_large`, `unsupported_content_encoding`, …). `spec=request_only` means
 the request was checked and the response was not (for example a cancel before

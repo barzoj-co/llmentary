@@ -127,6 +127,11 @@ func run(args []string, stdout, stderr io.Writer) int {
 		specLogMax = *cfg.SpecLogMax
 	}
 	fs.IntVar(&specLogMax, "spec-log-max", specLogMax, "max per-finding WARN lines after the summary; 0 = summary only (env LLMENTARY_SPEC_LOG_MAX)")
+	responseFindingsMax := proxy.DefaultSpecResponseFindingsMax
+	if cfg.SpecResponseFindingsMax > 0 {
+		responseFindingsMax = cfg.SpecResponseFindingsMax
+	}
+	fs.IntVar(&responseFindingsMax, "spec-response-findings-max", responseFindingsMax, "max stored response spec findings per call; 0 = default 50 (env LLMENTARY_SPEC_RESPONSE_FINDINGS_MAX)")
 	sessionFrom := strings.Join(cfg.SessionFrom, ",")
 	if sessionFrom == "" {
 		sessionFrom = proxy.DefaultSessionFrom
@@ -147,6 +152,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	cfg.SpecLogMax = &specLogMax
+	cfg.SpecResponseFindingsMax = responseFindingsMax
 	cfg.UpstreamHeaderTimeout = headerTO.d
 	cfg.UpstreamIdleTimeout = idleTO.d
 	if *showVersion {

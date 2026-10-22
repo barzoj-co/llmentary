@@ -83,6 +83,32 @@ func TestSpecLogValueFindingsBeatSkipped(t *testing.T) {
 	}
 }
 
+func TestSpecLogValueSkipsResponseShape(t *testing.T) {
+	info := []specvalidate.Violation{
+		{Keyword: specvalidate.KeywordResponseShape, Side: specvalidate.SideResponse, Severity: specvalidate.SeverityInfo, Count: 4},
+		{Keyword: "required", Side: specvalidate.SideRequest, Count: 1},
+	}
+	got := specLogValue(Call{
+		Normalized: Normalized{
+			Validation:     &ValidationInfo{RequestChecked: true, ResponseChecked: true},
+			SpecViolations: &info,
+		},
+	}, "warn")
+	if got != "findings:1" {
+		t.Fatalf("got=%q want findings:1", got)
+	}
+	onlyInfo := []specvalidate.Violation{{Keyword: specvalidate.KeywordResponseShape, Severity: specvalidate.SeverityInfo, Count: 9}}
+	got = specLogValue(Call{
+		Normalized: Normalized{
+			Validation:     &ValidationInfo{RequestChecked: true, ResponseChecked: true},
+			SpecViolations: &onlyInfo,
+		},
+	}, "warn")
+	if got != "clean" {
+		t.Fatalf("got=%q want clean", got)
+	}
+}
+
 func TestWaitQuietUnknownSessionNotFound(t *testing.T) {
 	store := NewMemoryStore()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)

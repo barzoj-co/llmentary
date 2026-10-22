@@ -2,8 +2,8 @@
 
 This guide is for a developer who already talks to an OpenAI-compatible
 upstream (DeepSeek, Gemini's OpenAI surface, OpenRouter, Groq, Mistral, Ollama,
-llama.cpp, vLLM, …) and wants `llmentary` in front of it. It matches v0.5.0
-(COMPAT-1..6 and COMPAT-8). The proxy does not translate request or response
+llama.cpp, vLLM, …) and wants `llmentary` in front of it. It matches v0.5.x
+(COMPAT-1..8). The proxy does not translate request or response
 formats. It forwards the body and auth headers unchanged and records a tee copy.
 
 What is validated in `--spec-validation enforce` depends on the per-upstream
@@ -97,7 +97,7 @@ fields with a wrong type are forwarded as warnings.
 | Unknown properties (`thinking`, `top_k`, `prefix`, `reasoning_content`, `reasoning_details`, `extra_content`, `extra_body`, …) | local 400 | forwarded; recorded as `ignored_fields` `kind=vendor_field`, `severity=info`, `action=report_only` |
 | Extended enums (`tool_choice:"any"`, …) | local 400 | forwarded; `spec_violations` with `severity=warning` |
 | OpenAI-only schema-keyword lints (`minLength`, `examples`, `oneOf`, `allOf`, unresolved `$ref`, Responses `strict_fallback_predicted`, …) | `reject_in_enforce` | rematched to `severity=info` / `report_only` (COMPAT-3) |
-| Response-side `spec_violations` | recorded, never reject | recorded unchanged (see [Known gaps](#known-gaps-compat-7)) |
+| Response-side `spec_violations` | recorded, never reject; counted in `spec=findings:N` | summarized as `response_shape` (`severity=info`, one row per pointer+keyword); never WARN / never counted in `spec=findings:N`. Vendor extras produce no finding. See [Response-side findings (COMPAT-7)](#response-side-findings-compat-7) |
 
 Unknown fields use hint
 `Forwarded to the upstream unchanged. This field is not in the OpenAI request schema.`
@@ -489,15 +489,23 @@ Request-side OpenAI-only lints rematch as above. Response-side
 `ignored_fields` `strict_fallback` also rematches (see below); other
 response-side findings do not.
 
-## Known gaps (COMPAT-7)
+## Response-side findings (COMPAT-7)
 
-Response-side `spec_violations` are **not** rematched for `openai-compatible`.
-Compatible upstreams often omit or add response fields the pinned OpenAI
-schema does not expect, so `spec_violations` on the response can be noisy
-(`severity` stays as compiled; they never reject). Response-side
-`ignored_fields` `strict_fallback` is the exception: when a successful
-Responses body confirms a tool that omitted `strict`, rematching sets
-`severity=info` and `action=report_only`. COMPAT-7 is open.
+Response-side `spec_violations` never reject. Target `openai` stores them as
+compiled and counts them in `spec=findings:N`. Target `openai-compatible`
+summarizes remaining response findings as one `response_shape` row per
+distinct pointer+keyword (`severity=info`, with `count`). Those rows are
+stored on the call but are not WARN-logged and are not counted in
+`spec=findings:N`. Extra vendor fields (`timings`, `x_groq`, `provider`, …)
+produce no finding. Omitted OpenAI-required-nullable keys stay
+`ignored_fields` `kind=compatible_optional`.
+
+Both targets cap stored response findings at `--spec-response-findings-max`
+(default 50). Overflow sets `validation.truncated`.
+
+Response-side `ignored_fields` `strict_fallback` is the exception for
+OpenAI-only lints: when a successful Responses body confirms a tool that
+omitted `strict`, rematching sets `severity=info` and `action=report_only`.
 
 ## Client examples
 
