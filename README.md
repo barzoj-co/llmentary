@@ -121,6 +121,7 @@ JS/TS tests `import { llmentary } from "llmentary/vitest"` or
 - [Assertions: trace vs free text](docs/assertions-guide.md)
 - [Proxy configuration and control API](docs/proxy.md)
 - [Provider compatibility and SDK wiring](docs/providers.md)
+- [OpenAI-compatible providers](docs/openai-compatible.md)
 - [Recorded trace data model](docs/data-model.md)
 - [OTel GenAI mapping](docs/otel.md)
 - [Binaries](docs/binaries.md)

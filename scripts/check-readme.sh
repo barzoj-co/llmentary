@@ -88,6 +88,7 @@ required_snippets = (
     "const lm = llmentary()",
     "[Isolation spec](docs/isolation-spec.md)",
     "](testdata/isolation/)",
+    "[OpenAI-compatible providers](docs/openai-compatible.md)",
 )
 
 def has_markdown_dest(text, needle):
