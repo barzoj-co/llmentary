@@ -63,7 +63,7 @@ func TestOpenAPIAliasDocsMarkDeprecated(t *testing.T) {
 		}
 		text := string(raw)
 		for _, n := range []string{"PascalCase", "deprecated", "removed in 1.0"} {
-			if !strings.Contains(strings.ToLower(text), n) {
+			if !strings.Contains(strings.ToLower(text), strings.ToLower(n)) {
 				t.Errorf("%s missing %q", rel, n)
 			}
 		}
