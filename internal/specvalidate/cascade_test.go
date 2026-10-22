@@ -248,6 +248,79 @@ func hasPointerPrefix(vs []Violation, prefix string) bool {
 	return false
 }
 
+func TestCascadeHelperEdges(t *testing.T) {
+	t.Parallel()
+	if collectKnownProperties(nil, "") != nil {
+		t.Fatal("empty root should skip walk")
+	}
+	if collectKnownProperties(map[string]any{"components": map[string]any{"schemas": map[string]any{}}}, "Missing") == nil {
+		t.Fatal("missing schema should still return a map")
+	}
+	if joinPattern("", "x") != "/x" {
+		t.Fatalf("join empty parent=%q", joinPattern("", "x"))
+	}
+	var none objectProps
+	if none.has("", "model") {
+		t.Fatal("nil objectProps.has")
+	}
+	if parent, field := splitPointerField(""); field != "" || parent != "" {
+		t.Fatalf("empty pointer parent=%q field=%q", parent, field)
+	}
+	if underPointer("/a", "") {
+		t.Fatal("empty root is not a prefix")
+	}
+	if isOneOfBranchNoise(schemaErr{pointer: "/tools/0", keyword: "required"}, "", nil) {
+		t.Fatal("empty item prefix is not noise")
+	}
+	if isOneOfBranchNoise(schemaErr{pointer: "/tools/0/role", keyword: "enum"}, "/tools/0", nil) != true {
+		t.Fatal("role enum under item should be noise")
+	}
+	if isOneOfBranchNoise(schemaErr{pointer: "/tools/0/name/nested", keyword: "type"}, "/tools/0", nil) {
+		t.Fatal("nested type is not item-level noise")
+	}
+	if got := filterCascadedFindings(nil, objectProps{}); got != nil && len(got) != 0 {
+		t.Fatalf("empty in=%v", got)
+	}
+	known := objectProps{"": {"model": {}, "max_tokens": {}}}
+	dropped := filterCascadedFindings([]schemaErr{{
+		keyword:    "unevaluatedProperties",
+		pointer:    "/",
+		extraNames: []string{"model", "max_tokens"},
+	}}, known)
+	if len(dropped) != 0 {
+		t.Fatalf("root known extras should drop: %v", dropped)
+	}
+	kept := filterCascadedFindings([]schemaErr{{
+		keyword:    "unevaluatedProperties",
+		pointer:    "/",
+		extraNames: []string{"model", "vendor_x"},
+	}}, known)
+	if len(kept) != 1 || len(kept[0].extraNames) != 1 || kept[0].extraNames[0] != "vendor_x" {
+		t.Fatalf("kept extras=%v", kept)
+	}
+	if keywordSpecificity("pattern") != 2 || keywordSpecificity("banana") != 1 {
+		t.Fatalf("specificity pattern=%d banana=%d", keywordSpecificity("pattern"), keywordSpecificity("banana"))
+	}
+	if !violationMoreSpecific(Violation{Side: "request"}, Violation{Side: "response"}) {
+		t.Fatal("request side should rank before response")
+	}
+	spec := map[string]any{
+		"components": map[string]any{
+			"schemas": map[string]any{
+				"Root": map[string]any{
+					"prefixItems": []any{
+						map[string]any{"properties": map[string]any{"a": map[string]any{"type": "string"}}},
+					},
+				},
+			},
+		},
+	}
+	props := collectKnownProperties(spec, "Root")
+	if !props.has("/*", "a") {
+		t.Fatalf("prefixItems props=%v", props)
+	}
+}
+
 func countSchemaFindings(vs []Violation) int {
 	n := 0
 	for _, v := range vs {
