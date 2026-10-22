@@ -586,6 +586,12 @@ func (s *Server) logProxyResponse(ex *proxyExchange, call Call, status any, extr
 		"spec", specLogValue(call, s.specMode()),
 	}
 	args = append(args, extra...)
+	if err := call.Normalized.Error; err != nil && err.Normalized != "" {
+		args = append(args, "error", err.Normalized)
+	}
+	if call.Normalized.StreamTruncated {
+		args = append(args, "stream_truncated", true)
+	}
 	s.logger().Info("proxy response", args...)
 }
 

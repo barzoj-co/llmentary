@@ -64,3 +64,16 @@ func TestVersionLineUnknownPlaceholders(t *testing.T) {
 		t.Fatalf("line=%s", line)
 	}
 }
+
+func TestVersionLineIsTheHumanFormat(t *testing.T) {
+	resetBuildInfo()
+	t.Cleanup(resetBuildInfo)
+	SetBuildInfo("0.5.0", "abc", "2026-10-22T00:00:00Z")
+	line := VersionLine()
+	if !strings.HasPrefix(line, "llmentary 0.5.0 (") {
+		t.Fatalf("line=%s", line)
+	}
+	if VersionString() != "0.5.0" {
+		t.Fatalf("semver=%s", VersionString())
+	}
+}
