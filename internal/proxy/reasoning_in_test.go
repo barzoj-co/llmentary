@@ -84,3 +84,27 @@ func TestScanReasoningTypeItemAndEmptyDetails(t *testing.T) {
 		t.Fatalf("mixed %+v", got)
 	}
 }
+
+func TestReasoningEncryptedOnlyAndUnicodeChars(t *testing.T) {
+	t.Parallel()
+	enc := &Call{}
+	applyRequestReasoningIn(enc, []byte(`{"model":"m","input":[{"type":"reasoning","summary":[],"encrypted_content":"enc"}]}`))
+	if enc.Normalized.ReasoningIn == nil || enc.Normalized.ReasoningIn.WithReasoning != 1 || enc.Normalized.ReasoningIn.Chars != 0 {
+		t.Fatalf("encrypted-only %+v", enc.Normalized.ReasoningIn)
+	}
+	emptyEnc := &Call{}
+	applyRequestReasoningIn(emptyEnc, []byte(`{"model":"m","input":[{"type":"reasoning","summary":[],"encrypted_content":""}]}`))
+	if emptyEnc.Normalized.ReasoningIn != nil {
+		t.Fatalf("empty encrypted %+v", emptyEnc.Normalized.ReasoningIn)
+	}
+	uni := &Call{}
+	applyRequestReasoningIn(uni, []byte(`{"model":"m","messages":[{"role":"assistant","content":"x","reasoning_content":"思考"}]}`))
+	if uni.Normalized.ReasoningIn == nil || uni.Normalized.ReasoningIn.Chars != 2 {
+		t.Fatalf("unicode chars %+v", uni.Normalized.ReasoningIn)
+	}
+	details := &Call{}
+	applyRequestReasoningIn(details, []byte(`{"model":"m","input":[{"type":"reasoning","summary":[{"text":"思考"}]}]}`))
+	if details.Normalized.ReasoningIn == nil || details.Normalized.ReasoningIn.Chars != 2 {
+		t.Fatalf("unicode summary %+v", details.Normalized.ReasoningIn)
+	}
+}

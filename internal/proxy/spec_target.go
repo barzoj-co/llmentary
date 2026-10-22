@@ -3,8 +3,10 @@
 package proxy
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/barzoj-co/llmentary/internal/schemalint"
@@ -101,9 +103,9 @@ func (c *Config) validateSpecTargets() error {
 	return nil
 }
 
-func applySpecTarget(target string, violations []specvalidate.Violation, ignored []schemalint.Finding) ([]specvalidate.Violation, []schemalint.Finding) {
+func applySpecTarget(target string, violations []specvalidate.Violation, ignored []schemalint.Finding, raw []byte) ([]specvalidate.Violation, []schemalint.Finding) {
 	if target == SpecTargetCompatible {
-		return applyCompatibleTarget(violations, ignored)
+		return applyCompatibleTarget(violations, ignored, raw)
 	}
 	return applyOpenAITarget(violations, ignored)
 }
@@ -117,7 +119,8 @@ func applyOpenAITarget(violations []specvalidate.Violation, ignored []schemalint
 	return violations, ignored
 }
 
-func applyCompatibleTarget(violations []specvalidate.Violation, ignored []schemalint.Finding) ([]specvalidate.Violation, []schemalint.Finding) {
+func applyCompatibleTarget(violations []specvalidate.Violation, ignored []schemalint.Finding, raw []byte) ([]specvalidate.Violation, []schemalint.Finding) {
+	inst := requestInstance(raw)
 	kept := violations[:0]
 	for _, v := range violations {
 		if v.Side == specvalidate.SideResponse {
@@ -128,7 +131,7 @@ func applyCompatibleTarget(violations []specvalidate.Violation, ignored []schema
 			ignored = append(ignored, vendorFindingFromViolation(v, schemalint.KindVendorField, schemalint.SeverityInfo, vendorFieldHint))
 			continue
 		}
-		if !isCompatibleReject(v) {
+		if !isCompatibleReject(v, inst) {
 			v.Severity = specvalidate.SeverityWarning
 			kept = append(kept, v)
 			continue
@@ -162,7 +165,7 @@ func isVendorPropertyViolation(v specvalidate.Violation) bool {
 // rejecting in enforce mode. Composition leftovers from extra vendor
 // fields (item-level required, losing-branch type/enum, vendor-union
 // objects) and vendor-extended enums must not 400 openai-compatible traffic.
-func isCompatibleReject(v specvalidate.Violation) bool {
+func isCompatibleReject(v specvalidate.Violation, inst map[string]any) bool {
 	if v.Side == specvalidate.SideResponse {
 		return false
 	}
@@ -173,19 +176,19 @@ func isCompatibleReject(v specvalidate.Violation) bool {
 	case "trailingData", "duplicateKey", "utf8BOM", "numberRange":
 		return true
 	case "type", "required":
-		return !isCompatibleCompositionLeftover(v)
+		return !isCompatibleCompositionLeftover(v, inst)
 	case "enum", "const":
 		return !isExtendedEnumViolation(v) && !isItemDiscriminatorViolation(v)
 	}
 	return false
 }
 
-func isCompatibleCompositionLeftover(v specvalidate.Violation) bool {
+func isCompatibleCompositionLeftover(v specvalidate.Violation, inst map[string]any) bool {
 	switch v.Keyword {
 	case "type":
 		return !isKnownFieldTypeViolation(v)
 	case "required":
-		return !isKnownFieldRequiredViolation(v)
+		return !isKnownFieldRequiredViolation(v, inst)
 	default:
 		return false
 	}
@@ -233,14 +236,57 @@ func schemaTypeGot(message string) string {
 	return strings.TrimSpace(rest)
 }
 
-func isKnownFieldRequiredViolation(v specvalidate.Violation) bool {
+func isKnownFieldRequiredViolation(v specvalidate.Violation, inst map[string]any) bool {
 	if vendorUnionPointer(v.Pointer) {
 		return false
 	}
 	if nestedUnderIndexedItem(v.Pointer) {
 		return false
 	}
+	if isAssistantContentLeftover(v, inst) {
+		return false
+	}
 	return requiredMentionsCoreField(v.Message, v.Pointer)
+}
+
+func isAssistantContentLeftover(v specvalidate.Violation, inst map[string]any) bool {
+	if v.Keyword != "required" || !chatMessagePointer(v.Pointer) || !strings.Contains(v.Message, "'content'") {
+		return false
+	}
+	obj := messageAtPointer(inst, v.Pointer)
+	if obj == nil {
+		return false
+	}
+	role, _ := obj["role"].(string)
+	return role == "assistant"
+}
+
+func requestInstance(raw []byte) map[string]any {
+	var body map[string]any
+	if json.Unmarshal(firstJSONObjectBytes(raw), &body) != nil {
+		return nil
+	}
+	return body
+}
+
+func messageAtPointer(inst map[string]any, pointer string) map[string]any {
+	if inst == nil {
+		return nil
+	}
+	segs := pointerSegments(pointer)
+	if len(segs) != 2 || segs[0] != "messages" {
+		return nil
+	}
+	idx, err := strconv.Atoi(segs[1])
+	if err != nil {
+		return nil
+	}
+	msgs, _ := inst["messages"].([]any)
+	if idx < 0 || idx >= len(msgs) {
+		return nil
+	}
+	obj, _ := msgs[idx].(map[string]any)
+	return obj
 }
 
 func requiredMentionsCoreField(message, pointer string) bool {

@@ -5,6 +5,7 @@ package proxy
 import (
 	"bytes"
 	"encoding/json"
+	"unicode/utf8"
 )
 
 func applyRequestReasoningIn(call *Call, raw []byte) {
@@ -36,7 +37,9 @@ func scanReasoningMessages(info *ReasoningIn, items []any) {
 		}
 		typ, _ := obj["type"].(string)
 		if typ == "reasoning" {
-			if chars := reasoningItemChars(obj); chars > 0 {
+			chars := reasoningItemChars(obj)
+			enc, _ := obj["encrypted_content"].(string)
+			if chars > 0 || enc != "" {
 				info.WithReasoning++
 				info.Chars += chars
 			}
@@ -61,10 +64,10 @@ func reasoningItemChars(obj map[string]any) int {
 func reasoningFieldChars(obj map[string]any) int {
 	n := 0
 	if s, ok := obj["reasoning_content"].(string); ok {
-		n += len(s)
+		n += utf8.RuneCountInString(s)
 	}
 	if s, ok := obj["reasoning"].(string); ok {
-		n += len(s)
+		n += utf8.RuneCountInString(s)
 	}
 	if raw, ok := obj["reasoning_details"]; ok && raw != nil {
 		n += reasoningDetailsChars(raw)
@@ -79,7 +82,7 @@ func reasoningDetailsChars(raw any) int {
 func textValueChars(v any) int {
 	switch t := v.(type) {
 	case string:
-		return len(t)
+		return utf8.RuneCountInString(t)
 	case []any:
 		n := 0
 		for _, item := range t {
@@ -89,10 +92,10 @@ func textValueChars(v any) int {
 	case map[string]any:
 		n := 0
 		if s, ok := t["text"].(string); ok {
-			n += len(s)
+			n += utf8.RuneCountInString(s)
 		}
 		if s, ok := t["content"].(string); ok {
-			n += len(s)
+			n += utf8.RuneCountInString(s)
 		}
 		return n
 	default:

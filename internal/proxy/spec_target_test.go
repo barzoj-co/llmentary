@@ -116,7 +116,7 @@ func TestApplySpecTargetCompatible(t *testing.T) {
 		Action: schemalint.ActionReject, Severity: schemalint.SeverityWarning,
 		Hint: unknownRequestHintOA,
 	}}
-	gotV, gotI := applySpecTarget(SpecTargetCompatible, vs, ig)
+	gotV, gotI := applySpecTarget(SpecTargetCompatible, vs, ig, nil)
 	if reject, kind := shouldReject(gotV, gotI); !reject || kind != "spec_violation" {
 		t.Fatalf("type error must still reject: reject=%v kind=%s", reject, kind)
 	}
@@ -159,7 +159,7 @@ func TestApplySpecTargetOpenAIKeepsReject(t *testing.T) {
 		Kind: schemalint.KindUnknownRequest, Action: schemalint.ActionReject,
 		Severity: schemalint.SeverityWarning, Hint: unknownRequestHintOA,
 	}}
-	gotV, gotI := applySpecTarget(SpecTargetOpenAI, vs, ig)
+	gotV, gotI := applySpecTarget(SpecTargetOpenAI, vs, ig, nil)
 	if reject, kind := shouldReject(gotV, gotI); !reject || kind != "spec_violation" {
 		t.Fatalf("openai must reject vendor field: %v %s", reject, kind)
 	}
@@ -191,11 +191,11 @@ func TestCompatibleRejectsKnownFieldTypeEnumRequired(t *testing.T) {
 		{Side: specvalidate.SideRequest, Keyword: "required", Pointer: "/messages/0", Message: "missing property 'content'"},
 	}
 	for _, v := range reject {
-		if !isCompatibleReject(v) {
+		if !isCompatibleReject(v, nil) {
 			t.Fatalf("should reject %+v", v)
 		}
 	}
-	gotV, _ := applyCompatibleTarget(reject, nil)
+	gotV, _ := applyCompatibleTarget(reject, nil, nil)
 	if ok, kind := shouldReject(gotV, nil); !ok || kind != "spec_violation" {
 		t.Fatalf("reject=%v kind=%s kept=%v", ok, kind, gotV)
 	}
@@ -214,11 +214,11 @@ func TestCompatibleRejectsKnownFieldTypeEnumRequired(t *testing.T) {
 		{Side: specvalidate.SideRequest, Keyword: "enum", Pointer: "/input/0/type", Message: "value must be 'message'"},
 	}
 	for _, leftover := range leftovers {
-		if isCompatibleReject(leftover) {
+		if isCompatibleReject(leftover, nil) {
 			t.Fatalf("leftover must not reject: %+v", leftover)
 		}
 	}
-	gotV, _ = applyCompatibleTarget(leftovers, nil)
+	gotV, _ = applyCompatibleTarget(leftovers, nil, nil)
 	if ok, _ := shouldReject(gotV, nil); ok {
 		t.Fatalf("leftover rejected: %v", gotV)
 	}
@@ -226,7 +226,7 @@ func TestCompatibleRejectsKnownFieldTypeEnumRequired(t *testing.T) {
 		t.Fatalf("leftover severity=%q", gotV[0].Severity)
 	}
 	extended := specvalidate.Violation{Side: specvalidate.SideRequest, Keyword: "enum", Pointer: "/tool_choice"}
-	if isCompatibleReject(extended) {
+	if isCompatibleReject(extended, nil) {
 		t.Fatal("extended enum must stay warning")
 	}
 }
@@ -234,10 +234,10 @@ func TestCompatibleRejectsKnownFieldTypeEnumRequired(t *testing.T) {
 func TestCompatibleRejectsExhaustedRoleEnum(t *testing.T) {
 	t.Parallel()
 	losing := specvalidate.Violation{Side: specvalidate.SideRequest, Keyword: "enum", Pointer: "/messages/0/role", Message: "value must be 'tool'"}
-	if isCompatibleReject(losing) {
+	if isCompatibleReject(losing, nil) {
 		t.Fatal("single losing-branch role enum is leftover")
 	}
-	gotV, _ := applyCompatibleTarget([]specvalidate.Violation{losing}, nil)
+	gotV, _ := applyCompatibleTarget([]specvalidate.Violation{losing}, nil, nil)
 	if ok, _ := shouldReject(gotV, nil); ok {
 		t.Fatal("single losing-branch role enum rejected")
 	}
@@ -248,7 +248,7 @@ func TestCompatibleRejectsExhaustedRoleEnum(t *testing.T) {
 			Message: "value must be '" + role + "'",
 		})
 	}
-	gotV, _ = applyCompatibleTarget(all, nil)
+	gotV, _ = applyCompatibleTarget(all, nil, nil)
 	if ok, kind := shouldReject(gotV, nil); !ok || kind != "spec_violation" {
 		t.Fatalf("exhausted role enum must reject: reject=%v kind=%s kept=%v", ok, kind, gotV)
 	}
@@ -256,16 +256,16 @@ func TestCompatibleRejectsExhaustedRoleEnum(t *testing.T) {
 
 func TestCompatibleKnownRequiredCorners(t *testing.T) {
 	t.Parallel()
-	if !isKnownFieldRequiredViolation(specvalidate.Violation{Pointer: "/messages/1", Message: "missing property 'role'"}) {
+	if !isKnownFieldRequiredViolation(specvalidate.Violation{Pointer: "/messages/1", Message: "missing property 'role'"}, nil) {
 		t.Fatal("chat missing role")
 	}
-	if isKnownFieldRequiredViolation(specvalidate.Violation{Pointer: "/input/0", Message: "missing property 'role'"}) {
+	if isKnownFieldRequiredViolation(specvalidate.Violation{Pointer: "/input/0", Message: "missing property 'role'"}, nil) {
 		t.Fatal("responses item missing role is leftover")
 	}
-	if isKnownFieldRequiredViolation(specvalidate.Violation{Pointer: "/", Message: "missing property 'tools'"}) {
+	if isKnownFieldRequiredViolation(specvalidate.Violation{Pointer: "/", Message: "missing property 'tools'"}, nil) {
 		t.Fatal("root tools is not core")
 	}
-	if !isKnownFieldRequiredViolation(specvalidate.Violation{Pointer: "/", Message: "missing property 'messages'"}) {
+	if !isKnownFieldRequiredViolation(specvalidate.Violation{Pointer: "/", Message: "missing property 'messages'"}, nil) {
 		t.Fatal("root messages")
 	}
 	if isKnownFieldTypeViolation(specvalidate.Violation{Pointer: "/input", Message: "got string, want array"}) ||
@@ -280,5 +280,17 @@ func TestCompatibleKnownRequiredCorners(t *testing.T) {
 	}
 	if !isKnownFieldTypeViolation(specvalidate.Violation{Pointer: "/messages/2/content", Message: "got number, want string"}) {
 		t.Fatal("numeric content")
+	}
+	asst := requestInstance([]byte(`{"messages":[{"role":"assistant","tool_calls":[{"id":"c1"}],"reasoning_content":"t"}]}`))
+	contentMiss := specvalidate.Violation{Keyword: "required", Pointer: "/messages/0", Message: "missing property 'content'"}
+	if isKnownFieldRequiredViolation(contentMiss, asst) || isCompatibleReject(contentMiss, asst) {
+		t.Fatal("assistant tool-call missing content is leftover")
+	}
+	user := requestInstance([]byte(`{"messages":[{"role":"user"}]}`))
+	if !isKnownFieldRequiredViolation(contentMiss, user) || !isCompatibleReject(contentMiss, user) {
+		t.Fatal("user missing content must still reject")
+	}
+	if isAssistantContentLeftover(contentMiss, nil) || messageAtPointer(nil, "/messages/0") != nil {
+		t.Fatal("nil instance corners")
 	}
 }

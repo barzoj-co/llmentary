@@ -158,6 +158,9 @@ func TestSpecTargetProviderRequiredMessageFields(t *testing.T) {
 		{"reasoning_long", []byte(`{"model":"m","messages":[{"role":"assistant","content":"x","reasoning_content":"` + long + `"}]}`)},
 		{"user_reasoning_still_recorded", []byte(`{"model":"m","messages":[{"role":"user","content":"hi","reasoning_content":"nope"}]}`)},
 		{"resp_input_vendor", []byte(`{"model":"m","input":[{"type":"message","role":"assistant","content":"x","reasoning_content":"y","foo":1}]}`)},
+		{"assistant_tool_calls_reasoning", []byte(`{"model":"m","messages":[{"role":"assistant","tool_calls":[{"id":"c1","type":"function","function":{"name":"x","arguments":"{}"}}],"reasoning_content":"think"}]}`)},
+		{"reasoning_encrypted_only", []byte(`{"model":"m","input":[{"type":"reasoning","summary":[],"encrypted_content":"enc"}]}`)},
+		{"reasoning_unicode", []byte(`{"model":"m","messages":[{"role":"assistant","content":"x","reasoning_content":"思考"}]}`)},
 	}
 	for _, profile := range []string{"relaxed", "strict"} {
 		for _, r := range rows {
@@ -193,6 +196,18 @@ func TestSpecTargetProviderRequiredMessageFields(t *testing.T) {
 					ri, _ := n["reasoning_in"].(map[string]any)
 					if asIntValue(ri["with_reasoning"]) != 1 || asIntValue(ri["chars"]) != len("think")+len("more") {
 						t.Fatalf("reasoning item: %v", ri)
+					}
+				}
+				if r.name == "reasoning_encrypted_only" {
+					ri, _ := n["reasoning_in"].(map[string]any)
+					if asIntValue(ri["with_reasoning"]) != 1 || asIntValue(ri["chars"]) != 0 {
+						t.Fatalf("encrypted-only: %v", ri)
+					}
+				}
+				if r.name == "reasoning_unicode" {
+					ri, _ := n["reasoning_in"].(map[string]any)
+					if asIntValue(ri["chars"]) != 2 {
+						t.Fatalf("unicode chars: %v", ri)
 					}
 				}
 			})

@@ -161,7 +161,7 @@ func (rt *validationRuntime) checkRequest(apiFamily, contentType, contentEncodin
 		lintRes.StrictViolations[i].Profile = rt.profile
 	}
 	out.violations = append(out.violations, lintRes.StrictViolations...)
-	out.violations, out.ignored = applySpecTarget(specTarget, out.violations, out.ignored)
+	out.violations, out.ignored = applySpecTarget(specTarget, out.violations, out.ignored, validateBytes)
 	out.reject, out.rejectKind = shouldReject(out.violations, out.ignored)
 	return out
 }

@@ -190,7 +190,7 @@ from an Azure-style `/deployments/{deployment}/...` path segment.
 | `output_text` | Concatenated assistant text output. |
 | `refusal` | Chat `message.refusal` / stream `delta.refusal`, or a Responses `refusal` content part. `finish_reason` is preserved separately. |
 | `reasoning` | Presence/size of exposed reasoning fields. The proxy does not decrypt hidden reasoning. |
-| `reasoning_in` | Request-side assistant reasoning echo: `assistant_turns`, `with_reasoning`, `chars` (`reasoning_content`, `reasoning`, `reasoning_details`). |
+| `reasoning_in` | Request-side assistant reasoning echo: `assistant_turns`, `with_reasoning`, `chars` (Unicode characters from `reasoning_content`, `reasoning`, `reasoning_details`, and Responses `type:"reasoning"` text). Encrypted-only reasoning items count as `with_reasoning` with `chars=0`. |
 | `finish_reason` | Cross-API normalized finish reason. |
 | `native_finish_reason` | Provider status/finish field when distinct. |
 | `usage` | Normalized token/cost usage. |
