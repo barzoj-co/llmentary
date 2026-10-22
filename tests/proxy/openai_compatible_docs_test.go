@@ -436,32 +436,68 @@ func TestOpenAICompatibleGuideCLIParsesProviderStarts(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	t.Cleanup(fake.Close)
-	starts := [][]string{
-		{"--upstream", "gemini=" + fake.URL + "/v1beta/openai", "--spec-target", "gemini=openai-compatible", "--spec-validation", "enforce"},
-		{"--upstream", "openrouter=" + fake.URL + "/api/v1", "--spec-target", "openrouter=openai-compatible", "--spec-validation", "enforce"},
-		{"--upstream", "groq=" + fake.URL + "/openai/v1", "--spec-target", "groq=openai-compatible", "--spec-validation", "enforce"},
-		{"--upstream", "mistral=" + fake.URL + "/v1", "--spec-target", "mistral=openai-compatible", "--spec-validation", "enforce"},
+	starts := []struct {
+		args []string
+		want map[string]string
+	}{
 		{
-			"--upstream", "ollama=" + fake.URL + "/v1",
-			"--upstream", "llama=" + fake.URL,
-			"--upstream", "vllm=" + fake.URL + "/v1",
-			"--spec-target", "ollama=openai-compatible",
-			"--spec-target", "llama=openai-compatible",
-			"--spec-target", "vllm=openai-compatible",
-			"--spec-validation", "enforce",
+			args: []string{"--upstream", "gemini=" + fake.URL + "/v1beta/openai", "--spec-target", "gemini=openai-compatible", "--spec-validation", "enforce"},
+			want: map[string]string{"gemini": proxy.SpecTargetCompatible},
+		},
+		{
+			args: []string{"--upstream", "openrouter=" + fake.URL + "/api/v1", "--spec-target", "openrouter=openai-compatible", "--spec-validation", "enforce"},
+			want: map[string]string{"openrouter": proxy.SpecTargetCompatible},
+		},
+		{
+			args: []string{"--upstream", "groq=" + fake.URL + "/openai/v1", "--spec-target", "groq=openai-compatible", "--spec-validation", "enforce"},
+			want: map[string]string{"groq": proxy.SpecTargetCompatible},
+		},
+		{
+			args: []string{"--upstream", "mistral=" + fake.URL + "/v1", "--spec-target", "mistral=openai-compatible", "--spec-validation", "enforce"},
+			want: map[string]string{"mistral": proxy.SpecTargetCompatible},
+		},
+		{
+			args: []string{
+				"--upstream", "ollama=" + fake.URL + "/v1",
+				"--upstream", "llama=" + fake.URL,
+				"--upstream", "vllm=" + fake.URL + "/v1",
+				"--spec-target", "ollama=openai-compatible",
+				"--spec-target", "llama=openai-compatible",
+				"--spec-target", "vllm=openai-compatible",
+				"--spec-validation", "enforce",
+			},
+			want: map[string]string{
+				"ollama": proxy.SpecTargetCompatible,
+				"llama":  proxy.SpecTargetCompatible,
+				"vllm":   proxy.SpecTargetCompatible,
+			},
 		},
 	}
-	for i, args := range starts {
+	for i, tc := range starts {
 		t.Run(fmt.Sprintf("start_%d", i), func(t *testing.T) {
-			_, controlURL, _ := startBinary(t, args, nil)
+			_, controlURL, _ := startBinary(t, tc.args, nil)
 			res, err := http.Get(controlURL + "/config")
 			if err != nil {
 				t.Fatal(err)
 			}
 			raw, _ := io.ReadAll(res.Body)
 			_ = res.Body.Close()
-			if res.StatusCode != 200 || !bytes.Contains(raw, []byte("spec_targets")) {
+			if res.StatusCode != 200 {
 				t.Fatalf("config %d %s", res.StatusCode, raw)
+			}
+			var cfg struct {
+				SpecTargets map[string]string `json:"spec_targets"`
+			}
+			if err := json.Unmarshal(raw, &cfg); err != nil {
+				t.Fatal(err)
+			}
+			if len(cfg.SpecTargets) != len(tc.want) {
+				t.Fatalf("spec_targets=%v want %v", cfg.SpecTargets, tc.want)
+			}
+			for name, want := range tc.want {
+				if cfg.SpecTargets[name] != want {
+					t.Fatalf("spec_targets=%v want %v", cfg.SpecTargets, tc.want)
+				}
 			}
 		})
 	}
