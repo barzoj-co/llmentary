@@ -5,9 +5,12 @@
 # COMPAT-3 owner decision (2026-10-22):
 # Target openai keeps reject_in_enforce for non-strict-tool keyword findings
 # (minLength, examples, oneOf, …) and for strict_fallback_predicted.
-# Live OpenAI returns 200 for those requests (the model still sees the schema),
-# but default OpenAI enforce behaviour is unchanged: the local subset lint is a
-# conservative OpenAI-subset check, not a claim that the API will 400.
+# Verified non-strict live OpenAI requests with those keywords returned 200
+# (the model still sees the schema). That is not a claim about strict:true
+# schemas: OpenAI documents an error for unsupported keywords such as allOf
+# under strict Structured Outputs. Default OpenAI enforce behaviour is
+# unchanged: the local subset lint is a conservative OpenAI-subset check,
+# not a claim that the API will 400 or 200.
 # Target openai-compatible rematches those findings to severity=info /
 # report_only so llama.cpp / vLLM / Ollama grammar keywords do not 400.
 #

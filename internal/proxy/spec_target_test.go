@@ -411,3 +411,28 @@ func TestRejectClassExamplesOmitDefaultKeyword(t *testing.T) {
 		}
 	}
 }
+
+func TestSchemaSubsetLive200ClaimIsNonStrictOnly(t *testing.T) {
+	t.Parallel()
+	files := []string{
+		filepath.Join("..", "..", "api", "openai", "schema-subset.yaml"),
+		filepath.Join("..", "..", "internal", "specvalidate", "embed", "schema-subset.yaml"),
+	}
+	unqualified := "Live OpenAI returns 200 for those requests"
+	for _, rel := range files {
+		raw, err := os.ReadFile(rel)
+		if err != nil {
+			t.Fatal(err)
+		}
+		text := string(raw)
+		if strings.Contains(text, unqualified) {
+			t.Fatalf("%s still claims live OpenAI 200 without a non-strict qualifier", rel)
+		}
+		if !strings.Contains(text, "non-strict") {
+			t.Fatalf("%s lost the non-strict qualifier on the live 200 note", rel)
+		}
+		if !strings.Contains(text, "allOf") || !strings.Contains(text, "strict:true") {
+			t.Fatalf("%s lost the strict unsupported-keyword caveat", rel)
+		}
+	}
+}
