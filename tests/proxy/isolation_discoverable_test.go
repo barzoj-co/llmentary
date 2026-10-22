@@ -86,6 +86,10 @@ func TestCheckReadmeRequiresIsolationMarkdownDests(t *testing.T) {
 		`](../../docs/isolation-spec.md)`,
 		`allow_empty`,
 		`## Client README contract`,
+		`def has_markdown_dest`,
+		`has_markdown_dest(spec, needle)`,
+		`has_markdown_dest(vec, needle)`,
+		`f"{needle[:-1]}#"`,
 	} {
 		if !strings.Contains(text, needle) {
 			t.Errorf("check-readme.sh missing required needle %q", needle)

@@ -90,6 +90,15 @@ required_snippets = (
     "](testdata/isolation/)",
 )
 
+def has_markdown_dest(text, needle):
+    if needle in text:
+        return True
+    return (
+        needle.startswith("](")
+        and needle.endswith(")")
+        and f"{needle[:-1]}#" in text
+    )
+
 spec_path = root / "docs" / "isolation-spec.md"
 if not spec_path.is_file():
     print("docs/isolation-spec.md is missing", file=sys.stderr)
@@ -104,7 +113,7 @@ else:
         "https://github.com/barzoj-co/llmentary-python",
         "https://github.com/barzoj-co/llmentary-js",
     ):
-        if needle not in spec:
+        if not has_markdown_dest(spec, needle):
             print(f"docs/isolation-spec.md is missing {needle!r}", file=sys.stderr)
             failed = True
 
@@ -120,7 +129,7 @@ else:
         "llmentary-python",
         "llmentary-js",
     ):
-        if needle not in vec:
+        if not has_markdown_dest(vec, needle):
             print(f"testdata/isolation/README.md is missing {needle!r}", file=sys.stderr)
             failed = True
 for snippet in required_snippets:
