@@ -87,7 +87,7 @@ required_snippets = (
     "def test_weather(llmentary):",
     "const lm = llmentary()",
     "[Isolation spec](docs/isolation-spec.md)",
-    "testdata/isolation/",
+    "](testdata/isolation/)",
 )
 
 spec_path = root / "docs" / "isolation-spec.md"
