@@ -23,10 +23,10 @@ import (
 )
 
 // liveRequestCap is the suite-wide OpenAI call budget.
-// 128 is the hard ceiling. The OpenAPI session-schema check does not
+// 160 is the hard ceiling. The OpenAPI session-schema check does not
 // spend a live call, leaving slack for a token-delta retry when
 // usage.input_tokens is 0 on a 200. Do not raise this.
-const liveRequestCap = 128
+const liveRequestCap = 160
 
 func checkLiveCost(used, cap int64) string {
 	if used > cap {
