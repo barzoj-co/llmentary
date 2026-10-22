@@ -42,7 +42,6 @@ variables plus CLI flags.
 | `--control-token` | `LLMENTARY_CONTROL_TOKEN` | empty | Bearer token required by the control API when set. Also required when the control listener is non-loopback. |
 | `--upstream` | `LLMENTARY_UPSTREAMS`, fallback `LLMENTARY_UPSTREAM` | `openai=https://api.openai.com/v1` | Upstream mapping. Repeat the flag or use comma-separated environment values. When omitted, the proxy logs `no upstream configured; defaulting to openai=https://api.openai.com/v1`. |
 | `--spec-target` | `LLMENTARY_SPEC_TARGETS` | host-based | Per-upstream spec target `name=openai` or `name=openai-compatible`. Repeatable. Default: `openai` for `api.openai.com` and Azure OpenAI hosts; `openai-compatible` for every other host (including localhost). Invalid values and unknown upstream names exit non-zero. |
-| `--tls` | none | `false` | Parsed by the CLI, but not wired to a TLS listener in the current code. |
 | `--upstream-header-timeout` | `LLMENTARY_UPSTREAM_HEADER_TIMEOUT` | `0` (off) | Cancel an upstream request that sends no response headers within this duration. `0` / `0s` / empty disables. Invalid, negative, or `>10m` values fail at startup. |
 | `--upstream-idle-timeout` | `LLMENTARY_UPSTREAM_IDLE_TIMEOUT` | `0` (off) | Cancel an upstream body that sends no further bytes within this duration. `0` / `0s` / empty disables. Invalid, negative, or `>10m` values fail at startup. |
 | `--spec-validation` | `LLMENTARY_SPEC_VALIDATION` | `warn` | Request spec validation mode: `off`, `warn`, or `enforce`. Invalid values exit non-zero. |

@@ -429,6 +429,23 @@ func TestHeaderTimeoutDocsMatchWroteRequestContract(t *testing.T) {
 	}
 }
 
+func TestProxyDocsFlagTableOmitsTLS(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "docs", "proxy.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(raw)
+	if strings.Contains(text, "| `--tls` |") {
+		t.Fatal("flag table still lists --tls")
+	}
+	if !strings.Contains(text, "there is no `--tls` flag") {
+		t.Fatal("lost the no --tls note")
+	}
+	if !strings.Contains(text, "| `--upstream-header-timeout` |") || !strings.Contains(text, "| `--upstream-idle-timeout` |") {
+		t.Fatal("timeout flags missing from the table")
+	}
+}
+
 func TestDefaultConfigOmitsUpstreamTimeouts(t *testing.T) {
 	p := startSpecProxy(t, "off", "relaxed", responsesOK())
 	cfg := getConfig(t, p.controlURL)
