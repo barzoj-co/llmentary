@@ -116,11 +116,11 @@ reads need the env set before the module loads.
 
 | SDK | Variable | When it is read | Verified |
 |---|---|---|---|
-| openai-go v3 | `OPENAI_BASE_URL` | `DefaultClientOptions()` inside `NewClient` | not verified in this repo (livekit-demo construction-time) |
+| openai-go v3 | `OPENAI_BASE_URL` | `DefaultClientOptions()` inside `NewClient` | not verified in this repo (construction-time in a voice agent) |
 | openai-python | `OPENAI_BASE_URL` | client construction (`OpenAI()`) | not verified in this repo |
 | openai-node | `OPENAI_BASE_URL` | client construction (`new OpenAI()`) | not verified in this repo |
 | LangChain `ChatOpenAI` | `base_url=` argument, or `OPENAI_API_BASE` / `OPENAI_BASE_URL` | construction | not verified in this repo |
-| Custom wrapper (hard-coded URL) | none | n/a — add a hook or constructor argument | not verified; chatservice `ChatOpenRouter` needed an app hook |
+| Custom wrapper (hard-coded URL) | none | n/a — add a hook or constructor argument | not verified; a chat service's custom OpenRouter wrapper needed an app hook |
 
 Helpers produce the path prefix (and percent-encode the session id):
 
@@ -144,7 +144,7 @@ One process with one env-configured client (`OPENAI_BASE_URL` set once, typical
 `NewClient` / `OpenAI()`) is **one session**. For N parallel conversations use
 one of:
 
-1. **One worker process per session.** The livekit compose pattern: a second
+1. **One worker process per session.** A typical compose pattern: a second
    runtime with its own `OPENAI_BASE_URL`.
 
    ```yaml
@@ -287,7 +287,7 @@ Wait defaults (after DOG-7) are `timeout=30s` and `quiet=500ms`.
 `min_calls` is `0` unless you set it.
 
 Raise `timeout` when a worker fans out several model calls. Use `min_calls`
-when the trigger is async (a queue, a LiveKit job, an HTTP 202): wait until
+when the trigger is async (a queue, a voice-agent job, an HTTP 202): wait until
 that many **settled** calls exist, then the quiet period. In-flight
 placeholders are not counted. A session that was
 never created does not succeed at `min_calls=0`; you get `404`

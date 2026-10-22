@@ -175,7 +175,7 @@ Each call is stored in one session. `--session-from` is an ordered list of sourc
    The prefix is stripped before routing and forwarding. It composes with named
    upstreams: `/s/{session}/u/{name}/...`. Recorded calls get `session_source:"path"`.
 4. `default`: `--default-session` (default `default`). This is the sidecar recipe:
-   `--default-session=livekit-e2e` records every untagged call on that session.
+   `--default-session=voice-e2e` records every untagged call on that session.
 
 When `default` is not in `--session-from` and a call has no usable marker, the
 proxy answers locally with `400` and an OpenAI-shaped JSON error
