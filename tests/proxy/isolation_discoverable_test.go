@@ -120,6 +120,9 @@ func TestCheckReadmeRequiresIsolationMarkdownDests(t *testing.T) {
 		`](../README.md)`,
 		`](../../docs/isolation-spec.md)`,
 		`](../../README.md)`,
+		`](https://github.com/barzoj-co/llmentary-go)`,
+		`](https://github.com/barzoj-co/llmentary-python)`,
+		`](https://github.com/barzoj-co/llmentary-js)`,
 		`allow_empty`,
 		`## Client README contract`,
 		`def has_markdown_dest`,
@@ -138,6 +141,9 @@ func TestCheckReadmeRequiresIsolationMarkdownDests(t *testing.T) {
 	}
 	if strings.Contains(text, `"docs/isolation-spec.md",`) {
 		t.Fatal("vectors check still accepts a bare docs/isolation-spec.md path")
+	}
+	if strings.Contains(text, `"llmentary-go",`) || strings.Contains(text, `"llmentary-python",`) || strings.Contains(text, `"llmentary-js",`) {
+		t.Fatal("vector README check still accepts a bare client name")
 	}
 
 	spec, err := os.ReadFile(filepath.Join(root, "docs", "isolation-spec.md"))
@@ -172,5 +178,21 @@ func TestCheckReadmeRequiresIsolationMarkdownDests(t *testing.T) {
 	}
 	if hasMarkdownDest(stripMarkdownDest("[x](../README.md#top)", "../README.md"), "../README.md") {
 		t.Fatal("stripped fragment dest still matches")
+	}
+	if hasMarkdownDest("see llmentary-go and llmentary-python", "https://github.com/barzoj-co/llmentary-go") {
+		t.Fatal("bare client name must not count as a dest")
+	}
+	if !hasMarkdownDest("[llmentary-go](https://github.com/barzoj-co/llmentary-go)", "https://github.com/barzoj-co/llmentary-go") {
+		t.Fatal("client markdown dest should count")
+	}
+	if !hasMarkdownDest("[go](https://github.com/barzoj-co/llmentary-go#readme)", "https://github.com/barzoj-co/llmentary-go") {
+		t.Fatal("client fragment dest should count")
+	}
+	if hasMarkdownDest("[go](https://github.com/barzoj-co/llmentary-go#readme", "https://github.com/barzoj-co/llmentary-go") {
+		t.Fatal("unclosed client fragment must not count")
+	}
+	strippedClient := stripMarkdownDest("[llmentary-go](https://github.com/barzoj-co/llmentary-go)", "https://github.com/barzoj-co/llmentary-go")
+	if hasMarkdownDest(strippedClient, "https://github.com/barzoj-co/llmentary-go") {
+		t.Fatal("stripped client dest still matches")
 	}
 }

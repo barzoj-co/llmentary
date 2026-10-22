@@ -135,9 +135,9 @@ else:
     for needle in (
         "](../../docs/isolation-spec.md)",
         "](../../README.md)",
-        "llmentary-go",
-        "llmentary-python",
-        "llmentary-js",
+        "](https://github.com/barzoj-co/llmentary-go)",
+        "](https://github.com/barzoj-co/llmentary-python)",
+        "](https://github.com/barzoj-co/llmentary-js)",
     ):
         if not has_markdown_dest(vec, needle):
             print(f"testdata/isolation/README.md is missing {needle!r}", file=sys.stderr)
