@@ -32,7 +32,7 @@ func (s SpecCounters) MarshalJSON() ([]byte, error) {
 		"findings":     s.Findings,
 		"request_only": s.RequestOnly,
 		"not_checked":  s.NotChecked,
-		// Deprecated 0.x aliases (PascalCase dump livekit printed).
+		// Deprecated 0.x aliases (PascalCase dump a client printed).
 		"Checked":     s.Checked,
 		"Clean":       s.Clean,
 		"Findings":    s.Findings,

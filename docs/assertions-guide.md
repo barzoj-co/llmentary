@@ -1,7 +1,7 @@
 # Assertions: trace vs free text
 
-The product rule, confirmed on live dogfood runs (healsens chatservice and
-livekit-demo): assertions on what the system **sent and received** (the
+The product rule, confirmed on live dogfood runs (a chat service and
+a voice agent): assertions on what the system **sent and received** (the
 recorded trace) are deterministic. Assertions on what the model **wrote**
 are probabilistic.
 
@@ -48,7 +48,7 @@ string in the answer.
 
 Excerpts are redacted. No API keys.
 
-### healsens chatservice (live run 2)
+### a chat service (live run 2)
 
 Trace checks all passed: the right tools were offered, `get_user_biological_age`
 was not, `get_risks` and `get_user_health_tips` were called, their results were
@@ -83,9 +83,9 @@ lm.expect().final_response_mentions_any("moderate", "41.3")
 # answer_mentions_any(answer, "ten minutes", "walk", normalize_numbers=True)
 ```
 
-### livekit-demo weather turn
+### a voice agent weather turn
 
-The livekit test put exact equality on the trace (`function_call_output` ==
+The voice-agent test put exact equality on the trace (`function_call_output` ==
 the Lua JSON, args `Amsterdam` / `celsius`, exactly three calls) and left the
 answer loose ("20 or sunny"). The portable client checks below are weaker:
 `ArgsSubset` requires those keys and allows extra arguments; it does not

@@ -8,9 +8,7 @@ Report privately through GitHub security advisories:
 
 https://github.com/barzoj-co/llmentary/security/advisories/new
 
-That form is available once the repository is public. Until then, contact the
-maintainers through a private GitHub channel (do not paste secrets or provider
-API keys).
+Do not paste secrets or provider API keys.
 
 Please include:
 
