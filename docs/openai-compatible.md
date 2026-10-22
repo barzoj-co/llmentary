@@ -463,7 +463,7 @@ Applied to any OpenAI-wire Chat Completions stream (`POST` path ending in
 - `finish_reason: "eos"` (Together, Ollama) → `stop`; raw value in
   `native_finish_reason`.
 - HTTP-200 stream errors are classified (`server`, `rate_limit`,
-  `content_filter`, `auth`, `bad_request`, `unknown`) on
+  `content_filter`, `unknown`) on
   `error.normalized`.
 
 The client still receives the upstream bytes unchanged.

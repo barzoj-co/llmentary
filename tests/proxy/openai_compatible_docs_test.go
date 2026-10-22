@@ -71,9 +71,18 @@ func TestOpenAICompatibleGuidePinned(t *testing.T) {
 		"Core known-field type",
 		"Response-side `spec_violations`",
 		"`strict_fallback` is the exception",
+		"`server`, `rate_limit`,",
+		"`content_filter`, `unknown`)",
 	} {
 		if !strings.Contains(text, n) {
 			t.Errorf("docs/openai-compatible.md missing %q", n)
+		}
+	}
+	if stream := sectionAfter(text, "## Stream normalization"); stream != "" {
+		for _, n := range []string{"`auth`", "`bad_request`"} {
+			if strings.Contains(stream, n) {
+				t.Errorf("HTTP-200 stream error list must not include %s", n)
+			}
 		}
 	}
 	for _, n := range []string{"agpl", "license"} {
@@ -594,6 +603,18 @@ func extractNeedles(text, prefix, alphabet string) []string {
 		i += n
 	}
 	return out
+}
+
+func sectionAfter(text, heading string) string {
+	idx := strings.Index(text, heading)
+	if idx < 0 {
+		return ""
+	}
+	rest := text[idx:]
+	if next := strings.Index(rest[len(heading):], "\n## "); next >= 0 {
+		return rest[:len(heading)+next]
+	}
+	return rest
 }
 
 func mustRead(t *testing.T, path string) []byte {
