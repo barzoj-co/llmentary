@@ -276,8 +276,8 @@ func TestWaitTimeoutSnapshotAndStrippedQuery(t *testing.T) {
 	}
 	item, _ := inFlight[0].(map[string]any)
 	upstream, _ := item["upstream"].(string)
-	if strings.Contains(upstream, "?") || strings.Contains(upstream, "SECRET") || strings.Contains(upstream, "keep") {
-		t.Fatalf("in-flight query leaked: %s", upstream)
+	if upstream != "https://api.example/v1/b" {
+		t.Fatalf("wait in-flight upstream=%q", upstream)
 	}
 
 	res, err = http.Get(ts.URL + "/sessions/s?include=in_flight")
@@ -286,6 +286,7 @@ func TestWaitTimeoutSnapshotAndStrippedQuery(t *testing.T) {
 	}
 	raw, _ = io.ReadAll(res.Body)
 	_ = res.Body.Close()
+	body = map[string]any{}
 	if err := json.Unmarshal(raw, &body); err != nil {
 		t.Fatal(err)
 	}
@@ -293,6 +294,11 @@ func TestWaitTimeoutSnapshotAndStrippedQuery(t *testing.T) {
 	inFlight, _ = body["in_flight"].([]any)
 	if len(calls) != 1 || len(inFlight) != 1 {
 		t.Fatalf("include calls=%v in_flight=%v", body["calls"], body["in_flight"])
+	}
+	item, _ = inFlight[0].(map[string]any)
+	upstream, _ = item["upstream"].(string)
+	if upstream != "https://api.example/v1/b" {
+		t.Fatalf("include in-flight upstream=%q", upstream)
 	}
 }
 
