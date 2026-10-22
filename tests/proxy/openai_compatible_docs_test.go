@@ -71,6 +71,8 @@ func TestOpenAICompatibleGuidePinned(t *testing.T) {
 		"Core known-field type",
 		"Response-side `spec_violations`",
 		"`strict_fallback` is the exception",
+		"normalized.validation.target",
+		"Passthrough calls",
 	} {
 		if !strings.Contains(text, n) {
 			t.Errorf("docs/openai-compatible.md missing %q", n)
@@ -157,6 +159,12 @@ func TestOpenAICompatibleGuideDeepSeekFakeUpstream(t *testing.T) {
 		mu.Lock()
 		defer mu.Unlock()
 		return lastPath, append([]byte(nil), lastBody...)
+	}
+	reset := func() {
+		mu.Lock()
+		lastPath = ""
+		lastBody = nil
+		mu.Unlock()
 	}
 	fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
@@ -264,6 +272,7 @@ func TestOpenAICompatibleGuideDeepSeekFakeUpstream(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			reset()
 			req, err := http.NewRequest(http.MethodPost, proxyURL+tc.path, bytes.NewReader(tc.body))
 			if err != nil {
 				t.Fatal(err)
@@ -281,8 +290,8 @@ func TestOpenAICompatibleGuideDeepSeekFakeUpstream(t *testing.T) {
 			}
 			gotPath, gotBody := snapshot()
 			if tc.want == http.StatusBadRequest {
-				if bytes.Equal(gotBody, tc.body) {
-					t.Fatal("type error reached upstream")
+				if gotPath != "" || len(gotBody) != 0 {
+					t.Fatalf("type error reached upstream path=%q body=%s", gotPath, gotBody)
 				}
 				return
 			}

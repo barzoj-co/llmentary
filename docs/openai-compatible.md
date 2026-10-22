@@ -33,8 +33,10 @@ the upstream **host**, not the route name:
 `--upstream openai=https://api.deepseek.com` is therefore still
 `openai-compatible` unless you override it with `--spec-target openai=openai`.
 
-`GET /config` reports `spec_targets`. Each recorded call stores
-`normalized.validation.target`.
+`GET /config` reports `spec_targets`. For a recorded call that matches a
+spec operation with validation enabled, `normalized.validation.target`
+stores the resolved target. Passthrough calls and `--spec-validation=off`
+omit that field.
 
 ```bash
 llmentary \
