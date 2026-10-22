@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/barzoj-co/llmentary/internal/proxy"
@@ -131,12 +132,20 @@ func TestOpenAICompatibleGuideHelpFlags(t *testing.T) {
 }
 
 func TestOpenAICompatibleGuideDeepSeekFakeUpstream(t *testing.T) {
+	var mu sync.Mutex
 	var lastPath string
 	var lastBody []byte
+	snapshot := func() (string, []byte) {
+		mu.Lock()
+		defer mu.Unlock()
+		return lastPath, append([]byte(nil), lastBody...)
+	}
 	fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
+		mu.Lock()
 		lastPath = r.URL.Path
 		lastBody = append([]byte(nil), body...)
+		mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
 		if strings.HasSuffix(strings.TrimRight(r.URL.Path, "/"), "/chat/completions") {
 			_, _ = w.Write([]byte(`{"id":"c","object":"chat.completion","created":1,"model":"deepseek-chat","choices":[{"index":0,"message":{"role":"assistant","content":"ok","reasoning_content":"think"},"finish_reason":"stop"}]}`))
@@ -246,17 +255,15 @@ func TestOpenAICompatibleGuideDeepSeekFakeUpstream(t *testing.T) {
 			if res.StatusCode != tc.want {
 				t.Fatalf("status=%d want %d body=%s", res.StatusCode, tc.want, raw)
 			}
+			gotPath, gotBody := snapshot()
 			if tc.want == http.StatusBadRequest {
-				if lastPath == "/v1/chat/completions" && bytes.Contains(lastBody, []byte(`"max_tokens"`)) {
+				if bytes.Equal(gotBody, tc.body) {
 					t.Fatal("type error reached upstream")
 				}
 				return
 			}
-			if !bytes.Equal(lastBody, tc.body) && !bytes.Contains(lastBody, tc.body) {
-				// lastBody is the exact forwarded request
-				if !bytes.Equal(lastBody, tc.body) {
-					t.Fatalf("upstream body mutated:\n got %s\nwant %s", lastBody, tc.body)
-				}
+			if !bytes.Equal(gotBody, tc.body) {
+				t.Fatalf("upstream body mutated:\n got %s\nwant %s path=%s", gotBody, tc.body, gotPath)
 			}
 			sess := waitSession(t, controlURL, "weather")
 			call := lastCall(t, sess)
@@ -317,8 +324,8 @@ func TestOpenAICompatibleGuideDeepSeekFakeUpstream(t *testing.T) {
 	if strings.TrimSpace(string(code)) != "200" {
 		t.Fatalf("completions curl status=%s", code)
 	}
-	if lastPath != "/beta/completions" {
-		t.Fatalf("completions upstream path=%q", lastPath)
+	if path, _ := snapshot(); path != "/beta/completions" {
+		t.Fatalf("completions upstream path=%q", path)
 	}
 
 	bareBeta := exec.Command("curl", "-sS", "-o", os.DevNull, "-w", "%{http_code}",
