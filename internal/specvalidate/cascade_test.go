@@ -417,6 +417,43 @@ func TestStrictUserToolCallIDStillReported(t *testing.T) {
 	}
 }
 
+func TestCascadeKeepsMatchingToolRequiredWithNameType(t *testing.T) {
+	eng, err := CompileEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := []byte(`{"model":"m","input":"hi","tools":[{"type":"function","name":123,"parameters":{"type":"object"}}]}`)
+	res := eng.ValidateRequest(ProfileStrict, "openai.responses", body, 0)
+	if !hasKeywordPointer(res.Violations, "required", "/tools/0") {
+		t.Fatalf("missing matching-branch required: %v", summarize(res.Violations))
+	}
+	foundStrict := false
+	for _, v := range res.Violations {
+		if v.Keyword == "required" && v.Pointer == "/tools/0" && strings.Contains(v.Message, "strict") {
+			foundStrict = true
+		}
+	}
+	if !foundStrict {
+		t.Fatalf("missing FunctionTool strict: %v", summarize(res.Violations))
+	}
+	if !hasKeywordPointer(res.Violations, "type", "/tools/0/name") {
+		t.Fatalf("missing name type: %v", summarize(res.Violations))
+	}
+	// Losing-branch item required (e.g. missing content) must still drop
+	// when the matching assistant branch has a specific unknown key.
+	asst := []byte(`{"model":"m","messages":[{"role":"assistant","content":"x","foo":1}]}`)
+	asstRes := eng.ValidateRequest(ProfileStrict, "openai.chat", asst, 0)
+	if hasKeywordPointer(asstRes.Violations, "required", "/messages/0") {
+		t.Fatalf("losing-branch required kept: %v", summarize(asstRes.Violations))
+	}
+	if !hasKeywordPointer(asstRes.Violations, "unevaluatedProperties", "/messages/0/foo") {
+		t.Fatalf("missing foo: %v", summarize(asstRes.Violations))
+	}
+	if isMatchingBranchRequired(schemaErr{keyword: "required", pointer: "/tools/0", message: "missing property 'strict'"}, "/tools/0", nil, nil) {
+		t.Fatal("nil variants/inst is not matching-branch required")
+	}
+}
+
 func TestUnmatchedDiscriminatorFallsBackToUnion(t *testing.T) {
 	eng, err := CompileEmbedded()
 	if err != nil {

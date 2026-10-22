@@ -16,6 +16,7 @@ const knownPropsDepthCap = 32
 type discVariants struct {
 	key   string
 	props map[string]map[string]struct{}
+	req   map[string]map[string]struct{}
 }
 
 func collectKnownProperties(spec map[string]any, root string) objectProps {
@@ -168,9 +169,15 @@ func recordVariantProps(variants map[string]*discVariants, schemas map[string]an
 	if key == "" || value == "" || len(props) == 0 {
 		return
 	}
+	req := map[string]struct{}{}
+	directRequired(schemas, node, inStack, req)
 	cur := variants[pattern]
 	if cur == nil {
-		cur = &discVariants{key: key, props: map[string]map[string]struct{}{}}
+		cur = &discVariants{
+			key:   key,
+			props: map[string]map[string]struct{}{},
+			req:   map[string]map[string]struct{}{},
+		}
 		variants[pattern] = cur
 	}
 	if cur.key != key {
@@ -179,8 +186,46 @@ func recordVariantProps(variants map[string]*discVariants, schemas map[string]an
 	if cur.props[value] == nil {
 		cur.props[value] = map[string]struct{}{}
 	}
+	if cur.req[value] == nil {
+		cur.req[value] = map[string]struct{}{}
+	}
 	for k := range props {
 		cur.props[value][k] = struct{}{}
+	}
+	for k := range req {
+		cur.req[value][k] = struct{}{}
+	}
+}
+
+func directRequired(schemas map[string]any, node any, inStack map[string]struct{}, dest map[string]struct{}) {
+	m, ok := node.(map[string]any)
+	if !ok {
+		return
+	}
+	if ref, _ := m["$ref"].(string); ref != "" {
+		name, ok := schemaRefName(ref)
+		if !ok {
+			return
+		}
+		if _, cyc := inStack[name]; cyc {
+			return
+		}
+		inStack[name] = struct{}{}
+		directRequired(schemas, schemas[name], inStack, dest)
+		delete(inStack, name)
+		return
+	}
+	if arr, ok := m["required"].([]any); ok {
+		for _, v := range arr {
+			if s, ok := v.(string); ok && s != "" {
+				dest[s] = struct{}{}
+			}
+		}
+	}
+	if arr, ok := m["allOf"].([]any); ok {
+		for _, v := range arr {
+			directRequired(schemas, v, inStack, dest)
+		}
 	}
 }
 
@@ -332,6 +377,28 @@ func arrayItemPrefix(pointer string) string {
 	return ""
 }
 
+func isMatchingBranchRequired(item schemaErr, prefix string, variants map[string]*discVariants, inst any) bool {
+	if item.keyword != "required" || item.pointer != prefix || variants == nil || inst == nil {
+		return false
+	}
+	v := variants[generalizePointer(prefix)]
+	obj := instanceObject(inst, prefix)
+	if v == nil || obj == nil {
+		return false
+	}
+	disc, _ := obj[v.key].(string)
+	req := v.req[disc]
+	if len(req) == 0 {
+		return false
+	}
+	for field := range req {
+		if strings.Contains(item.message, "'"+field+"'") {
+			return true
+		}
+	}
+	return false
+}
+
 func isUnmatchedDiscriminatorEnum(item schemaErr, prefix string, variants map[string]*discVariants, inst any) bool {
 	if (item.keyword != "enum" && item.keyword != "const") || variants == nil || inst == nil {
 		return false
@@ -473,7 +540,7 @@ func collapseOneOfBranchNoise(in []schemaErr, variants map[string]*discVariants,
 		}
 		var specific, noise []int
 		for _, i := range idxs {
-			if isUnmatchedDiscriminatorEnum(in[i], prefix, variants, inst) {
+			if isMatchingBranchRequired(in[i], prefix, variants, inst) || isUnmatchedDiscriminatorEnum(in[i], prefix, variants, inst) {
 				specific = append(specific, i)
 			} else if isOneOfBranchNoise(in[i], prefix, losingRoots) {
 				noise = append(noise, i)

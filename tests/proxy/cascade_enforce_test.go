@@ -63,12 +63,17 @@ func TestEnforceWarnFirstMatchesTrace(t *testing.T) {
 	first := firstSpecFinding(normalized(lastCall(t, sess)))
 	var logFirst string
 	for _, line := range strings.Split(logBuf.String(), "\n") {
-		if strings.Contains(line, `msg="spec violations"`) {
-			for _, field := range strings.Fields(line) {
-				if strings.HasPrefix(field, "first=") {
-					logFirst = strings.Trim(strings.TrimPrefix(field, "first="), `"`)
-				}
-			}
+		if !strings.Contains(line, `msg="spec violations"`) {
+			continue
+		}
+		const prefix = `first="`
+		i := strings.Index(line, prefix)
+		if i < 0 {
+			continue
+		}
+		rest := line[i+len(prefix):]
+		if j := strings.Index(rest, `"`); j >= 0 {
+			logFirst = rest[:j]
 		}
 	}
 	if first == "" || logFirst == "" {
@@ -77,8 +82,7 @@ func TestEnforceWarnFirstMatchesTrace(t *testing.T) {
 	if strings.Contains(first, "max_tokens") || strings.Contains(logFirst, "max_tokens") {
 		t.Fatalf("first=%q logFirst=%q", first, logFirst)
 	}
-	ptr := strings.Fields(first)[0]
-	if !strings.Contains(logFirst, ptr) && !strings.Contains(logFirst, "tool_choice") {
+	if logFirst != first {
 		t.Fatalf("log first=%q trace first=%q", logFirst, first)
 	}
 }
