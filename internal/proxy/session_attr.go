@@ -215,6 +215,10 @@ func unknownPathHint(requestPath string) string {
 			}
 		}
 	}
+	return allowPathPrefixHint(requestPath)
+}
+
+func allowPathPrefixHint(requestPath string) string {
 	seg := firstPathSegment(requestPath)
 	if seg == "" || seg == "s" || seg == "u" {
 		return ""

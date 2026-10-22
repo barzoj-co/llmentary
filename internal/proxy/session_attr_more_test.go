@@ -104,6 +104,21 @@ func TestAllowedWirePathAndUnknownHint(t *testing.T) {
 	if hint := unknownPathHint("/only"); hint == "" || !strings.Contains(hint, "--allow-path-prefix only") {
 		t.Fatalf("short hint=%q", hint)
 	}
+	if hint := allowPathPrefixHint("/inference/v1/chat/completions"); !strings.Contains(hint, "--allow-path-prefix inference") {
+		t.Fatalf("session-prefixed vendor path=%q", hint)
+	}
+	if hint := allowPathPrefixHint("/tokenize"); !strings.Contains(hint, "--allow-path-prefix tokenize") {
+		t.Fatalf("session rest tokenize=%q", hint)
+	}
+	if hint := allowPathPrefixHint("/s/sid1/tokenize"); hint != "" {
+		t.Fatalf("allow hint must not run session-typo logic: %q", hint)
+	}
+	if hint := allowPathPrefixHint("/"); hint != "" {
+		t.Fatalf("empty rest=%q", hint)
+	}
+	if hint := unknownPathHint("/inference/v1/chat/completions"); hint != "/s/inference/v1/chat/completions" {
+		t.Fatalf("unprefixed vendor path still session-typo: %q", hint)
+	}
 	if !hasNamedUpstreamPrefix("/u/llama/completion") || hasNamedUpstreamPrefix("/completion") {
 		t.Fatal("named prefix")
 	}

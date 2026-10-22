@@ -89,6 +89,13 @@ func TestBareProviderPathsNeedAllowPrefix(t *testing.T) {
 	if !bytes.Contains(raw, []byte("--allow-path-prefix tokenize")) || !bytes.Contains(raw, []byte("LLMENTARY_ALLOW_PATH_PREFIXES")) {
 		t.Fatalf("session-prefixed hint missing: %s", raw)
 	}
+	status, _, raw = doMethod(t, http.MethodPost, proxyURL+"/s/sid1/inference/v1/chat/completions", []byte(`{"model":"m","messages":[{"role":"user","content":"hi"}]}`))
+	if status != http.StatusNotFound {
+		t.Fatalf("session inference should 404: %d %s", status, raw)
+	}
+	if !bytes.Contains(raw, []byte("--allow-path-prefix inference")) || bytes.Contains(raw, []byte("/s/inference/")) {
+		t.Fatalf("session-prefixed vendor path must not use session-typo: %s", raw)
+	}
 	if hits, _, _, _, _ := echo.snapshot(); hits != 0 {
 		t.Fatalf("forwarded=%d", hits)
 	}
