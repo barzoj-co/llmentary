@@ -712,9 +712,9 @@ func overlapJoin(basePath, restPath string) string {
 	}
 	restAfter := restSegs[overlap:]
 	rewrote := false
-	if len(restAfter) > 0 && isVersionSegment(restAfter[0]) && pathHasVersionSegment(baseSegs) {
+	if overlap == 0 && len(restAfter) > 0 && isVersionSegment(restAfter[0]) && pathHasVersionSegment(baseSegs) {
 		restAfter = restAfter[1:]
-		rewrote = overlap == 0
+		rewrote = true
 	}
 	joined := append(append([]string{}, baseSegs...), restAfter...)
 	out := "/"

@@ -225,6 +225,18 @@ func TestOverlapJoinTable(t *testing.T) {
 			request:  "/v1/chat/completions",
 			wantPath: "/v1beta/openai/chat/completions",
 		},
+		{
+			name:     "overlap_must_not_strip_inner_version",
+			base:     "http://fake/v1/foo",
+			request:  "/foo/v1/chat",
+			wantPath: "/v1/foo/v1/chat",
+		},
+		{
+			name:     "leading_client_version_still_dropped",
+			base:     "http://fake/v1/foo",
+			request:  "/v1/chat",
+			wantPath: "/v1/foo/chat",
+		},
 	}
 	if len(tests) < 20 {
 		t.Fatalf("join table must cover ≥20 pairs, got %d", len(tests))
