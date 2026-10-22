@@ -417,6 +417,66 @@ func TestStrictUserToolCallIDStillReported(t *testing.T) {
 	}
 }
 
+func TestUnmatchedDiscriminatorFallsBackToUnion(t *testing.T) {
+	eng, err := CompileEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := []byte(`{"model":"m","messages":[{"role":"admin","content":"x"}]}`)
+	res := eng.ValidateRequest(ProfileStrict, "openai.chat", body, 0)
+	if hasKeywordPointer(res.Violations, "unevaluatedProperties", "/messages/0/content") {
+		t.Fatalf("content blamed after unmatched role: %v", summarize(res.Violations))
+	}
+	if !hasKeywordPointer(res.Violations, "enum", "/messages/0/role") {
+		t.Fatalf("missing role enum: %v", summarize(res.Violations))
+	}
+	empty := []byte(`{"model":"m","messages":[{"role":"","content":"x"}]}`)
+	emptyRes := eng.ValidateRequest(ProfileStrict, "openai.chat", empty, 0)
+	if hasKeywordPointer(emptyRes.Violations, "unevaluatedProperties", "/messages/0/content") {
+		t.Fatalf("empty role blamed content: %v", summarize(emptyRes.Violations))
+	}
+}
+
+func TestResponseNestedErrorDoesNotBlameKnownFields(t *testing.T) {
+	eng, err := CompileEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Nested required miss on choices[0] plus valid top-level fields that
+	// appear on losing anyOf/allOf branches (model / object / created).
+	body := []byte(`{"id":"c","object":"chat.completion","created":1,"model":"m","choices":[{"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}]}`)
+	res := eng.ValidateResponse(ProfileStrict, "openai.chat", body, false, nil)
+	if len(res.Violations) == 0 {
+		t.Fatal("expected nested response findings")
+	}
+	if !hasKeywordPointer(res.Violations, "required", "/choices/0") {
+		t.Fatalf("missing real nested required: %v", summarize(res.Violations))
+	}
+	for _, field := range []string{"/model", "/object", "/created", "/id"} {
+		if hasKeywordPointer(res.Violations, "unevaluatedProperties", field) {
+			t.Fatalf("known response field blamed %s: %v", field, summarize(res.Violations))
+		}
+	}
+	if !eng.knownResp[ProfileStrict+"|openai.chat"].has("", "model") {
+		t.Fatal("chat response known map missing model")
+	}
+	stream := []byte(`{"id":"c","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"delta":{"content":"x"}}]}`)
+	sse := eng.ValidateResponse(ProfileStrict, "openai.chat", stream, true, intPtr(0))
+	if hasKeywordPointer(sse.Violations, "unevaluatedProperties", "/model") {
+		t.Fatalf("stream known field blamed: %v", summarize(sse.Violations))
+	}
+	respBody := []byte(`{"id":"r","object":"response","status":"completed","created_at":1,"model":"m","output":[{"type":"bogus"}],"tools":[],"temperature":1}`)
+	resp := eng.ValidateResponse(ProfileRelaxed, "openai.responses", respBody, false, nil)
+	if len(resp.Violations) == 0 {
+		t.Fatal("expected nested responses findings")
+	}
+	if hasKeywordPointer(resp.Violations, "unevaluatedProperties", "/model") ||
+		hasKeywordPointer(resp.Violations, "unevaluatedProperties", "/tools") ||
+		hasKeywordPointer(resp.Violations, "unevaluatedProperties", "/temperature") {
+		t.Fatalf("responses known fields blamed: %v", summarize(resp.Violations))
+	}
+}
+
 func TestResponseUnknownRequestNamedFieldKept(t *testing.T) {
 	eng, err := CompileEmbedded()
 	if err != nil {

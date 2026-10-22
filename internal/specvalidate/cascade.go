@@ -263,7 +263,10 @@ func variantHasField(variants map[string]*discVariants, parentPointer, field str
 	}
 	names := v.props[disc]
 	if names == nil {
-		return false, true
+		// Unmatched discriminator: fall back to the union of variant
+		// properties so known siblings are not treated as specific
+		// unevaluatedProperties findings that can hide the enum error.
+		return false, false
 	}
 	_, has := names[field]
 	return has, true
@@ -327,6 +330,29 @@ func arrayItemPrefix(pointer string) string {
 		}
 	}
 	return ""
+}
+
+func isUnmatchedDiscriminatorEnum(item schemaErr, prefix string, variants map[string]*discVariants, inst any) bool {
+	if (item.keyword != "enum" && item.keyword != "const") || variants == nil || inst == nil {
+		return false
+	}
+	parent, field := splitPointerField(item.pointer)
+	if field == "" || generalizePointer(parent) != generalizePointer(prefix) {
+		return false
+	}
+	v := variants[generalizePointer(parent)]
+	if v == nil || field != v.key {
+		return false
+	}
+	obj := instanceObject(inst, parent)
+	if obj == nil {
+		return false
+	}
+	disc, _ := obj[v.key].(string)
+	if disc == "" {
+		return false
+	}
+	return v.props[disc] == nil
 }
 
 func isLosingNullType(item schemaErr) bool {
@@ -424,10 +450,10 @@ func filterCascadedFindingsAt(in []schemaErr, known objectProps, variants map[st
 		}
 		filtered = append(filtered, item)
 	}
-	return collapseOneOfBranchNoise(dedupeSchemaErr(filtered))
+	return collapseOneOfBranchNoise(dedupeSchemaErr(filtered), variants, inst)
 }
 
-func collapseOneOfBranchNoise(in []schemaErr) []schemaErr {
+func collapseOneOfBranchNoise(in []schemaErr, variants map[string]*discVariants, inst any) []schemaErr {
 	if len(in) < 2 {
 		return in
 	}
@@ -447,7 +473,9 @@ func collapseOneOfBranchNoise(in []schemaErr) []schemaErr {
 		}
 		var specific, noise []int
 		for _, i := range idxs {
-			if isOneOfBranchNoise(in[i], prefix, losingRoots) {
+			if isUnmatchedDiscriminatorEnum(in[i], prefix, variants, inst) {
+				specific = append(specific, i)
+			} else if isOneOfBranchNoise(in[i], prefix, losingRoots) {
 				noise = append(noise, i)
 			} else {
 				specific = append(specific, i)
