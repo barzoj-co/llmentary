@@ -185,13 +185,12 @@ func (s *Server) serveSession(w http.ResponseWriter, r *http.Request) {
 			writeInvalidParam(w, "include", "unknown parameter value; allowed: in_flight")
 			return
 		}
-		session, ok := s.store.Lookup(sessionID)
-		if !ok {
-			writeSessionNotFound(w, sessionID)
-			return
-		}
 		if include == "in_flight" {
-			inFlight := s.store.InFlight(sessionID)
+			session, inFlight, ok := s.store.SessionAndInFlight(sessionID)
+			if !ok {
+				writeSessionNotFound(w, sessionID)
+				return
+			}
 			if inFlight == nil {
 				inFlight = []InFlightCall{}
 			}
@@ -204,6 +203,11 @@ func (s *Server) serveSession(w http.ResponseWriter, r *http.Request) {
 				"calls":     calls,
 				"in_flight": inFlight,
 			})
+			return
+		}
+		session, ok := s.store.Lookup(sessionID)
+		if !ok {
+			writeSessionNotFound(w, sessionID)
 			return
 		}
 		writeJSON(w, session)
@@ -250,7 +254,8 @@ func (s *Server) serveWait(w http.ResponseWriter, r *http.Request, sessionID str
 		return
 	}
 	if errors.Is(err, ErrWaitTimeout) {
-		writeWaitTimeout(w, session, minCalls, s.store.InFlight(sessionID))
+		session, inFlight, _ := s.store.SessionAndInFlight(sessionID)
+		writeWaitTimeout(w, session, minCalls, inFlight)
 		return
 	}
 	if err != nil {

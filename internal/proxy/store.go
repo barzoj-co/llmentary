@@ -79,6 +79,7 @@ type Store interface {
 	Finish(sessionID, callID string, update func(*Call))
 	Lookup(sessionID string) (Session, bool)
 	InFlight(sessionID string) []InFlightCall
+	SessionAndInFlight(sessionID string) (Session, []InFlightCall, bool)
 	List(source string) []SessionSummary
 	Delete(sessionID string)
 	WaitQuiet(ctx context.Context, sessionID string, quiet, timeout time.Duration, minCalls int) (Session, error)
@@ -150,6 +151,14 @@ func (s *MemoryStore) Progress(sessionID, callID string, update func(*Call)) {
 }
 
 func (s *MemoryStore) InFlight(sessionID string) []InFlightCall {
+	_, inFlight, ok := s.SessionAndInFlight(sessionID)
+	if !ok {
+		return nil
+	}
+	return inFlight
+}
+
+func (s *MemoryStore) SessionAndInFlight(sessionID string) (Session, []InFlightCall, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if sessionID == "" {
@@ -157,9 +166,9 @@ func (s *MemoryStore) InFlight(sessionID string) []InFlightCall {
 	}
 	state, ok := s.sessions[sessionID]
 	if !ok {
-		return nil
+		return Session{ID: sessionID}, []InFlightCall{}, false
 	}
-	return inFlightSnapshot(state, time.Now().UTC())
+	return copySession(state), inFlightSnapshot(state, time.Now().UTC()), true
 }
 
 func (s *MemoryStore) Finish(sessionID, callID string, update func(*Call)) {

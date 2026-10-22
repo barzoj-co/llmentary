@@ -68,11 +68,21 @@ func TestSanitizeURLAndParseLooseError(t *testing.T) {
 	if strings.Contains(withUser, "user") || strings.Contains(withUser, "hunter2") || strings.Contains(withUser, "@") {
 		t.Fatalf("userinfo leaked: %s", withUser)
 	}
-	if !strings.Contains(withUser, "sha256") {
-		t.Fatalf("query secret not hashed: %s", withUser)
+	if strings.Contains(withUser, "?") || strings.Contains(withUser, "api_key") || strings.Contains(withUser, "secret") || strings.Contains(withUser, "sha256") {
+		t.Fatalf("in-flight query leaked: %s", withUser)
 	}
 	if sanitizeInFlightURL("https://justuser@api.example/v1") != "https://api.example/v1" {
 		t.Fatalf("username-only userinfo: %s", sanitizeInFlightURL("https://justuser@api.example/v1"))
+	}
+	tokenURL := sanitizeInFlightURL("https://api.example/v1/chat?access_token=SECRET&keep=1")
+	if tokenURL != "https://api.example/v1/chat" {
+		t.Fatalf("access_token query not stripped: %s", tokenURL)
+	}
+	if got := sanitizeInFlightURL("https://api.example/v1?keep=1#frag"); got != "https://api.example/v1#frag" {
+		t.Fatalf("non-secret query should still drop: %s", got)
+	}
+	if got := sanitizeInFlightURL("https://api.example/v1#frag"); got != "https://api.example/v1#frag" {
+		t.Fatalf("fragment-only: %s", got)
 	}
 	if got := sanitizeURL("https://user:hunter2@api.example/v1"); !strings.Contains(got, "user") {
 		t.Fatalf("sanitizeURL keeps userinfo for /config redaction path: %s", got)

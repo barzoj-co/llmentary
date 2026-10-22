@@ -181,6 +181,7 @@ func sanitizeInFlightURL(raw string) string {
 		return s
 	}
 	u.User = nil
+	u.RawQuery = ""
 	return u.String()
 }
 

@@ -22,7 +22,8 @@ object adds `active` plus `in_flight` (never inside `calls`) so a stalled
 upstream is visible. Each `in_flight` item has `call_id`, `seq`, `method`,
 `path`, `api_family`, `upstream`, `started_at`, `elapsed_ms`, `phase`
 (`awaiting_headers` or `streaming`), `bytes_received`, and `http_status`
-once headers have arrived. No bodies or headers. Pin the shape from
+once headers have arrived. No bodies, headers, userinfo, or query string
+on `upstream` (request credentials stay off this surface). Pin the shape from
 [`api/control/testdata/wait_timeout_inflight.json`](../api/control/testdata/wait_timeout_inflight.json).
 `GET /sessions/{id}?include=in_flight` returns the same `in_flight` array
 next to `calls`.

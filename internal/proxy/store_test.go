@@ -502,8 +502,12 @@ func TestInFlightFromCallCorners(t *testing.T) {
 	if item.Path != "/v1/chat" {
 		t.Fatalf("path=%q", item.Path)
 	}
-	if strings.Contains(item.Upstream, "hunter2") || strings.Contains(item.Upstream, "user:") || strings.Contains(item.Upstream, "secret") {
+	if strings.Contains(item.Upstream, "hunter2") || strings.Contains(item.Upstream, "user:") || strings.Contains(item.Upstream, "secret") || strings.Contains(item.Upstream, "?") {
 		t.Fatalf("credentials leaked: %s", item.Upstream)
+	}
+	token := inFlightFromCall(Call{ID: "t", Upstream: Upstream{URL: "https://api.example/v1/chat?access_token=SECRET&keep=1"}}, now)
+	if token.Upstream != "https://api.example/v1/chat" || token.Path != "/v1/chat" {
+		t.Fatalf("access_token in-flight: %+v", token)
 	}
 	bad := inFlightFromCall(Call{ID: "c", Upstream: Upstream{URL: "://%"}}, now)
 	if bad.Path != "" {
@@ -512,6 +516,79 @@ func TestInFlightFromCallCorners(t *testing.T) {
 	awaiting := inFlightFromCall(Call{ID: "c", StartedAt: now.Add(-time.Second), Upstream: Upstream{URL: "http://127.0.0.1/v1/x"}}, now)
 	if awaiting.Phase != InFlightPhaseAwaitingHeaders || awaiting.ElapsedMS < 1000 {
 		t.Fatalf("awaiting=%+v", awaiting)
+	}
+}
+
+func TestSessionAndInFlightPartitionsCalls(t *testing.T) {
+	t.Parallel()
+	store := NewMemoryStore()
+	now := time.Now().UTC()
+	_, id1 := store.Begin("s", Call{StartedAt: now, Upstream: Upstream{URL: "https://api.example/v1/a?access_token=SECRET"}})
+	_, id2 := store.Begin("s", Call{StartedAt: now, Upstream: Upstream{URL: "https://api.example/v1/b?keep=1"}})
+	store.Finish("s", id1, func(call *Call) {
+		call.EndedAt = now
+		call.HTTPStatus = 200
+	})
+	sess, inflight, ok := store.SessionAndInFlight("s")
+	if !ok {
+		t.Fatal("missing session")
+	}
+	if len(sess.Calls) != 1 || sess.Calls[0].ID != id1 {
+		t.Fatalf("settled=%+v", sess.Calls)
+	}
+	if len(inflight) != 1 || inflight[0].CallID != id2 {
+		t.Fatalf("inflight=%+v", inflight)
+	}
+	if strings.Contains(inflight[0].Upstream, "?") || strings.Contains(inflight[0].Upstream, "keep") {
+		t.Fatalf("query leaked: %s", inflight[0].Upstream)
+	}
+	if _, _, ok := store.SessionAndInFlight("ghost"); ok {
+		t.Fatal("ghost exists")
+	}
+	if got := store.InFlight("ghost"); got != nil {
+		t.Fatalf("ghost inflight=%v", got)
+	}
+}
+
+func TestSessionAndInFlightConcurrentFinish(t *testing.T) {
+	t.Parallel()
+	store := NewMemoryStore()
+	_, id := store.Begin("s", Call{StartedAt: time.Now().UTC(), Upstream: Upstream{URL: "https://api.example/v1"}})
+	var mu sync.Mutex
+	var fails []string
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := 0; i < 200; i++ {
+			sess, inflight, ok := store.SessionAndInFlight("s")
+			if !ok {
+				mu.Lock()
+				fails = append(fails, "session disappeared")
+				mu.Unlock()
+				return
+			}
+			if len(sess.Calls)+len(inflight) != 1 {
+				mu.Lock()
+				fails = append(fails, "call missing or doubled")
+				mu.Unlock()
+				return
+			}
+			if len(sess.Calls) == 1 && len(inflight) == 1 && sess.Calls[0].ID == inflight[0].CallID {
+				mu.Lock()
+				fails = append(fails, "overlap")
+				mu.Unlock()
+				return
+			}
+		}
+	}()
+	time.Sleep(time.Millisecond)
+	store.Finish("s", id, func(call *Call) {
+		call.EndedAt = time.Now().UTC()
+		call.HTTPStatus = 200
+	})
+	<-done
+	if len(fails) > 0 {
+		t.Fatal(fails)
 	}
 }
 
