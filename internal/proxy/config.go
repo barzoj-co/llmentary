@@ -12,6 +12,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -46,6 +47,12 @@ type Config struct {
 	DefaultSession    string
 	AllowPathPrefixes []string
 	PropagateTrace    string
+	// UpstreamHeaderTimeout cancels an upstream request that sends no
+	// response headers. Zero disables (the default forwarding contract).
+	UpstreamHeaderTimeout time.Duration
+	// UpstreamIdleTimeout cancels an upstream body that sends no further
+	// bytes. Zero disables (the default forwarding contract).
+	UpstreamIdleTimeout time.Duration
 }
 
 func ConfigFromEnv() (Config, error) {
@@ -84,6 +91,20 @@ func ConfigFromEnv() (Config, error) {
 			return cfg, fmt.Errorf("--spec-log-max=%q is invalid; allowed values: non-negative count (env LLMENTARY_SPEC_LOG_MAX)", raw)
 		}
 		cfg.SpecLogMax = &n
+	}
+	if raw := strings.TrimSpace(os.Getenv("LLMENTARY_UPSTREAM_HEADER_TIMEOUT")); raw != "" {
+		d, err := ParseOptionalTimeout("upstream-header-timeout", "LLMENTARY_UPSTREAM_HEADER_TIMEOUT", raw)
+		if err != nil {
+			return cfg, err
+		}
+		cfg.UpstreamHeaderTimeout = d
+	}
+	if raw := strings.TrimSpace(os.Getenv("LLMENTARY_UPSTREAM_IDLE_TIMEOUT")); raw != "" {
+		d, err := ParseOptionalTimeout("upstream-idle-timeout", "LLMENTARY_UPSTREAM_IDLE_TIMEOUT", raw)
+		if err != nil {
+			return cfg, err
+		}
+		cfg.UpstreamIdleTimeout = d
 	}
 	raw := strings.TrimSpace(os.Getenv("LLMENTARY_UPSTREAMS"))
 	if raw == "" {
@@ -176,6 +197,12 @@ func (c *Config) Validate() error {
 		return err
 	}
 	if err := c.applyAttributionDefaults(); err != nil {
+		return err
+	}
+	if err := validateUpstreamTimeout("upstream-header-timeout", "LLMENTARY_UPSTREAM_HEADER_TIMEOUT", c.UpstreamHeaderTimeout); err != nil {
+		return err
+	}
+	if err := validateUpstreamTimeout("upstream-idle-timeout", "LLMENTARY_UPSTREAM_IDLE_TIMEOUT", c.UpstreamIdleTimeout); err != nil {
 		return err
 	}
 	return nil

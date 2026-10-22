@@ -61,6 +61,9 @@ func TestNewServerNilStoreParserAndLogger(t *testing.T) {
 	if _, ok := cfgJSON["upstreams"].(map[string]string); !ok {
 		t.Fatalf("config json=%v", cfgJSON)
 	}
+	if cfgJSON["upstream_header_timeout"] != "0s" || cfgJSON["upstream_idle_timeout"] != "0s" {
+		t.Fatalf("timeouts=%v", cfgJSON)
+	}
 }
 
 func TestRouteErrorsAndDefaults(t *testing.T) {

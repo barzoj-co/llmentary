@@ -47,19 +47,21 @@ func (s *Server) forwardSpec(ctx context.Context) (*upstreamResponse, error) {
 type exchangeKey struct{}
 
 type proxyExchange struct {
-	s             *Server
-	r             *http.Request
-	rawReq        []byte
-	session       sessionInfo
-	callID        string
-	startedAt     time.Time
-	span          trace.Span
-	target        string
-	decodeWarning string
-	finished      bool
-	requestVal    requestValidation
-	wroteRequest  atomic.Bool
-	seq           int
+	s               *Server
+	r               *http.Request
+	rawReq          []byte
+	session         sessionInfo
+	callID          string
+	startedAt       time.Time
+	span            trace.Span
+	target          string
+	decodeWarning   string
+	finished        bool
+	requestVal      requestValidation
+	wroteRequest    atomic.Bool
+	seq             int
+	upstreamCancel  context.CancelFunc
+	idleTimeoutFire atomic.Bool
 }
 
 func withExchange(ctx context.Context, ex *proxyExchange) context.Context {
@@ -119,6 +121,16 @@ func (s *Server) writeProxyError(w http.ResponseWriter, ex *proxyExchange, err e
 		ex.finished = true
 		return
 	}
+	if ex != nil && errors.Is(err, ErrUpstreamHeaderTimeout) {
+		ended := s.finishWithUpstreamHeaderTimeout(ex, err)
+		s.logProxyResponse(ex, ended, http.StatusGatewayTimeout)
+		if ex.span != nil {
+			finishSpan(ex.span, ended, ended.EndedAt)
+		}
+		ex.finished = true
+		writeLocalOpenAIError(w, http.StatusGatewayTimeout, "upstream_timeout", err.Error())
+		return
+	}
 	ended := s.finishWithProxyError(ex.session.ID, ex.callID, ex.startedAt, err, http.StatusBadGateway, ex.requestVal, ex.wroteRequest.Load())
 	s.logProxyResponse(ex, ended, http.StatusBadGateway)
 	if ex.span != nil {
@@ -156,6 +168,34 @@ func (s *Server) finishWithClientAbort(ex *proxyExchange, err error) Call {
 	return endedCall
 }
 
+func (s *Server) finishWithUpstreamHeaderTimeout(ex *proxyExchange, err error) Call {
+	endedAt := time.Now().UTC()
+	var endedCall Call
+	s.store.Finish(ex.session.ID, ex.callID, func(call *Call) {
+		call.EndedAt = endedAt
+		call.LatencyMS = endedAt.Sub(ex.startedAt).Milliseconds()
+		call.HTTPStatus = http.StatusGatewayTimeout
+		call.Stream = requestStreamFlag(ex.rawReq)
+		call.UpstreamCalled = true
+		s.parser.Parse(call)
+		call.Normalized.Error = &CallError{
+			HTTPStatus: http.StatusGatewayTimeout,
+			Type:       "upstream_timeout",
+			Code:       "upstream_timeout",
+			Message:    err.Error(),
+			Normalized: "upstream_timeout",
+			Source:     "proxy",
+		}
+		call.Normalized.FinishReason = "error"
+		applyRequestValidation(call, ex.requestVal)
+		logCall := snapshotAndCollapseViolations(call)
+		endedCall = *call
+		endedCall.Normalized.SpecViolations = logCall.Normalized.SpecViolations
+	})
+	s.logValidationFindings(endedCall)
+	return endedCall
+}
+
 func requestStreamFlag(raw []byte) bool {
 	var body map[string]any
 	if json.Unmarshal(firstJSONBytes(raw), &body) != nil {
@@ -187,8 +227,29 @@ func (u *upstreamResponse) write(w http.ResponseWriter) error {
 }
 
 func (ex *proxyExchange) doUpstream() (*http.Response, error) {
-	req, err := http.NewRequestWithContext(ex.r.Context(), ex.r.Method, ex.target, bytes.NewReader(ex.rawReq))
+	ctx := ex.r.Context()
+	headerTimeout := time.Duration(0)
+	idleTimeout := time.Duration(0)
+	if ex.s != nil {
+		headerTimeout = ex.s.cfg.UpstreamHeaderTimeout
+		idleTimeout = ex.s.cfg.UpstreamIdleTimeout
+	}
+	if headerTimeout > 0 || idleTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithCancel(ctx)
+		ex.upstreamCancel = cancel
+	}
+	if headerTimeout > 0 && ex.upstreamCancel != nil {
+		timer := time.AfterFunc(headerTimeout, ex.upstreamCancel)
+		// Stop the timer after Do returns. Do not cancel ctx on success:
+		// the response body is bound to this child context.
+		defer timer.Stop()
+	}
+	req, err := http.NewRequestWithContext(ctx, ex.r.Method, ex.target, bytes.NewReader(ex.rawReq))
 	if err != nil {
+		if ex.upstreamCancel != nil {
+			ex.upstreamCancel()
+		}
 		return nil, err
 	}
 	req.Header = cloneHeader(ex.r.Header)
@@ -207,7 +268,20 @@ func (ex *proxyExchange) doUpstream() (*http.Response, error) {
 		},
 	}))
 	UpstreamCallCount.Add(1)
-	return ex.s.client.Do(req)
+	resp, err := ex.s.client.Do(req)
+	if err != nil {
+		if ex.upstreamCancel != nil {
+			ex.upstreamCancel()
+		}
+		if ex.r != nil && ex.r.Context().Err() != nil {
+			return nil, err
+		}
+		if headerTimeout > 0 && isContextTimeout(err) {
+			return nil, headerTimeoutError(headerTimeout)
+		}
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (ex *proxyExchange) copyAndFinish(w http.ResponseWriter, resp *http.Response) error {
@@ -220,6 +294,22 @@ func (ex *proxyExchange) copyAndFinish(w http.ResponseWriter, resp *http.Respons
 	removeHopByHopHeaders(w.Header())
 	w.WriteHeader(resp.StatusCode)
 
+	if ex.upstreamCancel != nil {
+		defer ex.upstreamCancel()
+	}
+	idleTimeout := time.Duration(0)
+	if ex.s != nil {
+		idleTimeout = ex.s.cfg.UpstreamIdleTimeout
+	}
+	var idleTimer *time.Timer
+	if idleTimeout > 0 && ex.upstreamCancel != nil {
+		idleTimer = time.AfterFunc(idleTimeout, func() {
+			ex.idleTimeoutFire.Store(true)
+			ex.upstreamCancel()
+		})
+		defer idleTimer.Stop()
+	}
+
 	var rawResp bytes.Buffer
 	headerSSE := strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "text/event-stream")
 	encoding := strings.TrimSpace(resp.Header.Get("Content-Encoding"))
@@ -229,6 +319,9 @@ func (ex *proxyExchange) copyAndFinish(w http.ResponseWriter, resp *http.Respons
 		recorder = newSSERecorder(ex.startedAt)
 	}
 	_, copyErr, copyWriteErr := copyAndFlush(w, resp.Body, func(chunk []byte) {
+		if idleTimer != nil {
+			idleTimer.Reset(idleTimeout)
+		}
 		if firstByte == nil {
 			now := time.Now().UTC()
 			firstByte = &now
@@ -238,6 +331,9 @@ func (ex *proxyExchange) copyAndFinish(w http.ResponseWriter, resp *http.Respons
 			recorder.Write(chunk)
 		}
 	})
+	if ex.idleTimeoutFire.Load() && (ex.r == nil || ex.r.Context().Err() == nil) {
+		copyErr = idleTimeoutError(idleTimeout)
+	}
 	ex.finishCall(resp, rawResp.Bytes(), firstByte, recorder, copyErr, copyWriteErr, headerSSE)
 	return nil
 }
@@ -279,7 +375,8 @@ func (ex *proxyExchange) finishCall(resp *http.Response, rawBody []byte, firstBy
 			call.Normalized.StreamTruncated = true
 		}
 		clientGone := ex.r != nil && ex.r.Context().Err() != nil
-		if clientAbortedAfterHeaders(stream, complete, clientGone, copyWriteErr, copyErr) {
+		idleTimeout := errors.Is(copyErr, ErrUpstreamIdleTimeout)
+		if !idleTimeout && clientAbortedAfterHeaders(stream, complete, clientGone, copyWriteErr, copyErr) {
 			// A complete SSE stream (terminal [DONE] or Responses
 			// response.completed/failed/incomplete already written) is not
 			// client_aborted when the SDK closes after that event.
@@ -316,6 +413,21 @@ func (ex *proxyExchange) finishCall(resp *http.Response, rawBody []byte, firstBy
 					err.MidStream = false
 				}
 			}
+		}
+		if idleTimeout {
+			if stream && !complete {
+				call.Normalized.StreamTruncated = true
+			}
+			call.Normalized.Error = &CallError{
+				HTTPStatus: resp.StatusCode,
+				Type:       "upstream_timeout",
+				Code:       "upstream_idle_timeout",
+				Message:    copyErr.Error(),
+				Normalized: "upstream_idle_timeout",
+				Source:     "proxy",
+				MidStream:  false,
+			}
+			call.Normalized.FinishReason = "error"
 		}
 		logCall := snapshotAndCollapseViolations(call)
 		endedCall = *call

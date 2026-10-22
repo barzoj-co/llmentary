@@ -298,7 +298,13 @@ Responses synthesizes `finish_reason` as follows:
 | no status and no parser result | `unknown` |
 
 Proxy network errors set `finish_reason: "error"` with `error.normalized: "network"`
-and an HTTP `502`. A client cancel before response headers sets
+and an HTTP `502`. An optional `--upstream-header-timeout` that fires records
+`http_status: 504`, `error.type` / `error.code` / `error.normalized:
+"upstream_timeout"`, `error.source: "proxy"`, and `upstream_called: true`, and
+returns that same OpenAI-shaped error to the client. An `--upstream-idle-timeout`
+that fires after headers keeps the upstream `http_status` (usually `200`), sets
+`stream_truncated` on an incomplete SSE stream, and records
+`error.normalized: "upstream_idle_timeout"` with `mid_stream: false`. A client cancel before response headers sets
 `finish_reason: "cancelled"`, `client_aborted: true`, `http_status: 0`,
 `error.normalized: "client_aborted"`, and `stream` from the request body. The
 parser is not run on that empty body, so there is no "strict decode failed"
@@ -340,6 +346,8 @@ Error normalization categories are:
 - `content_filter`
 - `bad_request`
 - `network`
+- `upstream_timeout`
+- `upstream_idle_timeout`
 - `unknown`
 
 ## Usage

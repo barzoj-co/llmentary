@@ -43,6 +43,8 @@ variables plus CLI flags.
 | `--upstream` | `LLMENTARY_UPSTREAMS`, fallback `LLMENTARY_UPSTREAM` | `openai=https://api.openai.com/v1` | Upstream mapping. Repeat the flag or use comma-separated environment values. When omitted, the proxy logs `no upstream configured; defaulting to openai=https://api.openai.com/v1`. |
 | `--spec-target` | `LLMENTARY_SPEC_TARGETS` | host-based | Per-upstream spec target `name=openai` or `name=openai-compatible`. Repeatable. Default: `openai` for `api.openai.com` and Azure OpenAI hosts; `openai-compatible` for every other host (including localhost). Invalid values and unknown upstream names exit non-zero. |
 | `--tls` | none | `false` | Parsed by the CLI, but not wired to a TLS listener in the current code. |
+| `--upstream-header-timeout` | `LLMENTARY_UPSTREAM_HEADER_TIMEOUT` | `0` (off) | Cancel an upstream request that sends no response headers within this duration. `0` / `0s` / empty disables. Invalid, negative, or `>10m` values fail at startup. |
+| `--upstream-idle-timeout` | `LLMENTARY_UPSTREAM_IDLE_TIMEOUT` | `0` (off) | Cancel an upstream body that sends no further bytes within this duration. `0` / `0s` / empty disables. Invalid, negative, or `>10m` values fail at startup. |
 | `--spec-validation` | `LLMENTARY_SPEC_VALIDATION` | `warn` | Request spec validation mode: `off`, `warn`, or `enforce`. Invalid values exit non-zero. |
 | `--spec-profile` | `LLMENTARY_SPEC_PROFILE` | `relaxed` | Spec profile: `strict` (pinned spec + closed-world) or `relaxed` (strict plus `api/openai/relax-overlay.yaml`). |
 | `--spec-validation-max-bytes` | `LLMENTARY_SPEC_VALIDATION_MAX_BYTES` | `8388608` | Maximum request body size to validate. Larger bodies are forwarded and marked `skipped_reason: body_too_large`. |
@@ -57,6 +59,27 @@ defaults to `openai=https://api.openai.com/v1`. `GET /config` reports the effect
 upstreams (names and sanitized URLs). An upstream whose host:port is the proxy listen
 address (including `localhost`, `127.0.0.1`, `0.0.0.0`, and `[::1]` on the same port)
 is refused at startup so the proxy cannot loop on itself.
+
+Upstream header and idle timeouts are off by default so the forwarding contract
+is unchanged: the proxy waits as long as the upstream and the inbound client do.
+Test runs can set `--upstream-header-timeout` / `LLMENTARY_UPSTREAM_HEADER_TIMEOUT`
+and `--upstream-idle-timeout` / `LLMENTARY_UPSTREAM_IDLE_TIMEOUT` (Go duration or
+a bare second count; `0` disables). Timeouts apply per call, not per session.
+
+- Header timeout: the proxy cancels the upstream request, returns `504` with an
+  OpenAI-shaped `{"error":{"type":"upstream_timeout","code":"upstream_timeout","message":"…"}}`
+  body, and records `http_status: 504`, `error.normalized: upstream_timeout`,
+  `error.source: proxy`, and `upstream_called: true`. The `INFO proxy response`
+  line uses `status=504`, `seq=`, and `spec=request_only` when the request was
+  checked and no response arrived.
+- Idle timeout: headers have already been written (typically `200`). Partial
+  bytes already flushed to the client are kept. The recorded call sets
+  `stream_truncated` on an incomplete SSE stream, `error.normalized:
+  upstream_idle_timeout`, `error.source: proxy`, and never `error.mid_stream`.
+- A client cancel that wins the race is still `client_aborted` (DOG-15 / DOG-28).
+
+`GET /config` reports the effective values as Go duration strings (`"0s"` when
+off). Local TLS is not implemented; there is no `--tls` flag.
 
 ```bash
 llmentary \
@@ -545,7 +568,7 @@ Unsupported methods return `405` `{"error":{"type":"method_not_allowed"}}` with 
 Returns the effective spec-validation settings so clients can tell "validated, clean" from "not validated", plus the clean binary version:
 
 ```json
-{"spec_validation":"warn","spec_profile":"relaxed","spec_sha":"…","schema_subset_retrieved":"2026-10-18","upstreams":{"openai":"https://api.openai.com/v1"},"spec_targets":{"openai":"openai"},"version":"0.3.0"}
+{"spec_validation":"warn","spec_profile":"relaxed","spec_sha":"…","schema_subset_retrieved":"2026-10-18","upstreams":{"openai":"https://api.openai.com/v1"},"spec_targets":{"openai":"openai"},"upstream_header_timeout":"0s","upstream_idle_timeout":"0s","version":"0.3.0"}
 ```
 
 Startup logs one `spec target` line per upstream (`upstream`, `target`, `url`). The per-call
@@ -660,7 +683,11 @@ inbound request context was cancelled before the upstream sent headers.
 `phase=after_headers` is a cancel after `200` headers (mid-stream); the
 trace keeps `http_status: 200`, partial SSE, `finish_reason: cancelled`.
 Neither abort is a proxy `502`. A live client plus a refused / DNS / TLS
-failure stays `status=502` with `error.normalized: "network"`. A close
+failure stays `status=502` with `error.normalized: "network"`. An optional
+`--upstream-header-timeout` that fires is `status=504` with
+`error.normalized: "upstream_timeout"`. An `--upstream-idle-timeout` that
+fires after headers keeps the upstream status (usually `200`) with
+`stream_truncated` and `error.normalized: "upstream_idle_timeout"`. A close
 after the terminal SSE event (`[DONE]` / `response.completed`) is **not**
 `client_aborted`.
 
@@ -693,5 +720,3 @@ repos. Planned in later versions of the proxy:
 - Anthropic Messages parsing in v2.
 - External OTLP export and stricter content-capture controls.
 - Record/replay cassettes, fault injection, packaging polish, and local TLS.
-
-The current `--tls` flag is parsed by the CLI but is not wired to any TLS listener.

@@ -101,6 +101,14 @@ func (s *Server) configJSON() map[string]any {
 	}
 	out["spec_targets"] = targets
 	out["version"] = VersionString()
+	headerTimeout := time.Duration(0)
+	idleTimeout := time.Duration(0)
+	if s != nil {
+		headerTimeout = s.cfg.UpstreamHeaderTimeout
+		idleTimeout = s.cfg.UpstreamIdleTimeout
+	}
+	out["upstream_header_timeout"] = headerTimeout.String()
+	out["upstream_idle_timeout"] = idleTimeout.String()
 	return out
 }
 

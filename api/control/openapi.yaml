@@ -246,6 +246,16 @@ components:
             type: string
         version:
           type: string
+        upstream_header_timeout:
+          type: string
+          description: >
+            Effective `--upstream-header-timeout` as a Go duration string.
+            `0s` disables (default).
+        upstream_idle_timeout:
+          type: string
+          description: >
+            Effective `--upstream-idle-timeout` as a Go duration string.
+            `0s` disables (default).
     Version:
       type: object
       required:
