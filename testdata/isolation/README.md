@@ -1,8 +1,12 @@
 # Isolation test vectors
 
 Normative fixtures for [`docs/isolation-spec.md`](../../docs/isolation-spec.md).
-Clients copy this directory and fail CI if the copy drifts from the pinned
-proxy version.
+The proxy [README](../../README.md) and each client README
+([llmentary-go](https://github.com/barzoj-co/llmentary-go),
+[llmentary-python](https://github.com/barzoj-co/llmentary-python),
+[llmentary-js](https://github.com/barzoj-co/llmentary-js)) must link this
+directory. Clients copy these JSON files and fail CI if the copy drifts
+from the pinned proxy version.
 
 Each file is one `X.isolated_from(Y)` check.
 
