@@ -71,18 +71,23 @@ func TestOpenAICompatibleGuidePinned(t *testing.T) {
 		"Core known-field type",
 		"Response-side `spec_violations`",
 		"`strict_fallback` is the exception",
-		"`server`, `rate_limit`,",
-		"`content_filter`, `unknown`)",
 	} {
 		if !strings.Contains(text, n) {
 			t.Errorf("docs/openai-compatible.md missing %q", n)
 		}
 	}
-	if stream := sectionAfter(text, "## Stream normalization"); stream != "" {
-		for _, n := range []string{"`auth`", "`bad_request`"} {
-			if strings.Contains(stream, n) {
-				t.Errorf("HTTP-200 stream error list must not include %s", n)
-			}
+	stream := sectionAfter(text, "## Stream normalization")
+	if stream == "" {
+		t.Fatal("docs/openai-compatible.md missing ## Stream normalization")
+	}
+	for _, n := range []string{"`server`", "`rate_limit`", "`content_filter`", "`unknown`"} {
+		if !strings.Contains(stream, n) {
+			t.Errorf("stream section missing class %s", n)
+		}
+	}
+	for _, n := range []string{"`auth`", "`bad_request`"} {
+		if strings.Contains(stream, n) {
+			t.Errorf("HTTP-200 stream error list must not include %s", n)
 		}
 	}
 	for _, n := range []string{"agpl", "license"} {
