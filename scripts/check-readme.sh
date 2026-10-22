@@ -86,7 +86,43 @@ required_snippets = (
     'const { llmentary } = require("llmentary/jest")',
     "def test_weather(llmentary):",
     "const lm = llmentary()",
+    "[Isolation spec](docs/isolation-spec.md)",
+    "testdata/isolation/",
 )
+
+spec_path = root / "docs" / "isolation-spec.md"
+if not spec_path.is_file():
+    print("docs/isolation-spec.md is missing", file=sys.stderr)
+    failed = True
+else:
+    spec = spec_path.read_text(encoding="utf-8")
+    for needle in (
+        "allow_empty",
+        "testdata/isolation/",
+        "## Client README contract",
+        "https://github.com/barzoj-co/llmentary-go",
+        "https://github.com/barzoj-co/llmentary-python",
+        "https://github.com/barzoj-co/llmentary-js",
+    ):
+        if needle not in spec:
+            print(f"docs/isolation-spec.md is missing {needle!r}", file=sys.stderr)
+            failed = True
+
+vectors = root / "testdata" / "isolation" / "README.md"
+if not vectors.is_file():
+    print("testdata/isolation/README.md is missing", file=sys.stderr)
+    failed = True
+else:
+    vec = vectors.read_text(encoding="utf-8")
+    for needle in (
+        "docs/isolation-spec.md",
+        "llmentary-go",
+        "llmentary-python",
+        "llmentary-js",
+    ):
+        if needle not in vec:
+            print(f"testdata/isolation/README.md is missing {needle!r}", file=sys.stderr)
+            failed = True
 for snippet in required_snippets:
     if snippet not in readme:
         print(f"README.md is missing client API snippet: {snippet}", file=sys.stderr)
@@ -134,4 +170,4 @@ fi
 if [[ "$failed" -ne 0 ]]; then
   exit 1
 fi
-echo "check-readme: badges, structure, and client API snippets ok"
+echo "check-readme: badges, structure, isolation spec, and client API snippets ok"
