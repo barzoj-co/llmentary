@@ -25,6 +25,7 @@ var defaultAllowPathPrefixes = []string{
 	"embeddings", "models", "files", "audio", "images",
 	"moderations", "batches", "uploads", "vector_stores",
 	"assistants", "threads", "realtime",
+	"beta", "v1beta",
 }
 
 var allowedSessionSources = map[string]bool{
@@ -181,6 +182,11 @@ func firstPathSegment(p string) string {
 	return strings.ToLower(seg)
 }
 
+func hasNamedUpstreamPrefix(p string) bool {
+	p = "/" + strings.TrimLeft(p, "/")
+	return strings.HasPrefix(p, "/u/")
+}
+
 func (c Config) allowedWirePath(wirePath string) bool {
 	seg := firstPathSegment(wirePath)
 	if seg == "" {
@@ -201,16 +207,23 @@ func (c Config) allowedWirePath(wirePath string) bool {
 
 func unknownPathHint(requestPath string) string {
 	segs := pathSegments(requestPath)
-	if len(segs) < 2 {
-		return ""
-	}
-	second := strings.ToLower(segs[1])
-	for _, allow := range defaultAllowPathPrefixes {
-		if second == allow {
-			return "/s/" + segs[0] + "/" + strings.Join(segs[1:], "/")
+	if len(segs) >= 2 {
+		second := strings.ToLower(segs[1])
+		for _, allow := range defaultAllowPathPrefixes {
+			if second == allow {
+				return "/s/" + segs[0] + "/" + strings.Join(segs[1:], "/")
+			}
 		}
 	}
-	return ""
+	return allowPathPrefixHint(requestPath)
+}
+
+func allowPathPrefixHint(requestPath string) string {
+	seg := firstPathSegment(requestPath)
+	if seg == "" || seg == "s" || seg == "u" {
+		return ""
+	}
+	return "--allow-path-prefix " + seg + " (env LLMENTARY_ALLOW_PATH_PREFIXES)"
 }
 
 func (s *Server) resolveSession(r *http.Request, pathID string, hasPath bool) (sessionInfo, error) {

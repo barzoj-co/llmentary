@@ -187,16 +187,21 @@ import-time clients, and `--default-session` sidecar recipes are in
 
 ### No leaks of unknown prefixes
 
-After `/s/{session}` and `/u/{name}` are stripped, the first remaining segment
-must be one of: `v1`, `openai`, `api`, `chat`, `responses`, `completions`,
+After `/s/{session}` is stripped, a **bare** path (no `/u/{name}`) must have a
+first segment of: `v1`, `openai`, `api`, `chat`, `responses`, `completions`,
 `embeddings`, `models`, `files`, `audio`, `images`, `moderations`, `batches`,
-`uploads`, `vector_stores`, `assistants`, `threads`, `realtime`.
-`--allow-path-prefix` extends that list.
+`uploads`, `vector_stores`, `assistants`, `threads`, `realtime`, `beta`,
+`v1beta`. `--allow-path-prefix` extends that list. Explicit `/u/{name}/...`
+routing skips the allow-list so provider-native paths
+(`/u/llama/completion`, `/u/vllm/tokenize`, …) are forwarded as passthrough.
 
-Anything else gets a local `404` JSON error (`type`/`code` `llmentary_unknown_path`)
-and is **not** forwarded. The message includes `did you mean /s/<segment>/...?`
-when the request had a single extra leading segment (`/dogfood/v1/...` suggests
-`/s/dogfood/v1/...`). One WARN line is written (`method`, `path`; no header values).
+Bare paths that fail the allow-list get a local `404` JSON error
+(`type`/`code` `llmentary_unknown_path`) and are **not** forwarded. The
+message includes `did you mean /s/<segment>/...?` when the extra leading
+segment looks like a session-id typo (`/dogfood/v1/...` suggests
+`/s/dogfood/v1/...`). Otherwise it mentions `--allow-path-prefix <segment>`
+(and `LLMENTARY_ALLOW_PATH_PREFIXES`). One WARN line is written (`method`,
+`path`; no header values).
 
 The Go client in [llmentary-go](https://github.com/barzoj-co/llmentary-go)
 creates a random session id and can inject `X-Test-Session` through `lm.HTTPClient()`.

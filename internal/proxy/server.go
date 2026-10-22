@@ -131,11 +131,19 @@ func (s *Server) serveProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	wirePath := stripNamedUpstreamPath(restPath)
-	if !s.cfg.allowedWirePath(wirePath) {
+	if !hasNamedUpstreamPrefix(restPath) && !s.cfg.allowedWirePath(wirePath) {
 		s.logger().Warn("unknown path", "method", r.Method, "path", origPath)
 		msg := fmt.Sprintf("unknown path %q", origPath)
-		if hint := unknownPathHint(origPath); hint != "" {
-			msg += "; did you mean " + hint + "?"
+		hint := unknownPathHint(origPath)
+		if hasPath {
+			hint = allowPathPrefixHint(restPath)
+		}
+		if hint != "" {
+			if strings.HasPrefix(hint, "--allow-path-prefix") {
+				msg += "; " + hint
+			} else {
+				msg += "; did you mean " + hint + "?"
+			}
 		}
 		writeLocalOpenAIError(w, http.StatusNotFound, errTypeUnknownPath, msg)
 		return

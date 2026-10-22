@@ -203,6 +203,12 @@ App / SDK base URL:
 
 ## Other OpenAI-compatible providers
 
+Native provider paths that are not under `/v1` (llama.cpp `/completion`,
+vLLM `/tokenize`, DeepSeek `/beta/chat/completions`, Gemini `/v1beta/openai/...`)
+should be sent as `{proxy}/u/{name}/...`. Explicit `/u/{name}` routing skips the
+bare-path allow-list; `POST` paths that still end in `/chat/completions` or
+`/responses` are validated and normalized as OpenAI-wire.
+
 Anything that speaks OpenAI-wire HTTP can be a named upstream. For the normalizer to
 fill tool calls, usage, and finish reasons, the request path must end in
 `/chat/completions` or `/responses` and the stream (if any) must use OpenAI SSE
