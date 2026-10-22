@@ -13,13 +13,12 @@ import (
 // StampOpenAPIVersion rewrites info.version in a control OpenAPI document to
 // the binary version. The first `version:` line under `info:` is replaced;
 // `openapi: 3.x` is left alone. The `# x-release-please-version` marker on
-// that line is dropped. Dev builds (`devel`) still produce a valid spec.
-// Served GET /openapi.yaml is StampOpenAPIVersion(packaged, VersionString());
-// sha256(served) must equal sha256 of that stamped copy, not the raw file.
+// that line is kept so served GET /openapi.yaml is byte-identical to the
+// packaged file whenever the version already matches (or is devel).
 func StampOpenAPIVersion(src []byte, version string) []byte {
 	version = strings.TrimPrefix(strings.TrimSpace(version), "v")
-	if version == "" {
-		version = "devel"
+	if version == "" || version == "devel" {
+		return append([]byte(nil), src...)
 	}
 	idx := bytes.Index(src, []byte("\ninfo:"))
 	if idx < 0 {
@@ -39,8 +38,22 @@ func StampOpenAPIVersion(src []byte, version string) []byte {
 	if lineEnd < 0 {
 		lineEnd = len(src) - lineStart
 	}
+	line := src[lineStart : lineStart+lineEnd]
+	comment := ""
+	payload := string(bytes.TrimSpace(bytes.TrimPrefix(line, []byte("  version:"))))
+	if i := strings.Index(payload, "#"); i >= 0 {
+		comment = strings.TrimSpace(payload[i:])
+		payload = strings.TrimSpace(payload[:i])
+	}
+	if payload == version {
+		return append([]byte(nil), src...)
+	}
+	newLine := "  version: " + version
+	if comment != "" {
+		newLine += " " + comment
+	}
 	out := append([]byte(nil), src[:lineStart]...)
-	out = append(out, []byte("  version: "+version)...)
+	out = append(out, []byte(newLine)...)
 	out = append(out, src[lineStart+lineEnd:]...)
 	return out
 }
