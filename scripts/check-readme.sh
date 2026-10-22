@@ -93,11 +93,19 @@ required_snippets = (
 def has_markdown_dest(text, needle):
     if needle in text:
         return True
-    return (
-        needle.startswith("](")
-        and needle.endswith(")")
-        and f"{needle[:-1]}#" in text
-    )
+    if not (needle.startswith("](") and needle.endswith(")")):
+        return False
+    prefix = f"{needle[:-1]}#"
+    start = 0
+    while True:
+        i = text.find(prefix, start)
+        if i < 0:
+            return False
+        rest = text[i + len(prefix) :]
+        close = rest.find(")")
+        if close >= 0 and "\n" not in rest[:close]:
+            return True
+        start = i + len(prefix)
 
 spec_path = root / "docs" / "isolation-spec.md"
 if not spec_path.is_file():
@@ -108,6 +116,7 @@ else:
     for needle in (
         "allow_empty",
         "](../testdata/isolation/README.md)",
+        "](../README.md)",
         "## Client README contract",
         "https://github.com/barzoj-co/llmentary-go",
         "https://github.com/barzoj-co/llmentary-python",
@@ -125,6 +134,7 @@ else:
     vec = vectors.read_text(encoding="utf-8")
     for needle in (
         "](../../docs/isolation-spec.md)",
+        "](../../README.md)",
         "llmentary-go",
         "llmentary-python",
         "llmentary-js",

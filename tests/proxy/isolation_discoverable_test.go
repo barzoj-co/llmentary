@@ -71,7 +71,41 @@ func TestIsolationSpecIsDiscoverable(t *testing.T) {
 }
 
 func hasMarkdownDest(text, dest string) bool {
-	return strings.Contains(text, "]("+dest+")") || strings.Contains(text, "]("+dest+"#")
+	if strings.Contains(text, "]("+dest+")") {
+		return true
+	}
+	prefix := "](" + dest + "#"
+	start := 0
+	for {
+		i := strings.Index(text[start:], prefix)
+		if i < 0 {
+			return false
+		}
+		i += start
+		rest := text[i+len(prefix):]
+		j := strings.IndexByte(rest, ')')
+		if j >= 0 && !strings.ContainsRune(rest[:j], '\n') {
+			return true
+		}
+		start = i + len(prefix)
+	}
+}
+
+func stripMarkdownDest(text, dest string) string {
+	text = strings.ReplaceAll(text, "]("+dest+")", dest)
+	prefix := "](" + dest + "#"
+	for {
+		i := strings.Index(text, prefix)
+		if i < 0 {
+			return text
+		}
+		rest := text[i+len(prefix):]
+		j := strings.IndexByte(rest, ')')
+		if j < 0 {
+			return text
+		}
+		text = text[:i] + dest + rest[j+1:]
+	}
 }
 
 func TestCheckReadmeRequiresIsolationMarkdownDests(t *testing.T) {
@@ -83,13 +117,15 @@ func TestCheckReadmeRequiresIsolationMarkdownDests(t *testing.T) {
 	text := string(script)
 	for _, needle := range []string{
 		`](../testdata/isolation/README.md)`,
+		`](../README.md)`,
 		`](../../docs/isolation-spec.md)`,
+		`](../../README.md)`,
 		`allow_empty`,
 		`## Client README contract`,
 		`def has_markdown_dest`,
 		`has_markdown_dest(spec, needle)`,
 		`has_markdown_dest(vec, needle)`,
-		`f"{needle[:-1]}#"`,
+		`rest.find(")")`,
 	} {
 		if !strings.Contains(text, needle) {
 			t.Errorf("check-readme.sh missing required needle %q", needle)
@@ -108,9 +144,9 @@ func TestCheckReadmeRequiresIsolationMarkdownDests(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stripped := strings.ReplaceAll(string(spec), "](../testdata/isolation/README.md)", "testdata/isolation/")
-	if !strings.Contains(stripped, "testdata/isolation/") {
-		t.Fatal("expected bare path after stripping dest")
+	stripped := stripMarkdownDest(string(spec), "../testdata/isolation/README.md")
+	if !strings.Contains(stripped, "testdata/isolation/README.md") && !strings.Contains(stripped, "../testdata/isolation/README.md") {
+		t.Fatal("expected dest path after stripping markdown")
 	}
 	if hasMarkdownDest(stripped, "../testdata/isolation/README.md") {
 		t.Fatal("stripped spec still has markdown dest")
@@ -120,18 +156,21 @@ func TestCheckReadmeRequiresIsolationMarkdownDests(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	strippedVec := strings.ReplaceAll(string(vec), "](../../docs/isolation-spec.md)", "docs/isolation-spec.md")
-	if !strings.Contains(strippedVec, "docs/isolation-spec.md") {
-		t.Fatal("expected bare spec path after stripping dest")
-	}
+	strippedVec := stripMarkdownDest(string(vec), "../../docs/isolation-spec.md")
 	if hasMarkdownDest(strippedVec, "../../docs/isolation-spec.md") {
 		t.Fatal("stripped vectors still have markdown dest")
 	}
-	// Hash-suffix dest still counts as a link; bare path does not.
+	// Hash-suffix dest still counts as a link; unclosed fragment and bare path do not.
 	if !hasMarkdownDest("[spec](../../docs/isolation-spec.md#verdict)", "../../docs/isolation-spec.md") {
 		t.Fatal("hash suffix dest should still count")
 	}
+	if hasMarkdownDest("[spec](../../docs/isolation-spec.md#verdict", "../../docs/isolation-spec.md") {
+		t.Fatal("unclosed fragment must not count")
+	}
 	if hasMarkdownDest("see docs/isolation-spec.md", "../../docs/isolation-spec.md") {
 		t.Fatal("bare prose path must not count as a dest")
+	}
+	if hasMarkdownDest(stripMarkdownDest("[x](../README.md#top)", "../README.md"), "../README.md") {
+		t.Fatal("stripped fragment dest still matches")
 	}
 }
