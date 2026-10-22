@@ -98,7 +98,7 @@ else:
     spec = spec_path.read_text(encoding="utf-8")
     for needle in (
         "allow_empty",
-        "testdata/isolation/",
+        "](../testdata/isolation/README.md)",
         "## Client README contract",
         "https://github.com/barzoj-co/llmentary-go",
         "https://github.com/barzoj-co/llmentary-python",
@@ -115,7 +115,7 @@ if not vectors.is_file():
 else:
     vec = vectors.read_text(encoding="utf-8")
     for needle in (
-        "docs/isolation-spec.md",
+        "](../../docs/isolation-spec.md)",
         "llmentary-go",
         "llmentary-python",
         "llmentary-js",
