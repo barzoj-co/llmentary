@@ -118,9 +118,10 @@ func TestSpecModeAndOpenAPIStampCorners(t *testing.T) {
 	if string(StampOpenAPIVersion([]byte("openapi: 3.1.0\n"), "1.2.3")) != "openapi: 3.1.0\n" {
 		t.Fatal("no info")
 	}
-	got := StampOpenAPIVersion([]byte("info:\n  title: x\n  version: 0\n"), "")
-	if !strings.Contains(string(got), "version: devel") {
-		t.Fatalf("%s", got)
+	src := []byte("info:\n  title: x\n  version: 0\n")
+	got := StampOpenAPIVersion(src, "")
+	if string(got) != string(src) {
+		t.Fatalf("empty/devel must keep packaged bytes, got %s", got)
 	}
 	if _, err := OpenAPIInfoVersion([]byte(":\n")); err == nil {
 		t.Fatal("bad yaml")

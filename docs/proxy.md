@@ -334,18 +334,18 @@ return `400` `{"error":{"type":"invalid_parameter","param":"…","message":"…"
 
 ### `GET /openapi.yaml`
 
-Returns the control API OpenAPI document (`application/yaml`). `info.version`
-is stamped at serve time from the same release version as `--version` and
-`GET /version` (dev builds serve `devel`). Requires the control token when
-`--control-token` is set.
+Returns the control API OpenAPI document (`application/yaml`). Requires the
+control token when `--control-token` is set.
 
 The packaged file (`api/control/openapi.yaml`, also shipped in release
-tarballs / npm / PyPI) is the source. Served bytes are
-`StampOpenAPIVersion(packaged, version)`: the first `version:` line under
-`info:` is rewritten and the `# x-release-please-version` marker on that
-line is dropped (27 bytes when the version string is unchanged). That is
-the only documented, normalized difference. Compare sha256 of served bytes
-to sha256 of the stamped packaged file, not the raw vendored file.
+tarballs / npm / PyPI) is the source of truth. Served bytes are
+`StampOpenAPIVersion(packaged, version)` and are **byte-identical to the
+packaged file** whenever the running version matches `info.version` or is
+`devel` (the usual `go test` / `go install` case). The
+`# x-release-please-version` marker stays on the line so client packages
+that vendor this file can sha256-compare served `/openapi.yaml` to the
+copy they ship. When ldflags set a different version, the version token
+is rewritten and the marker is kept.
 
 ```bash
 curl http://127.0.0.1:7778/openapi.yaml
@@ -590,9 +590,12 @@ Returns the clean version and commit (no `v` prefix):
 ### Versions
 
 The **release version** is the single source of truth. `--version`,
-`GET /version`, `GET /config` `version`, and served `GET /openapi.yaml`
-`info.version` always match. Clients print that string in the test header
-(DOG-13). `go build` / `go install` without ldflags use `devel`.
+`GET /version`, and `GET /config` `version` always match. Served
+`GET /openapi.yaml` `info.version` matches those on a release build.
+A `devel` build (`go build` / `go install` without ldflags, or CI e2e)
+leaves the packaged `info.version` (and `# x-release-please-version`)
+so sha256(served) equals the file shipped in client packages. Clients
+print the `GET /version` string in the test header (DOG-13).
 
 ## Spec validation
 

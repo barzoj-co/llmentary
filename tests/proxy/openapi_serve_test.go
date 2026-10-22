@@ -44,7 +44,7 @@ func TestGetOpenAPIYAML(t *testing.T) {
 		t.Fatalf("served openapi.yaml differs from stamped repo file")
 	}
 	var spec struct {
-		OpenAPI string         `yaml:"openapi"`
+		OpenAPI string `yaml:"openapi"`
 		Info    struct {
 			Version string `yaml:"version"`
 		} `yaml:"info"`
@@ -56,7 +56,15 @@ func TestGetOpenAPIYAML(t *testing.T) {
 	if !strings.HasPrefix(spec.OpenAPI, "3.") {
 		t.Fatalf("openapi=%q", spec.OpenAPI)
 	}
-	if spec.Info.Version != proxy.VersionString() {
+	packagedVer, err := proxy.OpenAPIInfoVersion(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if proxy.VersionString() == "devel" {
+		if spec.Info.Version != packagedVer {
+			t.Fatalf("devel served info.version=%q want packaged %q", spec.Info.Version, packagedVer)
+		}
+	} else if spec.Info.Version != proxy.VersionString() {
 		t.Fatalf("served info.version=%q want %q", spec.Info.Version, proxy.VersionString())
 	}
 	if _, ok := spec.Paths["/sessions/{id}/wait"]; !ok {
@@ -148,26 +156,21 @@ func TestServedOpenAPIMatchesStampedSHA256(t *testing.T) {
 	if gotSum != wantSum {
 		t.Fatalf("served sha256=%s stamped sha256=%s", hex.EncodeToString(gotSum[:]), hex.EncodeToString(wantSum[:]))
 	}
-	if bytes.Equal(got, packaged) {
-		t.Fatal("served bytes unexpectedly match the raw packaged file")
-	}
-
+	runtimeVer := strings.TrimPrefix(strings.TrimSpace(proxy.VersionString()), "v")
 	packagedVer, err := proxy.OpenAPIInfoVersion(packaged)
 	if err != nil {
 		t.Fatal(err)
 	}
+	if runtimeVer == "" || runtimeVer == "devel" || runtimeVer == packagedVer {
+		if !bytes.Equal(got, packaged) {
+			t.Fatal("served bytes must match the packaged file (including # x-release-please-version)")
+		}
+	} else if !bytes.Contains(got, []byte("  version: "+runtimeVer)) {
+		t.Fatalf("stamped served missing version %q", runtimeVer)
+	}
 	sameVer := proxy.StampOpenAPIVersion(packaged, packagedVer)
-	comment := []byte(" # x-release-please-version")
-	wantSame := bytes.Replace(packaged, comment, nil, 1)
-	if !bytes.Equal(sameVer, wantSame) {
-		t.Fatal("normalized difference is not only the release-please comment")
-	}
-	if len(packaged)-len(sameVer) != len(comment) {
-		t.Fatalf("delta=%d want %d", len(packaged)-len(sameVer), len(comment))
-	}
-	rawSum := sha256.Sum256(packaged)
-	if rawSum == wantSum {
-		t.Fatal("raw packaged sha256 unexpectedly matches served")
+	if !bytes.Equal(sameVer, packaged) {
+		t.Fatal("matching version must keep packaged bytes")
 	}
 }
 
@@ -192,10 +195,49 @@ func TestOpenAPIStampDifferenceDocumented(t *testing.T) {
 	for _, n := range []string{
 		"StampOpenAPIVersion(packaged, version)",
 		"# x-release-please-version",
-		"sha256 of the stamped packaged file",
+		"byte-identical to the",
+		"devel",
 	} {
 		if !strings.Contains(text, n) {
 			t.Errorf("docs/proxy.md missing %q", n)
+		}
+	}
+}
+
+func TestOpenAPIDocumentsSpecTargetsAndUpstreamCalled(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "api", "control", "openapi.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(raw)
+	for _, n := range []string{
+		"spec_targets:",
+		"openai-compatible",
+		"upstream_called:",
+		"httptrace.WroteRequest",
+	} {
+		if !strings.Contains(text, n) {
+			t.Errorf("openapi.yaml missing %q", n)
+		}
+	}
+	_, control, _ := startControl(t)
+	res, err := http.Get(control + "/openapi.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := io.ReadAll(res.Body)
+	_ = res.Body.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtimeVer := strings.TrimPrefix(strings.TrimSpace(proxy.VersionString()), "v")
+	packagedVer, err := proxy.OpenAPIInfoVersion(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runtimeVer == "" || runtimeVer == "devel" || runtimeVer == packagedVer {
+		if string(got) != string(raw) {
+			t.Fatal("served openapi.yaml differs from packaged bytes")
 		}
 	}
 }

@@ -25,20 +25,19 @@ func TestStampOpenAPIVersion(t *testing.T) {
 	if !strings.Contains(string(got), "openapi: 3.1.0") {
 		t.Fatal("rewrote openapi document version")
 	}
-	if strings.Contains(string(got), "x-release-please-version") {
-		t.Fatal("serve-time stamp should drop the release-please marker")
+	if !strings.Contains(string(got), "x-release-please-version") {
+		t.Fatal("stamp must keep the release-please marker so served == packaged")
 	}
 }
 
-func TestStampOpenAPIVersionDropsOnlyReleasePleaseCommentWhenVersionMatches(t *testing.T) {
+func TestStampOpenAPIVersionKeepsBytesWhenVersionMatches(t *testing.T) {
 	src := []byte("openapi: 3.1.0\ninfo:\n  title: x\n  version: 0.4.1 # x-release-please-version\npaths: {}\n")
 	got := StampOpenAPIVersion(src, "0.4.1")
-	want := []byte("openapi: 3.1.0\ninfo:\n  title: x\n  version: 0.4.1\npaths: {}\n")
-	if string(got) != string(want) {
-		t.Fatalf("got=%q want=%q", got, want)
+	if string(got) != string(src) {
+		t.Fatalf("got=%q want packaged bytes", got)
 	}
-	if len(src)-len(got) != len(" # x-release-please-version") {
-		t.Fatalf("delta=%d", len(src)-len(got))
+	if string(StampOpenAPIVersion(src, "devel")) != string(src) {
+		t.Fatal("devel must serve the packaged bytes")
 	}
 }
 

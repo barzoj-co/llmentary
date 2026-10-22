@@ -285,6 +285,17 @@ components:
           description: >
             Effective `--upstream-idle-timeout` as a Go duration string.
             `0s` disables (default).
+        spec_targets:
+          type: object
+          additionalProperties:
+            type: string
+            enum:
+              - openai
+              - openai-compatible
+          description: >
+            Resolved spec target per upstream name. Host default is
+            `openai` for api.openai.com and Azure OpenAI hosts, otherwise
+            `openai-compatible`. `--spec-target name=…` overrides by name.
     Version:
       type: object
       required:
@@ -500,6 +511,12 @@ components:
             Present only when client_aborted is true. before_headers = cancel
             before upstream response headers; after_headers = cancel after
             headers / mid-stream.
+        upstream_called:
+          type: boolean
+          description: >-
+            True when the proxy wrote the outbound request
+            (httptrace.WroteRequest). False for local enforce rejects and
+            cancels that lost the race before the write.
         normalized:
           type: object
           additionalProperties: true
