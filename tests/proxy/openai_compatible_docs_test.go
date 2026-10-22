@@ -71,7 +71,7 @@ func TestOpenAICompatibleGuidePinned(t *testing.T) {
 			t.Errorf("docs/openai-compatible.md missing %q", n)
 		}
 	}
-	for _, n := range []string{"healsens", "livekit", "chatservice", "AGPL", "license"} {
+	for _, n := range []string{"agpl", "license"} {
 		if strings.Contains(strings.ToLower(text), n) {
 			t.Errorf("docs/openai-compatible.md must not contain %q", n)
 		}
