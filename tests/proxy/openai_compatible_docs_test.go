@@ -441,6 +441,14 @@ func TestOpenAICompatibleGuideCLIParsesProviderStarts(t *testing.T) {
 		want map[string]string
 	}{
 		{
+			args: []string{"--upstream", "ds=" + fake.URL},
+			want: map[string]string{"ds": proxy.SpecTargetCompatible},
+		},
+		{
+			args: []string{"--upstream", "openai=https://api.openai.com/v1"},
+			want: map[string]string{"openai": proxy.SpecTargetOpenAI},
+		},
+		{
 			args: []string{"--upstream", "gemini=" + fake.URL + "/v1beta/openai", "--spec-target", "gemini=openai-compatible", "--spec-validation", "enforce"},
 			want: map[string]string{"gemini": proxy.SpecTargetCompatible},
 		},
