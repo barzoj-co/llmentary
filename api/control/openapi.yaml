@@ -102,6 +102,17 @@ paths:
       - $ref: '#/components/parameters/SessionID'
     get:
       summary: Session detail
+      parameters:
+        - name: include
+          in: query
+          schema:
+            type: string
+            enum:
+              - in_flight
+          description: >
+            When set to in_flight, the session object also has an in_flight
+            array next to calls (never inside calls). Omitted on a normal GET
+            so the DOG-36 settled-only contract holds.
       responses:
         '200':
           description: session
@@ -153,6 +164,8 @@ paths:
         min_calls=0 on a session that was never created (or was DELETE'd)
         returns 404 session_not_found immediately. min_calls>=1 keeps waiting
         until the session appears or timeout, then 504 wait_timeout.
+        A 504 wait_timeout error includes active and in_flight so a stalled
+        upstream can be told apart from "fewer calls than expected".
       responses:
         '200':
           description: session
@@ -222,6 +235,13 @@ components:
           type: integer
         min_calls:
           type: integer
+        active:
+          type: integer
+          description: Number of in-flight calls on this session at timeout.
+        in_flight:
+          type: array
+          items:
+            $ref: '#/components/schemas/InFlightCall'
     ErrorBody:
       type: object
       required:
@@ -355,7 +375,8 @@ components:
         Full session trace. Call fields follow docs/data-model.md.
         calls contains only settled records (ended_at set). In-flight calls
         increment GET /sessions[].active and are omitted here until Finish
-        publishes the final record, including abort fields.
+        publishes the final record, including abort fields. Pass
+        include=in_flight to add the in_flight array next to calls.
       properties:
         id:
           type: string
@@ -363,6 +384,53 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Call'
+        in_flight:
+          type: array
+          items:
+            $ref: '#/components/schemas/InFlightCall'
+    InFlightCall:
+      type: object
+      required:
+        - call_id
+        - seq
+        - method
+        - path
+        - started_at
+        - elapsed_ms
+        - phase
+        - bytes_received
+      description: >
+        In-flight call snapshot. No request/response bodies or headers.
+        Pin file: api/control/testdata/wait_timeout_inflight.json.
+      properties:
+        call_id:
+          type: string
+        seq:
+          type: integer
+        method:
+          type: string
+        path:
+          type: string
+        api_family:
+          type: string
+        upstream:
+          type: string
+          description: Sanitized upstream URL (no secrets).
+        started_at:
+          type: string
+          format: date-time
+        elapsed_ms:
+          type: integer
+        phase:
+          type: string
+          enum:
+            - awaiting_headers
+            - streaming
+        http_status:
+          type: integer
+          description: Present after upstream headers arrive.
+        bytes_received:
+          type: integer
     Call:
       type: object
       description: Recorded LLM call. See docs/data-model.md for the full field set.
@@ -468,13 +536,38 @@ components:
                   waited_ms:
                     type: integer
     WaitTimeout:
-      description: Wait timed out before min_calls and quiet were satisfied
+      description: >
+        Wait timed out before min_calls and quiet were satisfied.
+        error.active and error.in_flight describe calls that are still
+        running. calls remains settled-only (DOG-36).
       content:
         application/json:
           schema:
             allOf:
               - $ref: '#/components/schemas/Session'
               - type: object
+                required:
+                  - error
                 properties:
                   error:
                     $ref: '#/components/schemas/Error'
+          example:
+            id: stall-example
+            calls: []
+            error:
+              type: wait_timeout
+              message: wait timed out
+              calls_seen: 0
+              min_calls: 1
+              active: 1
+              in_flight:
+                - call_id: call_1
+                  seq: 1
+                  method: POST
+                  path: /v1/responses
+                  api_family: openai.responses
+                  upstream: http://127.0.0.1:9/v1/responses
+                  started_at: '2026-10-22T07:00:00Z'
+                  elapsed_ms: 1000
+                  phase: awaiting_headers
+                  bytes_received: 0

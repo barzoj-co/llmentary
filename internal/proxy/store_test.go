@@ -422,3 +422,61 @@ func TestConcurrentGetNeverSeesPlaceholder(t *testing.T) {
 		}
 	}
 }
+
+func TestInFlightSnapshotOrderedAndHiddenFromLookup(t *testing.T) {
+	store := NewMemoryStore()
+	started := time.Now().UTC().Add(-2 * time.Second)
+	_, id1 := store.Begin("s", Call{
+		StartedAt: started,
+		APIFamily: "openai.responses",
+		Upstream:  Upstream{Method: httpMethodPost, URL: "http://127.0.0.1:9/v1/responses"},
+	})
+	_, id2 := store.Begin("s", Call{
+		StartedAt: started,
+		APIFamily: "openai.chat",
+		Upstream:  Upstream{Method: httpMethodPost, URL: "http://127.0.0.1:9/v1/chat/completions"},
+	})
+	store.Begin("other", Call{
+		StartedAt: started,
+		APIFamily: "openai.chat",
+		Upstream:  Upstream{Method: httpMethodPost, URL: "http://127.0.0.1:9/v1/chat/completions"},
+	})
+	store.Progress("s", id2, func(call *Call) {
+		call.HTTPStatus = 200
+		call.BytesReceived = 12
+	})
+	session, ok := store.Lookup("s")
+	if !ok || len(session.Calls) != 0 {
+		t.Fatalf("lookup leaked in-flight: %+v ok=%v", session, ok)
+	}
+	got := store.InFlight("s")
+	if len(got) != 2 {
+		t.Fatalf("in_flight=%+v", got)
+	}
+	if got[0].Seq != 1 || got[0].CallID != id1 || got[0].Phase != InFlightPhaseAwaitingHeaders || got[0].HTTPStatus != 0 {
+		t.Fatalf("first=%+v", got[0])
+	}
+	if got[1].Seq != 2 || got[1].CallID != id2 || got[1].Phase != InFlightPhaseStreaming || got[1].HTTPStatus != 200 || got[1].BytesReceived != 12 {
+		t.Fatalf("second=%+v", got[1])
+	}
+	if got[0].Path != "/v1/responses" || got[1].Path != "/v1/chat/completions" {
+		t.Fatalf("paths %q %q", got[0].Path, got[1].Path)
+	}
+	if got[0].ElapsedMS < 1000 {
+		t.Fatalf("elapsed_ms=%d", got[0].ElapsedMS)
+	}
+	other := store.InFlight("other")
+	if len(other) != 1 || other[0].Seq != 1 {
+		t.Fatalf("other=%+v", other)
+	}
+	store.Finish("s", id1, func(call *Call) {
+		call.EndedAt = time.Now().UTC()
+		call.HTTPStatus = 200
+	})
+	got = store.InFlight("s")
+	if len(got) != 1 || got[0].CallID != id2 {
+		t.Fatalf("after settle=%+v", got)
+	}
+}
+
+const httpMethodPost = "POST"

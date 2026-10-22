@@ -243,7 +243,7 @@ func TestParseMinCallsAndValidSessionSource(t *testing.T) {
 func TestWriteWaitTimeoutEmptyCalls(t *testing.T) {
 	t.Parallel()
 	rec := httptest.NewRecorder()
-	writeWaitTimeout(rec, Session{ID: "s"}, 2)
+	writeWaitTimeout(rec, Session{ID: "s"}, 2, nil)
 	if rec.Code != http.StatusGatewayTimeout {
 		t.Fatalf("code=%d", rec.Code)
 	}
@@ -254,5 +254,24 @@ func TestWriteWaitTimeoutEmptyCalls(t *testing.T) {
 	calls, ok := body["calls"].([]any)
 	if !ok || calls == nil {
 		t.Fatalf("calls=%v", body["calls"])
+	}
+	errObj, _ := body["error"].(map[string]any)
+	if intFromAny(errObj["active"]) != 0 {
+		t.Fatalf("active=%v", errObj["active"])
+	}
+	inFlight, ok := errObj["in_flight"].([]any)
+	if !ok || inFlight == nil {
+		t.Fatalf("in_flight=%v", errObj["in_flight"])
+	}
+}
+
+func intFromAny(v any) int {
+	switch n := v.(type) {
+	case float64:
+		return int(n)
+	case int:
+		return n
+	default:
+		return -1
 	}
 }

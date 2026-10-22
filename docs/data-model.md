@@ -87,7 +87,9 @@ JSON shape and normalization rules.
 
 A call appears on `GET /sessions/{id}` and in `wait` results only after it is
 settled (`ended_at` set). In-flight work is not published as a placeholder
-with `http_status=0` and `client_aborted=false`.
+with `http_status=0` and `client_aborted=false`. A `504` `wait_timeout` and
+`GET /sessions/{id}?include=in_flight` expose those calls as `in_flight`
+snapshots (no bodies or headers). See [Session lifecycle](session-lifecycle.md).
 
 ### Gzip and raw-byte hashes (E6)
 

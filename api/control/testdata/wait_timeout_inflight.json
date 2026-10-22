@@ -1,0 +1,54 @@
+{
+  "comment": "Pin this file from client repos. Dynamic fields: id, call_id, seq, started_at, elapsed_ms, upstream host:port. Shape and enums are stable.",
+  "awaiting_headers": {
+    "id": "stall-example",
+    "calls": [],
+    "error": {
+      "type": "wait_timeout",
+      "message": "wait timed out",
+      "calls_seen": 0,
+      "min_calls": 1,
+      "active": 1,
+      "in_flight": [
+        {
+          "call_id": "call_1",
+          "seq": 1,
+          "method": "POST",
+          "path": "/v1/responses",
+          "api_family": "openai.responses",
+          "upstream": "http://127.0.0.1:9/v1/responses",
+          "started_at": "2026-10-22T07:00:00Z",
+          "elapsed_ms": 1000,
+          "phase": "awaiting_headers",
+          "bytes_received": 0
+        }
+      ]
+    }
+  },
+  "streaming": {
+    "id": "stall-stream-example",
+    "calls": [],
+    "error": {
+      "type": "wait_timeout",
+      "message": "wait timed out",
+      "calls_seen": 0,
+      "min_calls": 1,
+      "active": 1,
+      "in_flight": [
+        {
+          "call_id": "call_1",
+          "seq": 1,
+          "method": "POST",
+          "path": "/v1/chat/completions",
+          "api_family": "openai.chat",
+          "upstream": "http://127.0.0.1:9/v1/chat/completions",
+          "started_at": "2026-10-22T07:00:00Z",
+          "elapsed_ms": 1000,
+          "phase": "streaming",
+          "http_status": 200,
+          "bytes_received": 42
+        }
+      ]
+    }
+  }
+}

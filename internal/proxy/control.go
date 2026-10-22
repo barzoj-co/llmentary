@@ -166,7 +166,23 @@ func (s *Server) serveSession(w http.ResponseWriter, r *http.Request) {
 			s.serveWait(w, r, sessionID)
 			return
 		}
-		if rejectUnknownQuery(w, r) {
+		if otlp {
+			if rejectUnknownQuery(w, r) {
+				return
+			}
+			if _, ok := s.store.Lookup(sessionID); !ok {
+				writeSessionNotFound(w, sessionID)
+				return
+			}
+			writeJSON(w, s.tracing.Processor.OTLP(sessionID))
+			return
+		}
+		if rejectUnknownQuery(w, r, "include") {
+			return
+		}
+		include := r.URL.Query().Get("include")
+		if include != "" && include != "in_flight" {
+			writeInvalidParam(w, "include", "unknown parameter value; allowed: in_flight")
 			return
 		}
 		session, ok := s.store.Lookup(sessionID)
@@ -174,8 +190,20 @@ func (s *Server) serveSession(w http.ResponseWriter, r *http.Request) {
 			writeSessionNotFound(w, sessionID)
 			return
 		}
-		if otlp {
-			writeJSON(w, s.tracing.Processor.OTLP(sessionID))
+		if include == "in_flight" {
+			inFlight := s.store.InFlight(sessionID)
+			if inFlight == nil {
+				inFlight = []InFlightCall{}
+			}
+			calls := session.Calls
+			if calls == nil {
+				calls = []Call{}
+			}
+			writeJSON(w, map[string]any{
+				"id":        session.ID,
+				"calls":     calls,
+				"in_flight": inFlight,
+			})
 			return
 		}
 		writeJSON(w, session)
@@ -222,7 +250,7 @@ func (s *Server) serveWait(w http.ResponseWriter, r *http.Request, sessionID str
 		return
 	}
 	if errors.Is(err, ErrWaitTimeout) {
-		writeWaitTimeout(w, session, minCalls)
+		writeWaitTimeout(w, session, minCalls, s.store.InFlight(sessionID))
 		return
 	}
 	if err != nil {
@@ -316,19 +344,25 @@ func writeSessionNotFoundWait(w http.ResponseWriter, id string, waitedMS int64) 
 	})
 }
 
-func writeWaitTimeout(w http.ResponseWriter, session Session, minCalls int) {
+func writeWaitTimeout(w http.ResponseWriter, session Session, minCalls int, inFlight []InFlightCall) {
+	if inFlight == nil {
+		inFlight = []InFlightCall{}
+	}
+	calls := session.Calls
+	if calls == nil {
+		calls = []Call{}
+	}
 	body := map[string]any{
 		"id":    session.ID,
-		"calls": session.Calls,
+		"calls": calls,
 		"error": map[string]any{
 			"type":       "wait_timeout",
 			"message":    "wait timed out",
-			"calls_seen": len(session.Calls),
+			"calls_seen": len(calls),
 			"min_calls":  minCalls,
+			"active":     len(inFlight),
+			"in_flight":  inFlight,
 		},
-	}
-	if session.Calls == nil {
-		body["calls"] = []Call{}
 	}
 	writeJSONStatus(w, http.StatusGatewayTimeout, body)
 }

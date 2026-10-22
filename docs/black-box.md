@@ -292,7 +292,10 @@ that many **settled** calls exist, then the quiet period. In-flight
 placeholders are not counted. A session that was
 never created does not succeed at `min_calls=0`; you get `404`
 `session_not_found` immediately. `min_calls>=1` still waits until `timeout`,
-then `504` `wait_timeout` with `calls_seen:0`.
+then `504` `wait_timeout` with `calls_seen:0`. If a call is still running,
+`error.active` and `error.in_flight` name it (phase `awaiting_headers` or
+`streaming`). Clients pin
+[`api/control/testdata/wait_timeout_inflight.json`](../api/control/testdata/wait_timeout_inflight.json).
 
 ```bash
 # async worker: do not return until two calls have finished

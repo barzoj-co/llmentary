@@ -437,8 +437,10 @@ does not exist yet is waited for until it appears **only when `min_calls>=1`**.
 returns `404` `session_not_found` immediately, with the same error as
 `GET /sessions/{id}` plus `id` and `waited_ms`. `min_calls>=1` on a missing
 session keeps waiting until a call arrives or `timeout`, then `504`
-`wait_timeout` with `calls_seen:0`. Use `min_calls` when a call is about to
-start and must be observed; `quiet` is not a grace period for that.
+`wait_timeout` with `calls_seen:0`. When a call is still in flight the 504
+also has `error.active` and `error.in_flight` (id, path, started_at, phase).
+Use `min_calls` when a call is about to start and must be observed; `quiet`
+is not a grace period for that.
 
 See [Session lifecycle](session-lifecycle.md) for the status table and an example.
 
@@ -462,8 +464,11 @@ curl 'http://127.0.0.1:7778/sessions/test-1/wait?quiet=100ms&timeout=5s&min_call
 ```
 
 `200` is the same session JSON as `GET /sessions/{id}`. `404` names the session
-and includes `waited_ms`. `504` includes the partial session plus
-`{"error":{"type":"wait_timeout","calls_seen":k,"min_calls":N}}`.
+and includes `waited_ms`. `504` includes the settled `calls` plus
+`{"error":{"type":"wait_timeout","calls_seen":k,"min_calls":N,"active":a,"in_flight":[...]}}`.
+`GET /sessions/{id}?include=in_flight` returns the same `in_flight` array
+next to `calls`. Pin the 504 shape from
+[`api/control/testdata/wait_timeout_inflight.json`](../api/control/testdata/wait_timeout_inflight.json).
 
 ### `GET /sessions/{id}/otlp`
 
@@ -612,6 +617,7 @@ Every finished call writes one `INFO proxy response` line, including client
 aborts and upstream connection errors.
 
 ```text
+INFO proxy upstream headers status=200 call_id=call_1 seq=1 ttfb_ms=42
 INFO proxy response status=200 call_id=call_1 session=weather seq=1 api_family=openai.responses spec=clean
 INFO proxy response status=- call_id=call_2 session=barge seq=2 api_family=openai.responses spec=request_only client_aborted=true phase=before_headers
 INFO proxy response status=200 call_id=call_3 session=barge seq=3 api_family=openai.responses spec=clean client_aborted=true phase=after_headers
