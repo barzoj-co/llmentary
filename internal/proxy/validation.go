@@ -538,12 +538,20 @@ func capStoredResponseFindings(in []specvalidate.Violation, max int, target stri
 		return append(append(out, req...), resp...), false
 	}
 	kept := append([]specvalidate.Violation(nil), resp[:max]...)
+	omitted := 0
+	for _, v := range resp[max:] {
+		n := v.Count
+		if n < 1 {
+			n = 1
+		}
+		omitted += n
+	}
 	marker := specvalidate.Violation{
 		Side:    specvalidate.SideResponse,
 		Source:  specvalidate.SourceSyntax,
 		Keyword: "truncated",
 		Message: "too many response findings",
-		Count:   len(resp),
+		Count:   omitted,
 	}
 	if target == SpecTargetCompatible {
 		// Compatible response noise is info; the overflow marker must

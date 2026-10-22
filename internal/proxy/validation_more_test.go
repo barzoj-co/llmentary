@@ -210,8 +210,8 @@ func TestCapStoredResponseFindingsTargetAware(t *testing.T) {
 	if !keptReq {
 		t.Fatalf("request finding lost: %v", compat)
 	}
-	if marker.Keyword != "truncated" || marker.Severity != specvalidate.SeverityInfo || marker.Count != 5 {
-		t.Fatalf("compatible marker=%+v", marker)
+	if marker.Keyword != "truncated" || marker.Severity != specvalidate.SeverityInfo || marker.Count != 3 {
+		t.Fatalf("compatible marker=%+v want omitted count 3", marker)
 	}
 	if isWarnSpecFinding(marker) {
 		t.Fatal("compatible overflow must not be a warn finding")
@@ -227,8 +227,8 @@ func TestCapStoredResponseFindingsTargetAware(t *testing.T) {
 			oa = v
 		}
 	}
-	if oa.Keyword != "truncated" || oa.Severity != "" || !isWarnSpecFinding(oa) {
-		t.Fatalf("openai marker must stay a warn finding: %+v", oa)
+	if oa.Keyword != "truncated" || oa.Severity != "" || oa.Count != 3 || !isWarnSpecFinding(oa) {
+		t.Fatalf("openai marker must stay a warn finding with omitted count 3: %+v", oa)
 	}
 
 	under, hit := capStoredResponseFindings(overflow[:2], 8, SpecTargetCompatible)
@@ -262,7 +262,29 @@ func TestCapStoredResponseFindingsTargetAware(t *testing.T) {
 		{Side: specvalidate.SideResponse, Keyword: "enum", Pointer: "/c"},
 	}
 	mergeResponseValidation(oaCall, raw, nil, 1, false, 1, SpecTargetOpenAI)
-	if specLogValue(*oaCall, "warn") == "clean" {
-		t.Fatal("openai overflow must count as findings")
+	if got := specLogValue(*oaCall, "warn"); got != "findings:3" {
+		t.Fatalf("openai overflow log=%q want findings:3", got)
+	}
+
+	grouped := []specvalidate.Violation{
+		{Side: specvalidate.SideResponse, Keyword: "enum", Pointer: "/a", Count: 3},
+		{Side: specvalidate.SideResponse, Keyword: "enum", Pointer: "/b", Count: 2},
+	}
+	groupedOut, hit := capStoredResponseFindings(grouped, 1, SpecTargetOpenAI)
+	if !hit {
+		t.Fatal("grouped should truncate")
+	}
+	var groupedMarker specvalidate.Violation
+	for _, v := range groupedOut {
+		if v.Keyword == "truncated" {
+			groupedMarker = v
+		}
+	}
+	if groupedMarker.Count != 2 {
+		t.Fatalf("grouped omitted count=%d want 2: %+v", groupedMarker.Count, groupedOut)
+	}
+	groupedCall := Call{Normalized: Normalized{Validation: &ValidationInfo{RequestChecked: true, ResponseChecked: true}, SpecViolations: &groupedOut}}
+	if got := specLogValue(groupedCall, "warn"); got != "findings:5" {
+		t.Fatalf("grouped openai log=%q want findings:5", got)
 	}
 }
