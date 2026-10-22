@@ -19,6 +19,7 @@ const (
 	vendorFieldHint      = "Forwarded to the upstream unchanged. This field is not in the OpenAI request schema."
 	vendorValueHint      = "Forwarded to the upstream unchanged. OpenAI rejects this enum value; openai-compatible providers often accept it."
 	unknownRequestHintOA = "The live OpenAI API accepts this field and silently ignores it. Remove it, or it will never reach the model."
+	compatibleLintHint   = "This finding is informational for the selected upstream; verify the behavior with that upstream."
 )
 
 func defaultSpecTarget(u *url.URL) string {
@@ -140,16 +141,33 @@ func applyCompatibleTarget(violations []specvalidate.Violation, ignored []schema
 	}
 	promoteExhaustedItemRoleEnums(kept)
 	for i := range ignored {
-		if ignored[i].Kind != schemalint.KindUnknownRequest {
+		if ignored[i].Kind == schemalint.KindUnknownRequest {
+			ignored[i].Kind = schemalint.KindVendorField
+			ignored[i].Severity = schemalint.SeverityInfo
+			ignored[i].Action = schemalint.ActionReport
+			ignored[i].UpstreamBehavior = "forwarded"
+			ignored[i].Hint = vendorFieldHint
 			continue
 		}
-		ignored[i].Kind = schemalint.KindVendorField
-		ignored[i].Severity = schemalint.SeverityInfo
-		ignored[i].Action = schemalint.ActionReport
-		ignored[i].UpstreamBehavior = "forwarded"
-		ignored[i].Hint = vendorFieldHint
+		if isOpenAIOnlyLint(ignored[i]) {
+			ignored[i].Severity = schemalint.SeverityInfo
+			ignored[i].Action = schemalint.ActionReport
+			ignored[i].Hint = compatibleLintHint
+		}
 	}
 	return kept, ignored
+}
+
+func isOpenAIOnlyLint(f schemalint.Finding) bool {
+	switch f.Kind {
+	case schemalint.KindUnsupportedKeyword, schemalint.KindUnknownKeyword,
+		schemalint.KindUnsupportedFormat, schemalint.KindSuspiciousEnum,
+		schemalint.KindStrictFallbackPred, schemalint.KindStrictFallback,
+		schemalint.KindUnresolvedRef:
+		return true
+	default:
+		return false
+	}
 }
 
 func isVendorPropertyViolation(v specvalidate.Violation) bool {
