@@ -203,6 +203,10 @@ App / SDK base URL:
 
 ## Spec target
 
+How to put the proxy in front of DeepSeek, Gemini, OpenRouter, Groq, Mistral,
+or a local engine, including which fields enforce rejects, is in
+[OpenAI-compatible providers](openai-compatible.md).
+
 `--spec-validation enforce` applies the pinned OpenAI request schema. That is
 correct for OpenAI and Azure OpenAI, and wrong for every other OpenAI-compatible
 host: those providers accept (and sometimes require) extra fields.
