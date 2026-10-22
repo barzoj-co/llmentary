@@ -335,7 +335,8 @@ Both return `200 application/json` with no redirect. Cheap: no call bodies.
 ```
 
 `spec` counters use snake_case keys that match the `proxy response` `spec=`
-tokens. PascalCase aliases (`Checked`, `Clean`, …) are also present for 0.x.
+tokens. PascalCase aliases (`Checked`, `Clean`, …) are still serialized for
+0.x clients and are marked `deprecated: true` in OpenAPI (removed in 1.0).
 Invariant: `calls == checked + request_only + not_checked` and
 `checked == clean + findings`. `request_only` is a request that was validated
 when the response was not (abort before headers, HTTP 4xx). `spec=off` and
