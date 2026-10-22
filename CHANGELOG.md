@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.5.0](https://github.com/barzoj-co/llmentary/compare/v0.4.1...v0.5.0) (2026-10-22)
+
+
+### Features
+
+* add optional upstream header and idle timeouts ([#51](https://github.com/barzoj-co/llmentary/issues/51)) ([cfcfb78](https://github.com/barzoj-co/llmentary/commit/cfcfb78759264da91fa45490def6c950a3126b6a))
+* add per-upstream spec target for OpenAI-compatible providers ([#53](https://github.com/barzoj-co/llmentary/issues/53)) ([6d583f9](https://github.com/barzoj-co/llmentary/commit/6d583f95b833b55b913517861ca3eac0c9c96c4f))
+
+
+### Bug Fixes
+
+* do not reject OpenAI schema-keyword lints on compatible targets ([#57](https://github.com/barzoj-co/llmentary/issues/57)) ([b7f703a](https://github.com/barzoj-co/llmentary/commit/b7f703a5970b61a16a438a10bc89ff8dc717ee7e))
+* drop client /v1 when upstream base already has a version segment ([#55](https://github.com/barzoj-co/llmentary/issues/55)) ([cdb5996](https://github.com/barzoj-co/llmentary/commit/cdb5996e0c4ead74139cf38f0ac05ae9d17bde7e))
+* include in-flight calls on wait 504 ([#50](https://github.com/barzoj-co/llmentary/issues/50)) ([751c533](https://github.com/barzoj-co/llmentary/commit/751c5339f9b570d7879216af10d58088f3e78876))
+* normalize compatible stream errors, finish reasons, and Groq usage ([#56](https://github.com/barzoj-co/llmentary/issues/56)) ([554e29a](https://github.com/barzoj-co/llmentary/commit/554e29ae17ee6a5974b01e844ea8194312a47682))
+* skip path allow-list on named upstreams and hint --allow-path-prefix ([#54](https://github.com/barzoj-co/llmentary/issues/54)) ([ae788c2](https://github.com/barzoj-co/llmentary/commit/ae788c2942e2ca1a23e588ae4cb9c6284c831f94))
+* stop blaming valid fields for anyOf cascade findings ([#52](https://github.com/barzoj-co/llmentary/issues/52)) ([9b99665](https://github.com/barzoj-co/llmentary/commit/9b996654aca918c9f60a777934ccef457c809575))
+
 ## [0.4.1](https://github.com/barzoj-co/llmentary/compare/v0.4.0...v0.4.1) (2026-10-21)
 
 
