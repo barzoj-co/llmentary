@@ -231,6 +231,18 @@ findings instead of enforce 400s. OpenAI Structured Outputs keyword lints
 `strict_fallback_predicted` are rematched to `severity=info` / `report_only`
 on this target; target `openai` keeps them as `reject_in_enforce`.
 
+Response-side, `openai-compatible` also rematches OpenAI-required keys whose
+schema allows `null` when the provider omits them. Those become
+`ignored_fields` with `kind=compatible_optional`, `severity=info`,
+`action=report_only` — never `spec_violations`. Type errors on the same
+keys stay violations. Target `openai` keeps the required check. The
+relaxed keys are:
+
+- `CreateChatCompletionResponse.choices[].logprobs`
+- `ChatCompletionResponseMessage.content`
+- `Response.error`
+- `Response.incomplete_details`
+
 Request-side reasoning echo is counted on `normalized.reasoning_in`
 (`assistant_turns`, `with_reasoning`, `chars`) so tests can assert that every
 assistant turn passed reasoning back. `extra_content` on response tool calls

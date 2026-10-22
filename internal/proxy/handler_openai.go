@@ -409,14 +409,14 @@ func (ex *proxyExchange) finishCall(resp *http.Response, rawBody []byte, firstBy
 		}
 		if ex.s.validation != nil && resp.StatusCode < 400 {
 			vios, extra, dur, trunc := ex.s.validation.checkResponse(call.APIFamily, resp.StatusCode, parseBody, stream, events)
+			target := ""
+			if call.Normalized.Validation != nil {
+				target = call.Normalized.Validation.Target
+			}
 			if call.APIFamily == "openai.responses" && ex.s.validation.linter != nil {
 				extra = append(extra, ex.s.validation.linter.ConfirmStrictFallback(parseBody, omittedStrictToolIndexes(call.RawRequest))...)
-				target := ""
-				if call.Normalized.Validation != nil {
-					target = call.Normalized.Validation.Target
-				}
-				_, extra = applySpecTarget(target, nil, extra, nil)
 			}
+			vios, extra = applySpecTarget(target, vios, extra, nil)
 			mergeResponseValidation(call, vios, extra, dur, trunc)
 		}
 		if call.Normalized.ClientAborted {

@@ -14,13 +14,27 @@ import (
 )
 
 const (
-	SpecTargetOpenAI     = "openai"
-	SpecTargetCompatible = "openai-compatible"
-	vendorFieldHint      = "Forwarded to the upstream unchanged. This field is not in the OpenAI request schema."
-	vendorValueHint      = "Forwarded to the upstream unchanged. OpenAI rejects this enum value; openai-compatible providers often accept it."
-	unknownRequestHintOA = "The live OpenAI API accepts this field and silently ignores it. Remove it, or it will never reach the model."
-	compatibleLintHint   = "This finding is informational for the selected upstream; verify the behavior with that upstream."
+	SpecTargetOpenAI       = "openai"
+	SpecTargetCompatible   = "openai-compatible"
+	vendorFieldHint        = "Forwarded to the upstream unchanged. This field is not in the OpenAI request schema."
+	vendorValueHint        = "Forwarded to the upstream unchanged. OpenAI rejects this enum value; openai-compatible providers often accept it."
+	unknownRequestHintOA   = "The live OpenAI API accepts this field and silently ignores it. Remove it, or it will never reach the model."
+	compatibleLintHint     = "This finding is informational for the selected upstream; verify the behavior with that upstream."
+	compatibleOptionalHint = "OpenAI requires this key (usually null); openai-compatible providers may omit it."
 )
+
+// CompatibleOptionalResponseRequired is the pinned list of OpenAI-required
+// response keys whose schema allows null. openai-compatible rematches a
+// missing key to ignored_fields (info / report_only) instead of a
+// spec_violation. Target openai keeps the required check.
+func CompatibleOptionalResponseRequired() []string {
+	return []string{
+		"CreateChatCompletionResponse.choices[].logprobs",
+		"ChatCompletionResponseMessage.content",
+		"Response.error",
+		"Response.incomplete_details",
+	}
+}
 
 func defaultSpecTarget(u *url.URL) string {
 	if u == nil {
@@ -125,6 +139,10 @@ func applyCompatibleTarget(violations []specvalidate.Violation, ignored []schema
 	kept := violations[:0]
 	for _, v := range violations {
 		if v.Side == specvalidate.SideResponse {
+			if isRelaxedResponseRequired(v) {
+				ignored = append(ignored, relaxedResponseFindings(v)...)
+				continue
+			}
 			kept = append(kept, v)
 			continue
 		}
@@ -448,6 +466,80 @@ func vendorFindingFromViolation(v specvalidate.Violation, kind, severity, hint s
 		Action:           schemalint.ActionReport,
 		Hint:             hint,
 	}
+}
+
+func isRelaxedResponseRequired(v specvalidate.Violation) bool {
+	if v.Keyword != "required" {
+		return false
+	}
+	props := requiredPropertyNames(v.Message)
+	if len(props) == 0 {
+		return false
+	}
+	for _, prop := range props {
+		if !isRelaxedResponseProperty(v.Pointer, prop) {
+			return false
+		}
+	}
+	return true
+}
+
+func isRelaxedResponseProperty(pointer, prop string) bool {
+	segs := pointerSegments(pointer)
+	switch {
+	case prop == "logprobs" && len(segs) == 2 && segs[0] == "choices" && isPointerIndex(segs[1]):
+		return true
+	case prop == "content" && len(segs) == 3 && segs[0] == "choices" && isPointerIndex(segs[1]) && segs[2] == "message":
+		return true
+	case (prop == "error" || prop == "incomplete_details") && (pointer == "" || pointer == "/"):
+		return true
+	default:
+		return false
+	}
+}
+
+func requiredPropertyNames(message string) []string {
+	var out []string
+	rest := message
+	for {
+		i := strings.IndexByte(rest, '\'')
+		if i < 0 {
+			return out
+		}
+		rest = rest[i+1:]
+		j := strings.IndexByte(rest, '\'')
+		if j < 0 {
+			return out
+		}
+		if name := rest[:j]; name != "" {
+			out = append(out, name)
+		}
+		rest = rest[j+1:]
+	}
+}
+
+func relaxedResponseFindings(v specvalidate.Violation) []schemalint.Finding {
+	names := requiredPropertyNames(v.Message)
+	if len(names) == 0 {
+		if key := lastPathSegment(v.Pointer); key != "" {
+			names = []string{key}
+		}
+	}
+	out := make([]schemalint.Finding, 0, len(names))
+	for _, key := range names {
+		out = append(out, schemalint.Finding{
+			Path:             v.Path,
+			Pointer:          v.Pointer,
+			Key:              key,
+			Kind:             schemalint.KindCompatibleOptional,
+			Context:          "response",
+			Severity:         schemalint.SeverityInfo,
+			Action:           schemalint.ActionReport,
+			Hint:             compatibleOptionalHint,
+			UpstreamBehavior: "forwarded",
+		})
+	}
+	return out
 }
 
 func lastPathSegment(pointer string) string {
