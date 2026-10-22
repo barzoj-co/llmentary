@@ -35,7 +35,7 @@
       "calls_seen": 0,
       "min_calls": 1,
       "active": 1,
-      "hint": "an upstream stream has been in progress for 1.0s; set LLMENTARY_UPSTREAM_IDLE_TIMEOUT to fail stuck streams",
+      "hint": "an upstream stream has been in progress for 1.0s; set LLMENTARY_UPSTREAM_IDLE_TIMEOUT to fail stuck streams, or raise LLMENTARY_WAIT_TIMEOUT if the stream is still making progress",
       "in_flight": [
         {
           "call_id": "call_1",

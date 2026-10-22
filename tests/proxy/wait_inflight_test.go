@@ -99,7 +99,7 @@ func TestWaitTimeoutStreaming(t *testing.T) {
 	}
 	assertLiveMatchesVectorKeys(t, body, true)
 	hint := fmtString(body["error"].(map[string]any)["hint"])
-	if !strings.Contains(hint, "LLMENTARY_UPSTREAM_IDLE_TIMEOUT") || strings.Contains(hint, "LLMENTARY_WAIT_TIMEOUT") {
+	if !strings.Contains(hint, "LLMENTARY_UPSTREAM_IDLE_TIMEOUT") || !strings.Contains(hint, "LLMENTARY_WAIT_TIMEOUT") {
 		t.Fatalf("streaming hint=%q", hint)
 	}
 }

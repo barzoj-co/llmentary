@@ -24,11 +24,11 @@ func TestWaitTimeoutHint(t *testing.T) {
 	stream := waitTimeoutHint([]InFlightCall{{
 		Phase: InFlightPhaseStreaming, ElapsedMS: 2000,
 	}})
-	if stream != "an upstream stream has been in progress for 2.0s; set LLMENTARY_UPSTREAM_IDLE_TIMEOUT to fail stuck streams" {
+	if stream != "an upstream stream has been in progress for 2.0s; set LLMENTARY_UPSTREAM_IDLE_TIMEOUT to fail stuck streams, or raise LLMENTARY_WAIT_TIMEOUT if the stream is still making progress" {
 		t.Fatalf("stream: %q", stream)
 	}
-	if strings.Contains(stream, "LLMENTARY_WAIT_TIMEOUT") {
-		t.Fatal("stream hint must not mention WAIT_TIMEOUT")
+	if !strings.Contains(stream, "LLMENTARY_WAIT_TIMEOUT") {
+		t.Fatal("stream hint must mention WAIT_TIMEOUT for a progressing stream")
 	}
 	mixed := waitTimeoutHint([]InFlightCall{
 		{Phase: InFlightPhaseStreaming, ElapsedMS: 5000},

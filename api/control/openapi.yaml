@@ -247,9 +247,10 @@ components:
           description: >
             How to unblock a wait 504. When any in-flight call is
             awaiting_headers, names LLMENTARY_UPSTREAM_HEADER_TIMEOUT.
-            When calls are streaming, names LLMENTARY_UPSTREAM_IDLE_TIMEOUT.
-            Only names LLMENTARY_WAIT_TIMEOUT when active is 0 or the
-            calls are making progress.
+            When calls are streaming, names LLMENTARY_UPSTREAM_IDLE_TIMEOUT
+            for a stuck stream and LLMENTARY_WAIT_TIMEOUT if the stream
+            is still making progress. Only names LLMENTARY_WAIT_TIMEOUT
+            alone when active is 0 or the phase is not a header/stream wait.
     ErrorBody:
       type: object
       required:

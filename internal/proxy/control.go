@@ -397,7 +397,7 @@ func waitTimeoutHint(inFlight []InFlightCall) string {
 		return fmt.Sprintf("the upstream has not sent headers for %s; set LLMENTARY_UPSTREAM_HEADER_TIMEOUT to fail such calls fast", formatElapsedMS(headerMS))
 	}
 	if hasStream {
-		return fmt.Sprintf("an upstream stream has been in progress for %s; set LLMENTARY_UPSTREAM_IDLE_TIMEOUT to fail stuck streams", formatElapsedMS(streamMS))
+		return fmt.Sprintf("an upstream stream has been in progress for %s; set LLMENTARY_UPSTREAM_IDLE_TIMEOUT to fail stuck streams, or raise LLMENTARY_WAIT_TIMEOUT if the stream is still making progress", formatElapsedMS(streamMS))
 	}
 	return "Raise LLMENTARY_WAIT_TIMEOUT if the app needs more time."
 }
