@@ -4,6 +4,8 @@ package proxy
 
 import (
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -168,6 +170,48 @@ func TestApplySpecTargetCompatibleDowngradesOpenAILints(t *testing.T) {
 		if f.Severity != schemalint.SeverityInfo || f.Action != schemalint.ActionReport {
 			t.Fatalf("not rematched: %+v", f)
 		}
+		if f.Hint != compatibleLintHint {
+			t.Fatalf("hint=%q want target-neutral", f.Hint)
+		}
+	}
+}
+
+func TestApplySpecTargetCompatibleHintCorners(t *testing.T) {
+	t.Parallel()
+	openaiHint := "OpenAI does not guarantee minLength."
+	ig := []schemalint.Finding{
+		{Kind: schemalint.KindUnknownKeyword, Key: "minLength", Action: schemalint.ActionReject, Severity: schemalint.SeverityWarning, Hint: openaiHint},
+		{Kind: schemalint.KindUnknownRequest, Key: "top_k", Action: schemalint.ActionReject, Severity: schemalint.SeverityWarning, Hint: unknownRequestHintOA},
+		{Kind: schemalint.KindStrictFallback, Key: "strict", Action: schemalint.ActionReject, Severity: schemalint.SeverityWarning, Hint: openaiHint},
+	}
+	_, got := applySpecTarget(SpecTargetCompatible, nil, ig, nil)
+	var sawKeyword, sawVendor, sawFallback bool
+	for _, f := range got {
+		switch f.Kind {
+		case schemalint.KindUnknownKeyword:
+			sawKeyword = true
+			if f.Hint != compatibleLintHint {
+				t.Fatalf("keyword hint leaked OpenAI wording: %q", f.Hint)
+			}
+		case schemalint.KindVendorField:
+			sawVendor = true
+			if f.Hint != vendorFieldHint {
+				t.Fatalf("vendor hint=%q", f.Hint)
+			}
+			if f.Hint == compatibleLintHint {
+				t.Fatal("vendor rematch used lint hint")
+			}
+		case schemalint.KindStrictFallback:
+			sawFallback = true
+			if f.Hint != compatibleLintHint || f.Action != schemalint.ActionReport || f.Severity != schemalint.SeverityInfo {
+				t.Fatalf("fallback rematch: %+v", f)
+			}
+		default:
+			t.Fatalf("unexpected kind %s", f.Kind)
+		}
+	}
+	if !sawKeyword || !sawVendor || !sawFallback {
+		t.Fatalf("missing rematch kinds: %+v", got)
 	}
 }
 
@@ -183,6 +227,22 @@ func TestApplySpecTargetOpenAIKeepsKeywordReject(t *testing.T) {
 	}
 	if got[0].Action != schemalint.ActionReject || got[0].Severity != schemalint.SeverityWarning {
 		t.Fatalf("openai lint mutated: %+v", got[0])
+	}
+	if got[0].Hint == compatibleLintHint {
+		t.Fatal("openai target must keep the OpenAI lint hint")
+	}
+}
+
+func TestApplySpecTargetOpenAIKeepsExistingLintHint(t *testing.T) {
+	t.Parallel()
+	hint := "OpenAI does not guarantee `examples`."
+	ig := []schemalint.Finding{{
+		Kind: schemalint.KindUnknownKeyword, Key: "examples",
+		Action: schemalint.ActionReject, Severity: schemalint.SeverityWarning, Hint: hint,
+	}}
+	_, got := applySpecTarget(SpecTargetOpenAI, nil, ig, nil)
+	if got[0].Hint != hint {
+		t.Fatalf("openai hint overwritten: %q", got[0].Hint)
 	}
 }
 
@@ -326,5 +386,28 @@ func TestCompatibleKnownRequiredCorners(t *testing.T) {
 	}
 	if isAssistantContentLeftover(contentMiss, nil) || messageAtPointer(nil, "/messages/0") != nil {
 		t.Fatal("nil instance corners")
+	}
+}
+
+func TestRejectClassExamplesOmitDefaultKeyword(t *testing.T) {
+	t.Parallel()
+	files := []string{
+		filepath.Join("..", "..", "api", "openai", "schema-subset.yaml"),
+		filepath.Join("..", "..", "internal", "specvalidate", "embed", "schema-subset.yaml"),
+		filepath.Join("..", "..", "docs", "providers.md"),
+		filepath.Join("..", "..", "docs", "proxy.md"),
+	}
+	for _, rel := range files {
+		raw, err := os.ReadFile(rel)
+		if err != nil {
+			t.Fatal(err)
+		}
+		text := string(raw)
+		if strings.Contains(text, "oneOf, default") || strings.Contains(text, "`oneOf`, `default`") {
+			t.Fatalf("%s still lists default as a reject-class example", rel)
+		}
+		if !strings.Contains(text, "oneOf") {
+			t.Fatalf("%s lost the reject-class keyword examples", rel)
+		}
 	}
 }

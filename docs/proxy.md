@@ -619,7 +619,7 @@ type-checks known OpenAI fields, but unknown properties and commonly extended en
 (`tool_choice`, `response_format.type`, `service_tier`) are forwarded. Unknown
 fields are recorded as `ignored_fields` with `kind=vendor_field`, `severity=info`,
 and `action=report_only`. OpenAI-only schema-keyword lints (`minLength`, `examples`,
-`oneOf`, `default`, …) and Responses `strict_fallback_predicted` are rematched to
+`oneOf`, …) and Responses `strict_fallback_predicted` are rematched to
 `severity=info` / `report_only` so they never 400. Target `openai` keeps those
 findings as `reject_in_enforce` (default OpenAI enforce behaviour is unchanged).
 Extended enums stay in `spec_violations` with `severity=warning` and do not reject.

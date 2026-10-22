@@ -186,6 +186,9 @@ func TestOpenAIOnlyLintsMatrix(t *testing.T) {
 							if expectFinding && !ignoredHasKeyword(n, kw) && !ignoredHasKind(n, schemalint.KindUnresolvedRef) && !ignoredHasKind(n, schemalint.KindUnsupportedFormat) {
 								t.Fatalf("compatible should still list finding for %s: %v", kw, n["ignored_fields"])
 							}
+							if expectFinding && !ignoredHasCompatibleLintHint(n) {
+								t.Fatalf("compatible rematch missing target-neutral hint: %v", n["ignored_fields"])
+							}
 							if ignoredHasReject(n) {
 								t.Fatalf("compatible finding still reject_in_enforce: %v", n["ignored_fields"])
 							}
@@ -307,12 +310,64 @@ func TestCompatibleStrictFallbackPredictedInfo(t *testing.T) {
 		t.Fatalf("status=%d", status)
 	}
 	n := normalized(lastCall(t, session))
-	if !ignoredHasKind(n, schemalint.KindStrictFallbackPred) && !ignoredHasKind(n, schemalint.KindUnknownKeyword) {
-		t.Fatalf("expected fallback or keyword finding: %v", n["ignored_fields"])
+	fb := ignoredFinding(n, schemalint.KindStrictFallback)
+	if fb == nil {
+		t.Fatalf("expected confirmed strict_fallback: %v", n["ignored_fields"])
+	}
+	if fb["severity"] != schemalint.SeverityInfo || fb["action"] != schemalint.ActionReport {
+		t.Fatalf("strict_fallback not rematched: %v", fb)
+	}
+	if !strings.Contains(fmt.Sprint(fb["hint"]), "informational for the selected upstream") {
+		t.Fatalf("strict_fallback hint=%v", fb["hint"])
 	}
 	if ignoredHasReject(n) {
 		t.Fatalf("compatible fallback still reject: %v", n["ignored_fields"])
 	}
+}
+
+func TestOpenAIStrictFallbackResponseRetainsDisposition(t *testing.T) {
+	p := startSpecProxy(t, "warn", "relaxed", responsesOK(), withTarget(proxy.SpecTargetOpenAI))
+	body := []byte(`{"model":"gpt-fixture","input":"hi","tools":[{"type":"function","name":"get_weather","parameters":{"type":"object","properties":{"city":{"type":"string","minLength":1}},"required":["city"]}}]}`)
+	sid := newSession()
+	status, _, _, session := postRaw(t, p, "/v1/responses", sid, nil, body)
+	if status != 200 {
+		t.Fatalf("warn openai status=%d", status)
+	}
+	n := normalized(lastCall(t, session))
+	fb := ignoredFinding(n, schemalint.KindStrictFallback)
+	if fb == nil {
+		t.Fatalf("expected confirmed strict_fallback: %v", n["ignored_fields"])
+	}
+	if fb["severity"] != schemalint.SeverityWarning || fb["action"] != schemalint.ActionReject {
+		t.Fatalf("openai warn must keep reject disposition: %v", fb)
+	}
+	if strings.Contains(fmt.Sprint(fb["hint"]), "informational for the selected upstream") {
+		t.Fatalf("openai hint rematched: %v", fb["hint"])
+	}
+	pred := ignoredFinding(n, schemalint.KindStrictFallbackPred)
+	if pred == nil || pred["action"] != schemalint.ActionReject || pred["severity"] != schemalint.SeverityWarning {
+		t.Fatalf("predicted fallback lost reject: %v", pred)
+	}
+}
+
+func ignoredFinding(n map[string]any, kind string) map[string]any {
+	for _, v := range asAnySlice(n["ignored_fields"]) {
+		m, _ := v.(map[string]any)
+		if m["kind"] == kind {
+			return m
+		}
+	}
+	return nil
+}
+
+func ignoredHasCompatibleLintHint(n map[string]any) bool {
+	for _, v := range asAnySlice(n["ignored_fields"]) {
+		m, _ := v.(map[string]any)
+		if strings.Contains(fmt.Sprint(m["hint"]), "informational for the selected upstream") {
+			return true
+		}
+	}
+	return false
 }
 
 func ignoredHasKeyword(n map[string]any, key string) bool {
