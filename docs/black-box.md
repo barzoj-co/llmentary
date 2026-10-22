@@ -297,6 +297,11 @@ then `504` `wait_timeout` with `calls_seen:0`. If a call is still running,
 `streaming`). Clients pin
 [`api/control/testdata/wait_timeout_inflight.json`](../api/control/testdata/wait_timeout_inflight.json).
 
+A stalled **upstream** is a different clock. `--upstream-header-timeout` /
+`LLMENTARY_UPSTREAM_HEADER_TIMEOUT` (and optional `--upstream-idle-timeout`)
+are off by default. When set, a stall becomes a recorded `upstream_timeout`
+or `upstream_idle_timeout` instead of hanging `wait`.
+
 ```bash
 # async worker: do not return until two calls have finished
 curl -sS -H "Authorization: Bearer $LLMENTARY_CONTROL_TOKEN" \

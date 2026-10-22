@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/barzoj-co/llmentary/internal/proxy"
 )
@@ -66,6 +67,31 @@ func (f *nonNegIntFlag) Set(value string) error {
 	return nil
 }
 
+type optionalTimeoutFlag struct {
+	name string
+	d    time.Duration
+}
+
+func (f *optionalTimeoutFlag) String() string {
+	if f == nil {
+		return "0s"
+	}
+	return f.d.String()
+}
+
+func (f *optionalTimeoutFlag) Set(value string) error {
+	env := "LLMENTARY_UPSTREAM_HEADER_TIMEOUT"
+	if f.name == "upstream-idle-timeout" {
+		env = "LLMENTARY_UPSTREAM_IDLE_TIMEOUT"
+	}
+	d, err := proxy.ParseOptionalTimeout(f.name, env, value)
+	if err != nil {
+		return err
+	}
+	f.d = d
+	return nil
+}
+
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
 }
@@ -110,7 +136,10 @@ func run(args []string, stdout, stderr io.Writer) int {
 	var allowPrefixes upstreamFlags
 	fs.Var(&allowPrefixes, "allow-path-prefix", "extra first path segment allowed after /s and /u are stripped; repeatable (env LLMENTARY_ALLOW_PATH_PREFIXES)")
 	fs.StringVar(&cfg.PropagateTrace, "propagate-trace", cfg.PropagateTrace, "outbound traceparent: off (default, pass client headers through) or auto (inject/continue) (env LLMENTARY_PROPAGATE_TRACE)")
-	fs.Bool("tls", false, "TODO: optional local TLS listener")
+	headerTO := optionalTimeoutFlag{name: "upstream-header-timeout", d: cfg.UpstreamHeaderTimeout}
+	idleTO := optionalTimeoutFlag{name: "upstream-idle-timeout", d: cfg.UpstreamIdleTimeout}
+	fs.Var(&headerTO, "upstream-header-timeout", "cancel an upstream request that sends no response headers within this duration; 0 disables (env LLMENTARY_UPSTREAM_HEADER_TIMEOUT)")
+	fs.Var(&idleTO, "upstream-idle-timeout", "cancel an upstream body that sends no further bytes within this duration; 0 disables (env LLMENTARY_UPSTREAM_IDLE_TIMEOUT)")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
@@ -118,6 +147,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	cfg.SpecLogMax = &specLogMax
+	cfg.UpstreamHeaderTimeout = headerTO.d
+	cfg.UpstreamIdleTimeout = idleTO.d
 	if *showVersion {
 		_, _ = fmt.Fprintln(stdout, proxy.VersionLine())
 		return 0

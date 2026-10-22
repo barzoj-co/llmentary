@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestConfigFromEnvDefaultsAndOverrides(t *testing.T) {
@@ -22,6 +23,8 @@ func TestConfigFromEnvDefaultsAndOverrides(t *testing.T) {
 	t.Setenv("LLMENTARY_DEFAULT_SESSION", "sess-env")
 	t.Setenv("LLMENTARY_PROPAGATE_TRACE", "auto")
 	t.Setenv("LLMENTARY_UPSTREAMS", "openai=https://api.openai.com/v1,or=https://openrouter.ai/api/v1")
+	t.Setenv("LLMENTARY_UPSTREAM_HEADER_TIMEOUT", "30s")
+	t.Setenv("LLMENTARY_UPSTREAM_IDLE_TIMEOUT", "45")
 
 	cfg, err := ConfigFromEnv()
 	if err != nil {
@@ -48,6 +51,9 @@ func TestConfigFromEnvDefaultsAndOverrides(t *testing.T) {
 	if cfg.Upstreams["openai"] == nil || cfg.Upstreams["or"] == nil {
 		t.Fatalf("upstreams=%v", cfg.Upstreams)
 	}
+	if cfg.UpstreamHeaderTimeout != 30*time.Second || cfg.UpstreamIdleTimeout != 45*time.Second {
+		t.Fatalf("timeouts header=%s idle=%s", cfg.UpstreamHeaderTimeout, cfg.UpstreamIdleTimeout)
+	}
 }
 
 func TestConfigFromEnvErrors(t *testing.T) {
@@ -58,6 +64,8 @@ func TestConfigFromEnvErrors(t *testing.T) {
 		{"bad_max_bytes", "LLMENTARY_SPEC_VALIDATION_MAX_BYTES", "x", "spec-validation-max-bytes"},
 		{"bad_log_max", "LLMENTARY_SPEC_LOG_MAX", "-1", "spec-log-max"},
 		{"bad_upstream", "LLMENTARY_UPSTREAMS", "name=not-a-url", "scheme"},
+		{"bad_header_timeout", "LLMENTARY_UPSTREAM_HEADER_TIMEOUT", "nope", "upstream-header-timeout"},
+		{"bad_idle_timeout", "LLMENTARY_UPSTREAM_IDLE_TIMEOUT", "-1s", "upstream-idle-timeout"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			clearConfigEnv(t)
@@ -209,6 +217,7 @@ func clearConfigEnv(t *testing.T) {
 		"LLMENTARY_SPEC_TARGETS",
 		"LLMENTARY_SESSION_FROM", "LLMENTARY_DEFAULT_SESSION",
 		"LLMENTARY_ALLOW_PATH_PREFIXES", "LLMENTARY_PROPAGATE_TRACE",
+		"LLMENTARY_UPSTREAM_HEADER_TIMEOUT", "LLMENTARY_UPSTREAM_IDLE_TIMEOUT",
 	} {
 		t.Setenv(key, "")
 	}

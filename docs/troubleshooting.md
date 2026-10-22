@@ -189,9 +189,16 @@ listener.
 
 ## Why is `--tls` not enabling HTTPS?
 
-The current CLI registers a `--tls` boolean flag, but the server code does not use it to
-start a TLS listener. Keep control and proxy listeners on trusted loopback interfaces for
-now.
+There is no `--tls` flag. A local TLS listener is not implemented yet. Keep control
+and proxy listeners on trusted loopback interfaces for now.
+
+## A test hangs waiting for the upstream
+
+The proxy has no upstream timeout by default (it stays transparent). A stalled
+provider can then hang until the SDK or CI job gives up. For test runs, set
+`LLMENTARY_UPSTREAM_HEADER_TIMEOUT` (and optionally
+`LLMENTARY_UPSTREAM_IDLE_TIMEOUT`) so a stall becomes a recorded
+`upstream_timeout` / `upstream_idle_timeout` instead of an unbounded wait.
 
 ## Raw bodies contain sensitive data
 

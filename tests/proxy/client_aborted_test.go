@@ -299,6 +299,45 @@ func assertAfterHeadersAbort(t *testing.T, call map[string]any, wantText string)
 	}
 }
 
+func chatStreamAbortAfterMidStreamError() http.HandlerFunc {
+	chunk1 := `data: {"id":"chatcmpl_1","object":"chat.completion.chunk","created":1,"model":"gpt-fixture","choices":[{"index":0,"delta":{"role":"assistant","content":"chunk-one"},"finish_reason":null}]}` + "\n\n"
+	errEvt := `data: {"error":{"type":"too_many_requests","code":"no_capacity","message":"try later"}}` + "\n\n"
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		flusher, _ := w.(http.Flusher)
+		_, _ = io.WriteString(w, chunk1)
+		_, _ = io.WriteString(w, errEvt)
+		if flusher != nil {
+			flusher.Flush()
+		}
+		select {
+		case <-r.Context().Done():
+		case <-time.After(2 * time.Second):
+		}
+	}
+}
+
+func TestClientAbortAfterMidStreamErrorOmitsMidStream(t *testing.T) {
+	p := startSpecProxy(t, "off", "relaxed", chatStreamAbortAfterMidStreamError())
+	body := []byte(`{"model":"gpt-fixture","messages":[{"role":"user","content":"hi"}],"stream":true}`)
+	sid := newSession()
+	postSSECloseAfter(t, p.proxyURL, "/v1/chat/completions", sid, "try later", body)
+	call := lastCall(t, waitSession(t, p.controlURL, sid))
+	assertAfterHeadersAbort(t, call, "chunk-one")
+	errObj, _ := normalized(call)["error"].(map[string]any)
+	if errObj == nil {
+		t.Fatalf("missing provider error: %+v", normalized(call))
+	}
+	if fmtString(errObj["type"]) != "too_many_requests" || fmtString(errObj["code"]) != "no_capacity" ||
+		!strings.Contains(fmtString(errObj["message"]), "try later") {
+		t.Fatalf("provider error=%v", errObj)
+	}
+	if errObj["mid_stream"] == true {
+		t.Fatalf("client abort must omit mid_stream: %v", errObj)
+	}
+}
+
 func TestClientAbortedTrueBeforeDone(t *testing.T) {
 	p := startSpecProxy(t, "off", "relaxed", chatStreamAbortAfterFirst())
 	body := []byte(`{"model":"gpt-fixture","messages":[{"role":"user","content":"hi"}],"stream":true}`)

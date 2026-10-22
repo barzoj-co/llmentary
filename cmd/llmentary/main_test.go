@@ -7,6 +7,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/barzoj-co/llmentary/internal/proxy"
 )
@@ -19,6 +20,7 @@ func clearProxyEnv(t *testing.T) {
 		"LLMENTARY_SPEC_VALIDATION_MAX_BYTES", "LLMENTARY_SPEC_LOG_MAX",
 		"LLMENTARY_SESSION_FROM", "LLMENTARY_DEFAULT_SESSION",
 		"LLMENTARY_ALLOW_PATH_PREFIXES", "LLMENTARY_PROPAGATE_TRACE",
+		"LLMENTARY_UPSTREAM_HEADER_TIMEOUT", "LLMENTARY_UPSTREAM_IDLE_TIMEOUT",
 	} {
 		t.Setenv(key, "")
 	}
@@ -83,9 +85,71 @@ func TestRunHelp(t *testing.T) {
 		if code := run([]string{arg}, &stdout, &stderr); code != 0 {
 			t.Fatalf("%s exit=%d stderr=%s", arg, code, stderr.String())
 		}
-		if !strings.Contains(stderr.String(), "Usage of llmentary") && !strings.Contains(stderr.String(), "-listen") {
-			t.Fatalf("%s usage=%s", arg, stderr.String())
+		help := stderr.String()
+		if !strings.Contains(help, "Usage of llmentary") && !strings.Contains(help, "-listen") {
+			t.Fatalf("%s usage=%s", arg, help)
 		}
+		if strings.Contains(help, "-tls") || strings.Contains(help, "TODO: optional local TLS") {
+			t.Fatalf("%s still shows -tls: %s", arg, help)
+		}
+		if !strings.Contains(help, "upstream-header-timeout") || !strings.Contains(help, "upstream-idle-timeout") {
+			t.Fatalf("%s missing timeout flags: %s", arg, help)
+		}
+	}
+}
+
+func TestRunBadUpstreamTimeout(t *testing.T) {
+	clearProxyEnv(t)
+	for _, tc := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"--upstream-header-timeout=nope"}, "upstream-header-timeout"},
+		{[]string{"--upstream-idle-timeout=-1s"}, "upstream-idle-timeout"},
+		{[]string{"--upstream-header-timeout=11m"}, "10m"},
+	} {
+		var stdout, stderr bytes.Buffer
+		code := run(tc.args, &stdout, &stderr)
+		if code != 2 {
+			t.Fatalf("%v exit=%d want 2 stderr=%s", tc.args, code, stderr.String())
+		}
+		if !strings.Contains(stderr.String(), tc.want) {
+			t.Fatalf("%v stderr=%s want %q", tc.args, stderr.String(), tc.want)
+		}
+	}
+}
+
+func TestRunEnvBadUpstreamTimeout(t *testing.T) {
+	clearProxyEnv(t)
+	t.Setenv("LLMENTARY_UPSTREAM_HEADER_TIMEOUT", "xyz")
+	var stdout, stderr bytes.Buffer
+	code := run(nil, &stdout, &stderr)
+	if code != 1 {
+		t.Fatalf("exit=%d want 1 stderr=%s", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "upstream-header-timeout") {
+		t.Fatalf("stderr=%s", stderr.String())
+	}
+}
+
+func TestOptionalTimeoutFlag(t *testing.T) {
+	var f optionalTimeoutFlag
+	f.name = "upstream-header-timeout"
+	if f.String() != "0s" {
+		t.Fatalf("zero=%s", f.String())
+	}
+	if err := f.Set("250ms"); err != nil || f.d != 250*time.Millisecond {
+		t.Fatalf("set 250ms: %v %s", err, f.d)
+	}
+	if err := f.Set("0"); err != nil || f.d != 0 {
+		t.Fatalf("set 0: %v %s", err, f.d)
+	}
+	if err := f.Set("nope"); err == nil {
+		t.Fatal("expected invalid")
+	}
+	idle := optionalTimeoutFlag{name: "upstream-idle-timeout"}
+	if err := idle.Set("-3s"); err == nil {
+		t.Fatal("expected negative rejected")
 	}
 }
 

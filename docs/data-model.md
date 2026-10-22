@@ -54,6 +54,7 @@ JSON shape and normalization rules.
   "http_status": 200,
   "retry_count": 0,
   "retry_after": "",
+  "upstream_called": true,
   "normalized": {}
 }
 ```
@@ -79,6 +80,7 @@ JSON shape and normalization rules.
 | `sse_events` | array | Parsed SSE events for streaming responses. |
 | `stream` | boolean | Whether the response was detected as SSE. When the client aborts before response headers, this is the request body's `stream` flag. |
 | `http_status` | number | Upstream HTTP status, or proxy error status. `0` when the client cancelled before response headers (never a synthetic `502`). |
+| `upstream_called` | boolean | True when the outbound request was written (`httptrace.WroteRequest`). False if a header timeout or cancel happens before that. |
 | `retry_count` | number, optional | Integer parsed from `x-stainless-retry-count`. |
 | `retry_after` | string, optional | `retry-after-ms` or `retry-after` response header. |
 | `client_aborted` | boolean | True when the inbound client cancelled before a terminal stream event. |
@@ -300,7 +302,14 @@ Responses synthesizes `finish_reason` as follows:
 | no status and no parser result | `unknown` |
 
 Proxy network errors set `finish_reason: "error"` with `error.normalized: "network"`
-and an HTTP `502`. A client cancel before response headers sets
+and an HTTP `502`. An optional `--upstream-header-timeout` that fires records
+`http_status: 504`, `error.type` / `error.code` / `error.normalized:
+"upstream_timeout"`, `error.source: "proxy"`, and `upstream_called` from
+whether `httptrace.WroteRequest` fired, and
+returns that same OpenAI-shaped error to the client. An `--upstream-idle-timeout`
+that fires after headers keeps the upstream `http_status` (usually `200`), sets
+`stream_truncated` on an incomplete SSE stream, and records
+`error.normalized: "upstream_idle_timeout"` with `mid_stream: false`. A client cancel before response headers sets
 `finish_reason: "cancelled"`, `client_aborted: true`, `http_status: 0`,
 `error.normalized: "client_aborted"`, and `stream` from the request body. The
 parser is not run on that empty body, so there is no "strict decode failed"
@@ -342,6 +351,8 @@ Error normalization categories are:
 - `content_filter`
 - `bad_request`
 - `network`
+- `upstream_timeout`
+- `upstream_idle_timeout`
 - `unknown`
 
 ## Usage
