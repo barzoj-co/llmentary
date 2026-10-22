@@ -52,6 +52,13 @@ Triggers are `push` to `main`, `pull_request`, and `workflow_dispatch`.
   fork PR skipped live e2e (`skipped (fork, no secrets)`). Same-repo PRs and
   `main` fail the gate if live e2e did not run (GitHub treats a skipped required
   `e2e` job as passing, so the gate is the required check).
+- `compat`: new job (existing names unchanged). Checkout, Go 1.26.10, then
+  `go test` in `tests/compat` against a local fixture server that speaks
+  Ollama / llama.cpp / deepseek-recipe / Groq / Together / Mistral / Gemini /
+  OpenRouter wire shapes. No secrets. Coverage floor is unchanged (this job
+  is additive). `docs/compat-matrix.md` must match the generated table;
+  a changed verdict fails with a readable diff. Optional real engines: set
+  `LLMENTARY_COMPAT_ENGINES=1` and `LLMENTARY_COMPAT_ENGINE_URLS`.
 - `perf`: dedicated job, `GOMAXPROCS=2`, runs `go test -tags=perf` in
   `tests/proxy` for validation/lint p99 budgets (I2–I5).
 - `codegen-check` also runs `scripts/prove-a6.sh` (editing `relax-overlay.yaml`

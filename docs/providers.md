@@ -271,13 +271,15 @@ framing (`data: {json}` chunks, Chat Completions ending with `data: [DONE]`).
 | Provider | Typical upstream | Default spec target | Verified |
 |---|---|---|---|
 | Azure OpenAI | `https://{resource}.openai.azure.com` or `.../openai/v1` | `openai` | fixture-verified (classic deployment paths, `/openai/v1`, content-filter streams). Not live-verified here. |
-| Groq | `https://api.groq.com/openai/v1` | `openai-compatible` | expected to work, not verified |
-| Together | `https://api.together.xyz/v1` | `openai-compatible` | expected to work, not verified |
+| Groq | `https://api.groq.com/openai/v1` | `openai-compatible` | fixture-verified (`tests/compat`, [compat-matrix.md](compat-matrix.md)) |
+| Together | `https://api.together.xyz/v1` | `openai-compatible` | fixture-verified (`tests/compat`, [compat-matrix.md](compat-matrix.md)) |
 | vLLM | `http://{host}:8000/v1` | `openai-compatible` | expected to work, not verified |
 | LiteLLM | `http://{host}:4000/v1` | `openai-compatible` | expected to work, not verified |
-| Ollama | `http://{host}:11434/v1` | `openai-compatible` | expected to work, not verified |
-| DeepSeek | `https://api.deepseek.com` | `openai-compatible` | fixture-verified passback of `reasoning_content` / `prefix`. Not live-verified here. |
-| Gemini (OpenAI compat) | `https://generativelanguage.googleapis.com/v1beta/openai` | `openai-compatible` | fixture-verified `extra_content.google.thought_signature` on tool calls. Not live-verified here. |
+| Ollama | `http://{host}:11434/v1` | `openai-compatible` | fixture-verified (`tests/compat`, [compat-matrix.md](compat-matrix.md)) |
+| llama.cpp | `http://{host}:8080/v1` | `openai-compatible` | fixture-verified (`tests/compat`, [compat-matrix.md](compat-matrix.md)) |
+| Mistral | `https://api.mistral.ai/v1` | `openai-compatible` | fixture-verified (`tests/compat`, [compat-matrix.md](compat-matrix.md)) |
+| DeepSeek | `https://api.deepseek.com` | `openai-compatible` | fixture-verified (`tests/compat`, [compat-matrix.md](compat-matrix.md)); passback of `reasoning_content` / `prefix`. Not live-verified here. |
+| Gemini (OpenAI compat) | `https://generativelanguage.googleapis.com/v1beta/openai` | `openai-compatible` | fixture-verified (`tests/compat`, [compat-matrix.md](compat-matrix.md)); `extra_content.google.thought_signature` on tool calls. Not live-verified here. |
 
 ### DeepSeek thinking passback
 
