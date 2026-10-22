@@ -290,6 +290,9 @@ func TestOpenAICompatibleGuideDeepSeekFakeUpstream(t *testing.T) {
 						t.Fatalf("reasoning_in=%v", ri)
 					}
 				}
+				if tc.name == "top_logprobs_string" && !hasRequestTypeWarning(n, "/top_logprobs") {
+					t.Fatalf("missing request-side /top_logprobs type warning: %v", n["spec_violations"])
+				}
 			}
 		})
 	}
@@ -598,4 +601,17 @@ func mustRead(t *testing.T, path string) []byte {
 		t.Fatal(err)
 	}
 	return raw
+}
+
+func hasRequestTypeWarning(n map[string]any, pointer string) bool {
+	for _, raw := range asAnySlice(n["spec_violations"]) {
+		v, _ := raw.(map[string]any)
+		if fmtString(v["side"]) == "request" &&
+			fmtString(v["pointer"]) == pointer &&
+			fmtString(v["keyword"]) == "type" &&
+			fmtString(v["severity"]) == "warning" {
+			return true
+		}
+	}
+	return false
 }
