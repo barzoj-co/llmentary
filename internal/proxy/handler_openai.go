@@ -413,6 +413,9 @@ func (ex *proxyExchange) finishCall(resp *http.Response, rawBody []byte, firstBy
 			if err := call.Normalized.Error; err != nil {
 				if err.Normalized == "network" {
 					call.Normalized.Error = nil
+				} else {
+					// After-headers cancel is not a stream HTTP/SSE error.
+					err.MidStream = false
 				}
 			}
 		}

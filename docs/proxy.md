@@ -687,7 +687,8 @@ failure stays `status=502` with `error.normalized: "network"`. An optional
 `--upstream-header-timeout` that fires is `status=504` with
 `error.normalized: "upstream_timeout"`. An `--upstream-idle-timeout` that
 fires after headers keeps the upstream status (usually `200`) with
-`stream_truncated` and `error.normalized: "upstream_idle_timeout"`. A close
+`error.normalized: "upstream_idle_timeout"` and, for incomplete SSE,
+`stream_truncated`. A close
 after the terminal SSE event (`[DONE]` / `response.completed`) is **not**
 `client_aborted`.
 

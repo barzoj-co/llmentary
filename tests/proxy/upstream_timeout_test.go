@@ -254,6 +254,9 @@ func TestUpstreamIdleTimeoutStreamAndNonStream(t *testing.T) {
 			if tc.stream && normalized(call)["stream_truncated"] != true {
 				t.Fatalf("expected stream_truncated: %+v", normalized(call))
 			}
+			if !tc.stream && normalized(call)["stream_truncated"] == true {
+				t.Fatalf("partial JSON idle timeout set stream_truncated: %+v", normalized(call))
+			}
 		})
 	}
 }
