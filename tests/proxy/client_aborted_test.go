@@ -341,27 +341,24 @@ func TestClientCancelAfterHeadersLogsProxyResponse(t *testing.T) {
 	}
 }
 
-func chatStreamNumberedChunks(holdAfter int) http.HandlerFunc {
+func chatStreamMidStream() http.HandlerFunc {
+	chunk1 := `data: {"id":"chatcmpl_1","object":"chat.completion.chunk","created":1,"model":"gpt-fixture","choices":[{"index":0,"delta":{"role":"assistant","content":"chunk-1"},"finish_reason":null}]}` + "\n\n"
+	chunk2 := `data: {"id":"chatcmpl_1","object":"chat.completion.chunk","created":1,"model":"gpt-fixture","choices":[{"index":0,"delta":{"content":"chunk-2"},"finish_reason":null}]}` + "\n\n"
+	chunk3 := `data: {"id":"chatcmpl_1","object":"chat.completion.chunk","created":1,"model":"gpt-fixture","choices":[{"index":0,"delta":{"content":"chunk-three"},"finish_reason":null}]}` + "\n\n"
+	more := strings.Repeat(`data: {"id":"chatcmpl_1","object":"chat.completion.chunk","created":1,"model":"gpt-fixture","choices":[{"index":0,"delta":{"content":"x"},"finish_reason":null}]}`+"\n\n", 64)
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(http.StatusOK)
 		flusher, _ := w.(http.Flusher)
-		for i := 1; i <= 8; i++ {
-			chunk := fmt.Sprintf(`data: {"id":"chatcmpl_1","object":"chat.completion.chunk","created":1,"model":"gpt-fixture","choices":[{"index":0,"delta":{"content":"chunk-%d"},"finish_reason":null}]}`+"\n\n", i)
-			_, _ = io.WriteString(w, chunk)
-			if flusher != nil {
-				flusher.Flush()
-			}
-			if i == holdAfter {
-				select {
-				case <-r.Context().Done():
-					return
-				case <-time.After(2 * time.Second):
-				}
-			}
+		_, _ = io.WriteString(w, chunk1+chunk2+chunk3)
+		if flusher != nil {
+			flusher.Flush()
 		}
-		_, _ = io.WriteString(w, `data: {"id":"chatcmpl_1","object":"chat.completion.chunk","created":1,"model":"gpt-fixture","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`+"\n\n")
-		_, _ = io.WriteString(w, "data: [DONE]\n\n")
+		select {
+		case <-r.Context().Done():
+		case <-time.After(2 * time.Second):
+		}
+		_, _ = io.WriteString(w, more)
 		if flusher != nil {
 			flusher.Flush()
 		}
@@ -369,19 +366,22 @@ func chatStreamNumberedChunks(holdAfter int) http.HandlerFunc {
 }
 
 func chatStreamHoldBeforeDone() http.HandlerFunc {
-	chunk := `data: {"id":"chatcmpl_1","object":"chat.completion.chunk","created":1,"model":"gpt-fixture","choices":[{"index":0,"delta":{"role":"assistant","content":"chunk-one"},"finish_reason":null}]}` + "\n\n"
+	chunk := `data: {"id":"chatcmpl_1","object":"chat.completion.chunk","created":1,"model":"gpt-fixture","choices":[{"index":0,"delta":{"role":"assistant","content":"pre-done"},"finish_reason":null}]}` + "\n\n"
 	stop := `data: {"id":"chatcmpl_1","object":"chat.completion.chunk","created":1,"model":"gpt-fixture","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}` + "\n\n"
+	more := strings.Repeat(`data: {"id":"chatcmpl_1","object":"chat.completion.chunk","created":1,"model":"gpt-fixture","choices":[{"index":0,"delta":{"content":"late"},"finish_reason":null}]}`+"\n\n", 64)
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(http.StatusOK)
 		flusher, _ := w.(http.Flusher)
-		_, _ = io.WriteString(w, chunk)
-		_, _ = io.WriteString(w, stop)
+		_, _ = io.WriteString(w, chunk+stop)
 		if flusher != nil {
 			flusher.Flush()
 		}
-		holdUntilCancel(r, 2*time.Second)
-		_, _ = io.WriteString(w, "data: [DONE]\n\n")
+		select {
+		case <-r.Context().Done():
+		case <-time.After(2 * time.Second):
+		}
+		_, _ = io.WriteString(w, more)
 		if flusher != nil {
 			flusher.Flush()
 		}
@@ -402,12 +402,12 @@ func chatStreamUpstreamDropAfterFirst() http.HandlerFunc {
 }
 
 func TestClientCancelMidStreamAfterHeaders(t *testing.T) {
-	p := startSpecProxy(t, "off", "relaxed", chatStreamNumberedChunks(3))
+	p := startSpecProxy(t, "off", "relaxed", chatStreamMidStream())
 	body := []byte(`{"model":"gpt-fixture","messages":[{"role":"user","content":"hi"}],"stream":true}`)
 	sid := newSession()
-	postSSECloseAfter(t, p.proxyURL, "/v1/chat/completions", sid, "chunk-3", body)
+	postSSECloseAfter(t, p.proxyURL, "/v1/chat/completions", sid, "chunk-three", body)
 	call := lastCall(t, waitSession(t, p.controlURL, sid))
-	assertAfterHeadersAbort(t, call, "chunk-3")
+	assertAfterHeadersAbort(t, call, "chunk-three")
 	n := normalized(call)
 	if !strings.Contains(fmtString(n["output_text"]), "chunk-1") || !strings.Contains(fmtString(n["output_text"]), "chunk-2") {
 		t.Fatalf("mid-stream output_text=%q", n["output_text"])
@@ -418,8 +418,8 @@ func TestClientCancelRightBeforeDone(t *testing.T) {
 	p := startSpecProxy(t, "off", "relaxed", chatStreamHoldBeforeDone())
 	body := []byte(`{"model":"gpt-fixture","messages":[{"role":"user","content":"hi"}],"stream":true}`)
 	sid := newSession()
-	postSSECloseAfter(t, p.proxyURL, "/v1/chat/completions", sid, `"finish_reason":"stop"`, body)
-	assertAfterHeadersAbort(t, lastCall(t, waitSession(t, p.controlURL, sid)), "chunk-one")
+	postSSECloseAfter(t, p.proxyURL, "/v1/chat/completions", sid, "pre-done", body)
+	assertAfterHeadersAbort(t, lastCall(t, waitSession(t, p.controlURL, sid)), "pre-done")
 }
 
 func TestUpstreamDropAfterHeadersIsNotClientAbort(t *testing.T) {
