@@ -45,6 +45,12 @@ func TestIsIncompleteUpstreamBody(t *testing.T) {
 	if !isIncompleteUpstreamBody(errors.New("read tcp: connection reset by peer")) {
 		t.Fatal("connection reset")
 	}
+	if !isIncompleteUpstreamBody(errors.New("stream error: stream ID 3; INTERNAL_ERROR; received from peer")) {
+		t.Fatal("http2 stream reset")
+	}
+	if !isIncompleteUpstreamBody(errors.New("connection error: PROTOCOL_ERROR")) {
+		t.Fatal("http2 connection error")
+	}
 	if isIncompleteUpstreamBody(errors.New("context canceled")) {
 		t.Fatal("canceled is not an incomplete body")
 	}
@@ -72,6 +78,12 @@ func TestShouldAbortClientResponse(t *testing.T) {
 	}
 	if shouldAbortClientResponse(&net.OpError{Op: "read", Err: io.ErrUnexpectedEOF}, false, false, false) != true {
 		t.Fatal("net unexpected EOF")
+	}
+	if shouldAbortClientResponse(errors.New("stream error: stream ID 5; CANCEL; received from peer"), false, false, false) != true {
+		t.Fatal("http2 rst")
+	}
+	if shouldAbortClientResponse(errors.New("stream error: stream ID 5; CANCEL; received from peer"), true, false, false) {
+		t.Fatal("write error stays a client abort")
 	}
 }
 

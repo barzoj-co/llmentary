@@ -293,7 +293,8 @@ For recording:
   (chunked terminator received) that simply omits `[DONE]` stays a clean
   HTTP response toward the client: `stream_truncated` may be set and
   `error` is absent. An **abnormal** upstream end — connection drop
-  before the chunked terminator or before `Content-Length` bytes, or an
+  before the chunked terminator or before `Content-Length` bytes, an
+  HTTP/2 `RST_STREAM` / connection error, or an
   idle timeout — aborts the inbound connection after flushing what
   arrived, records `error.normalized: stream_truncated` with
   `error.source: upstream` (idle timeout keeps `upstream_idle_timeout` /

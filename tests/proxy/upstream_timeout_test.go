@@ -233,7 +233,7 @@ func TestUpstreamIdleTimeoutStreamAndNonStream(t *testing.T) {
 			if status != http.StatusOK && status != 0 {
 				t.Fatalf("status=%d body=%s", status, raw)
 			}
-			if tc.stream && len(raw) > 0 && !bytes.Contains(raw, []byte("chunk-one")) {
+			if tc.stream && !bytes.Contains(raw, []byte("chunk-one")) {
 				t.Fatalf("partial stream missing: %s", raw)
 			}
 			if !tc.stream && len(raw) > 0 && !bytes.Contains(raw, []byte(`{"id":"partial"`)) {

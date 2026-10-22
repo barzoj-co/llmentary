@@ -79,6 +79,9 @@ func writeCompleteChunkedSSE(payload string) http.HandlerFunc {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(http.StatusOK)
 		_, _ = io.WriteString(w, payload)
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
 	}
 }
 
@@ -116,8 +119,8 @@ func TestUpstreamDropChunkedIsBrokenAndRecorded(t *testing.T) {
 	if status != http.StatusOK && status != 0 {
 		t.Fatalf("status=%d", status)
 	}
-	if !strings.Contains(string(raw), "Hello") && len(raw) == 0 {
-		// Partial bytes may have been flushed; either is acceptable as long as the read failed.
+	if !strings.Contains(string(raw), "Hello") {
+		t.Fatalf("dropped stream did not forward upstream bytes: body=%q", raw)
 	}
 	call := lastCall(t, sess)
 	if normalized(call)["stream_truncated"] != true {

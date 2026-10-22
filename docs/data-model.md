@@ -199,8 +199,8 @@ from an Azure-style `/deployments/{deployment}/...` path segment.
 | `native_finish_reason` | Provider status/finish field when distinct. |
 | `usage` | Normalized token/cost usage. |
 | `content_filter` | Provider content-filter data when parsed. |
-| `error` | Normalized provider/proxy error. `error.source` is `upstream` when the error was parsed from an upstream HTTP or SSE body, and `proxy` for local rejects, network failures, and header/idle timeouts. Absence on `client_aborted` is expected. |
-| `stream_truncated` | Stream ended without a terminal marker/event, unless Chat Completions finish+usage already marked it complete with `no_done_marker`. A clean chunked EOF without `[DONE]` sets this flag only. An abnormal upstream drop also records `error.normalized: stream_truncated` (`source: upstream`) and `finish_reason: error`. |
+| `error` | Normalized provider/proxy error. `error.source` is `upstream` when the error was parsed from an upstream HTTP or SSE body, or when an abnormal upstream drop is recorded as `stream_truncated`. `proxy` is used for local rejects, network failures, and header/idle timeouts. Absence on `client_aborted` is expected. |
+| `stream_truncated` | Stream ended without a terminal marker/event, unless Chat Completions finish+usage already marked it complete with `no_done_marker`. A clean chunked EOF without `[DONE]` sets this flag only. An abnormal upstream drop also records `error.normalized: stream_truncated` (`source: upstream`, an exception to the network-failure `proxy` rule) and `finish_reason: error`. |
 | `client_aborted` | The client disconnected before the terminal stream event (`[DONE]`, or Responses `response.completed` / `response.failed` / `response.incomplete`), or cancelled the inbound request before response headers arrived. A close after a terminal event is not an abort. |
 | `parser_warnings` | Non-fatal parser warnings. |
 | `validation` | Present in `warn`/`enforce`. Mode, profile, optional `target` (`openai` / `openai-compatible`), spec SHA, subset retrieval date, checked flags, optional `skipped_reason`, `duration_us`, and `truncated`. Absent in `off`. |
