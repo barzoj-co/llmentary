@@ -140,7 +140,7 @@ func applyCompatibleTarget(violations []specvalidate.Violation, ignored []schema
 	for _, v := range violations {
 		if v.Side == specvalidate.SideResponse {
 			if isRelaxedResponseRequired(v) {
-				ignored = append(ignored, relaxedResponseFinding(v))
+				ignored = append(ignored, relaxedResponseFindings(v)...)
 				continue
 			}
 			kept = append(kept, v)
@@ -518,30 +518,28 @@ func requiredPropertyNames(message string) []string {
 	}
 }
 
-func requiredPropertyName(message string) string {
-	names := requiredPropertyNames(message)
+func relaxedResponseFindings(v specvalidate.Violation) []schemalint.Finding {
+	names := requiredPropertyNames(v.Message)
 	if len(names) == 0 {
-		return ""
+		if key := lastPathSegment(v.Pointer); key != "" {
+			names = []string{key}
+		}
 	}
-	return names[0]
-}
-
-func relaxedResponseFinding(v specvalidate.Violation) schemalint.Finding {
-	key := requiredPropertyName(v.Message)
-	if key == "" {
-		key = lastPathSegment(v.Pointer)
+	out := make([]schemalint.Finding, 0, len(names))
+	for _, key := range names {
+		out = append(out, schemalint.Finding{
+			Path:             v.Path,
+			Pointer:          v.Pointer,
+			Key:              key,
+			Kind:             schemalint.KindCompatibleOptional,
+			Context:          "response",
+			Severity:         schemalint.SeverityInfo,
+			Action:           schemalint.ActionReport,
+			Hint:             compatibleOptionalHint,
+			UpstreamBehavior: "forwarded",
+		})
 	}
-	return schemalint.Finding{
-		Path:             v.Path,
-		Pointer:          v.Pointer,
-		Key:              key,
-		Kind:             schemalint.KindCompatibleOptional,
-		Context:          "response",
-		Severity:         schemalint.SeverityInfo,
-		Action:           schemalint.ActionReport,
-		Hint:             compatibleOptionalHint,
-		UpstreamBehavior: "forwarded",
-	}
+	return out
 }
 
 func lastPathSegment(pointer string) string {

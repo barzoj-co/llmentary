@@ -180,6 +180,16 @@ func TestResponsesMissingRelaxedKeysCompatible(t *testing.T) {
 	if hasRequired(vs, "/", "error") || hasRequired(vs, "/", "incomplete_details") {
 		t.Fatalf("relaxed Responses keys stayed violations: %v", vs)
 	}
+	keys := map[string]bool{}
+	for _, raw := range asAnySlice(normalized(lastCall(t, sess))["ignored_fields"]) {
+		f, _ := raw.(map[string]any)
+		if fmtString(f["kind"]) == "compatible_optional" {
+			keys[fmtString(f["key"])] = true
+		}
+	}
+	if !keys["error"] || !keys["incomplete_details"] {
+		t.Fatalf("expected one ignored_fields entry per relaxed key: %v", keys)
+	}
 }
 
 func TestCompatibleOptionalKeysPinnedInDocs(t *testing.T) {

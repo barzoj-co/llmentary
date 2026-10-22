@@ -416,7 +416,7 @@ func (ex *proxyExchange) finishCall(resp *http.Response, rawBody []byte, firstBy
 			if call.APIFamily == "openai.responses" && ex.s.validation.linter != nil {
 				extra = append(extra, ex.s.validation.linter.ConfirmStrictFallback(parseBody, omittedStrictToolIndexes(call.RawRequest))...)
 			}
-			vios, extra = applySpecTarget(target, vios, extra, parseBody)
+			vios, extra = applySpecTarget(target, vios, extra, nil)
 			mergeResponseValidation(call, vios, extra, dur, trunc)
 		}
 		if call.Normalized.ClientAborted {

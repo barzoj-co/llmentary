@@ -163,6 +163,7 @@ func TestApplySpecTargetCompatibleRelaxesResponseRequired(t *testing.T) {
 		{Side: specvalidate.SideResponse, Keyword: "required", Pointer: "/choices/0", Path: "choices[0]", Message: "missing property 'message'"},
 		{Side: specvalidate.SideResponse, Keyword: "type", Pointer: "/choices/0/logprobs", Path: "choices[0].logprobs", Message: "got string, want object"},
 	}
+	orig := append([]specvalidate.Violation(nil), vs...)
 	gotV, gotI := applySpecTarget(SpecTargetCompatible, vs, nil, nil)
 	var keptMessage, keptType bool
 	for _, v := range gotV {
@@ -185,18 +186,30 @@ func TestApplySpecTargetCompatibleRelaxesResponseRequired(t *testing.T) {
 	if !keptMessage || !keptType {
 		t.Fatalf("kept=%v", gotV)
 	}
-	if len(gotI) != 3 {
+	if len(gotI) != 4 {
 		t.Fatalf("ignored=%v", gotI)
 	}
+	keys := map[string]int{}
 	for _, f := range gotI {
 		if f.Kind != schemalint.KindCompatibleOptional || f.Severity != schemalint.SeverityInfo || f.Action != schemalint.ActionReport || f.Context != "response" {
 			t.Fatalf("finding=%+v", f)
 		}
+		keys[f.Key]++
+	}
+	for _, key := range []string{"logprobs", "content", "error", "incomplete_details"} {
+		if keys[key] != 1 {
+			t.Fatalf("key %s count=%d in %v", key, keys[key], gotI)
+		}
 	}
 
-	oaV, oaI := applySpecTarget(SpecTargetOpenAI, vs, nil, nil)
-	if len(oaV) != len(vs) {
-		t.Fatalf("openai rematched: %d -> %d", len(vs), len(oaV))
+	oaV, oaI := applySpecTarget(SpecTargetOpenAI, orig, nil, nil)
+	if len(oaV) != len(orig) {
+		t.Fatalf("openai rematched: %d -> %d", len(orig), len(oaV))
+	}
+	for i := range orig {
+		if oaV[i] != orig[i] {
+			t.Fatalf("openai[%d]=%+v want %+v", i, oaV[i], orig[i])
+		}
 	}
 	if len(oaI) != 0 {
 		t.Fatalf("openai ignored=%v", oaI)
