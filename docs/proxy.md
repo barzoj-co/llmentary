@@ -69,7 +69,8 @@ a bare second count; `0` disables). Timeouts apply per call, not per session.
 - Header timeout: the proxy cancels the upstream request, returns `504` with an
   OpenAI-shaped `{"error":{"type":"upstream_timeout","code":"upstream_timeout","message":"…"}}`
   body, and records `http_status: 504`, `error.normalized: upstream_timeout`,
-  `error.source: proxy`, and `upstream_called: true`. The `INFO proxy response`
+  `error.source: proxy`, and `upstream_called` from whether
+  `httptrace.WroteRequest` fired. The `INFO proxy response`
   line uses `status=504`, `seq=`, and `spec=request_only` when the request was
   checked and no response arrived.
 - Idle timeout: headers have already been written (typically `200`). Partial

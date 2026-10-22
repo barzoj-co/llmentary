@@ -8,6 +8,8 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -394,6 +396,25 @@ func TestUpstreamTimeoutConcurrentCallsIndependent(t *testing.T) {
 	}
 	if !sawTimeout || !sawOK {
 		t.Fatalf("session calls=%v", sess["calls"])
+	}
+}
+
+func TestHeaderTimeoutDocsMatchWroteRequestContract(t *testing.T) {
+	for _, rel := range []string{
+		filepath.Join("docs", "proxy.md"),
+		filepath.Join("docs", "data-model.md"),
+	} {
+		raw, err := os.ReadFile(filepath.Join("..", "..", rel))
+		if err != nil {
+			t.Fatal(err)
+		}
+		text := string(raw)
+		if !strings.Contains(text, "httptrace.WroteRequest") {
+			t.Errorf("%s missing WroteRequest for upstream_called", rel)
+		}
+		if strings.Contains(text, "upstream_called: true") {
+			t.Errorf("%s still claims header timeout always sets upstream_called: true", rel)
+		}
 	}
 }
 

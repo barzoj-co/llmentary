@@ -300,7 +300,8 @@ Responses synthesizes `finish_reason` as follows:
 Proxy network errors set `finish_reason: "error"` with `error.normalized: "network"`
 and an HTTP `502`. An optional `--upstream-header-timeout` that fires records
 `http_status: 504`, `error.type` / `error.code` / `error.normalized:
-"upstream_timeout"`, `error.source: "proxy"`, and `upstream_called: true`, and
+"upstream_timeout"`, `error.source: "proxy"`, and `upstream_called` from
+whether `httptrace.WroteRequest` fired, and
 returns that same OpenAI-shaped error to the client. An `--upstream-idle-timeout`
 that fires after headers keeps the upstream `http_status` (usually `200`), sets
 `stream_truncated` on an incomplete SSE stream, and records
