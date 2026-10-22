@@ -9,12 +9,15 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"path"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/barzoj-co/llmentary/internal/openaiapi"
@@ -668,6 +671,31 @@ func cleanJoin(base *url.URL, rest string) *url.URL {
 	return &u
 }
 
+var (
+	versionSegmentRE  = regexp.MustCompile(`(?i)^v\d+(alpha|beta)?\d*$`)
+	versionJoinWarned atomic.Bool
+	versionJoinWarn   = func(basePath, restPath, joined string) {
+		slog.Default().Warn("dropped client version segment; upstream base already has a version path",
+			"upstream_path", basePath,
+			"request_path", restPath,
+			"joined_path", joined,
+		)
+	}
+)
+
+func isVersionSegment(s string) bool {
+	return versionSegmentRE.MatchString(s)
+}
+
+func pathHasVersionSegment(segs []string) bool {
+	for _, s := range segs {
+		if isVersionSegment(s) {
+			return true
+		}
+	}
+	return false
+}
+
 func overlapJoin(basePath, restPath string) string {
 	baseSegs := pathSegments(basePath)
 	restSegs := pathSegments(restPath)
@@ -682,11 +710,21 @@ func overlapJoin(basePath, restPath string) string {
 			break
 		}
 	}
-	joined := append(append([]string{}, baseSegs...), restSegs[overlap:]...)
-	if len(joined) == 0 {
-		return "/"
+	restAfter := restSegs[overlap:]
+	rewrote := false
+	if len(restAfter) > 0 && isVersionSegment(restAfter[0]) && pathHasVersionSegment(baseSegs) {
+		restAfter = restAfter[1:]
+		rewrote = overlap == 0
 	}
-	return path.Clean("/" + strings.Join(joined, "/"))
+	joined := append(append([]string{}, baseSegs...), restAfter...)
+	out := "/"
+	if len(joined) > 0 {
+		out = path.Clean("/" + strings.Join(joined, "/"))
+	}
+	if rewrote && versionJoinWarned.CompareAndSwap(false, true) {
+		versionJoinWarn(basePath, restPath, out)
+	}
+	return out
 }
 
 func pathSegments(p string) []string {

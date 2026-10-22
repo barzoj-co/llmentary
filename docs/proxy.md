@@ -109,7 +109,12 @@ http://127.0.0.1:7777/v1/chat/completions
 
 That combination used to repeat the version segment. The join rule below overlaps
 shared path prefixes, so both `https://api.openai.com` and `https://api.openai.com/v1`
-work with both `{proxy}/v1` and `{proxy}/u/openai`.
+work with both `{proxy}/v1` and `{proxy}/u/openai`. When the request starts with a
+version-like segment (`v1`, `v1beta`, `v1alpha`) and the upstream base already contains
+one, the request's leading version is dropped so Gemini
+`/v1beta/openai` plus `{proxy}/v1` becomes `/v1beta/openai/chat/completions`, not
+`/v1beta/openai/v1/...`. The rewrite logs a one-time WARN. Upstreams without a version
+segment (`https://api.deepseek.com`) keep the client's `/v1`.
 
 With multiple upstreams and no `default`, a bare path returns `502 Bad Gateway` with
 `bare proxy path requires exactly one upstream or a default upstream`.
@@ -130,6 +135,11 @@ that the request path starts with, those segments are used once:
 | `https://openrouter.ai/api/v1` | `{proxy}/u/openrouter` | `https://openrouter.ai/api/v1/chat/completions` |
 | `https://my-resource.openai.azure.com/openai/v1` | `{proxy}/u/azure` | `https://my-resource.openai.azure.com/openai/v1/chat/completions` |
 | `https://my-resource.openai.azure.com` | `{proxy}/u/azure/openai/deployments/my-dep/chat/completions` | `https://my-resource.openai.azure.com/openai/deployments/my-dep/chat/completions` |
+| `https://generativelanguage.googleapis.com/v1beta/openai` | `{proxy}/v1` | `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions` |
+| `https://generativelanguage.googleapis.com/v1beta/openai` | `{proxy}/u/gemini/v1` | `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions` |
+| `https://api.deepseek.com` | `{proxy}/v1` | `https://api.deepseek.com/v1/chat/completions` |
+| `https://api.groq.com/openai/v1` | `{proxy}/v1` | `https://api.groq.com/openai/v1/chat/completions` |
+| `https://api.fireworks.ai/inference/v1` | `{proxy}/v1` | `https://api.fireworks.ai/inference/v1/chat/completions` |
 
 A `/s/{session}` prefix (session attribution) is stripped before this join; remaining
 `/u/{name}` is stripped the same way.

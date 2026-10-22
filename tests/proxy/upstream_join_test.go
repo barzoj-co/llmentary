@@ -50,6 +50,38 @@ func startAcceptanceSpec(t *testing.T, spec string, upstream http.HandlerFunc) (
 	return proxySrv.URL, control.URL, got
 }
 
+func TestGeminiV1BetaDropsClientV1(t *testing.T) {
+	req := []byte(`{"model":"gemini-fixture","messages":[{"role":"user","content":"hi"}]}`)
+	proxyURL, control, got := startAcceptanceSpec(t, "gemini={upstream}/v1beta/openai", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, 200, `{"id":"c","model":"gemini-fixture","choices":[{"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}]}`, nil)
+	})
+	for _, path := range []string{"/v1/chat/completions", "/u/gemini/v1/chat/completions", "/s/sid/u/gemini/v1/chat/completions", "/u/gemini/chat/completions"} {
+		t.Run(strings.Trim(path, "/"), func(t *testing.T) {
+			rt := doProxy(t, http.MethodPost, proxyURL, control, path, nil, req)
+			if rt.status != http.StatusOK {
+				t.Fatalf("status=%d body=%s", rt.status, rt.body)
+			}
+			if got.path != "/v1beta/openai/chat/completions" {
+				t.Fatalf("path %s: upstream path=%q want /v1beta/openai/chat/completions", path, got.path)
+			}
+		})
+	}
+}
+
+func TestDeepSeekOriginKeepsClientV1(t *testing.T) {
+	req := []byte(`{"model":"deepseek-fixture","messages":[{"role":"user","content":"hi"}]}`)
+	proxyURL, control, got := startAcceptanceSpec(t, "deepseek={upstream}", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, 200, `{"id":"c","model":"deepseek-fixture","choices":[{"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}]}`, nil)
+	})
+	rt := doProxy(t, http.MethodPost, proxyURL, control, "/v1/chat/completions", nil, req)
+	if rt.status != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rt.status, rt.body)
+	}
+	if got.path != "/v1/chat/completions" {
+		t.Fatalf("upstream path=%q want /v1/chat/completions", got.path)
+	}
+}
+
 func TestU3EchoJoinStripsDuplicateV1(t *testing.T) {
 	req := []byte(`{"model":"gpt-fixture","messages":[{"role":"user","content":"hi"}]}`)
 	proxyURL, control, got := startAcceptanceSpec(t, "openrouter={upstream}/api/v1", func(w http.ResponseWriter, _ *http.Request) {
@@ -263,12 +295,16 @@ func clientBaseToRequestPath(client string) string {
 	if !strings.HasPrefix(client, "/") {
 		client = "/" + client
 	}
+	trimmed := strings.TrimRight(client, "/")
 	switch {
-	case strings.HasSuffix(client, "/v1"),
-		strings.HasSuffix(client, "/u/openai"),
-		strings.HasSuffix(client, "/u/openrouter"),
-		strings.HasSuffix(client, "/u/azure"):
-		client = strings.TrimRight(client, "/") + "/chat/completions"
+	case strings.HasSuffix(trimmed, "/v1"):
+		client = trimmed + "/chat/completions"
+	default:
+		// {proxy}/u/{name} with no extra path — append chat/completions like the
+		// documented OpenAI / OpenRouter / Azure / Gemini rows.
+		if segs := strings.Split(strings.Trim(trimmed, "/"), "/"); len(segs) >= 2 && segs[len(segs)-2] == "u" && segs[len(segs)-1] != "" {
+			client = trimmed + "/chat/completions"
+		}
 	}
 	return stripDocRoutingPrefixes(client)
 }
