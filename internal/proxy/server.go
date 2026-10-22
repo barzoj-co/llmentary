@@ -295,12 +295,19 @@ func (s *Server) finishWithProxyError(sessionID, callID string, startedAt time.T
 }
 
 func copyAndFlush(w http.ResponseWriter, r io.Reader, onChunk func([]byte)) (written int64, err error, writeErr bool) {
+	return copyAndFlushWithHooks(w, r, nil, onChunk)
+}
+
+func copyAndFlushWithHooks(w http.ResponseWriter, r io.Reader, beforeWrite func(), onChunk func([]byte)) (written int64, err error, writeErr bool) {
 	buf := make([]byte, 32*1024)
 	flusher, _ := w.(http.Flusher)
 	for {
 		nr, er := r.Read(buf)
 		if nr > 0 {
 			chunk := append([]byte(nil), buf[:nr]...)
+			if beforeWrite != nil {
+				beforeWrite()
+			}
 			nw, ew := w.Write(chunk)
 			written += int64(nw)
 			if flusher != nil {

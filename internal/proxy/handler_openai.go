@@ -176,7 +176,7 @@ func (s *Server) finishWithUpstreamHeaderTimeout(ex *proxyExchange, err error) C
 		call.LatencyMS = endedAt.Sub(ex.startedAt).Milliseconds()
 		call.HTTPStatus = http.StatusGatewayTimeout
 		call.Stream = requestStreamFlag(ex.rawReq)
-		call.UpstreamCalled = true
+		call.UpstreamCalled = ex.wroteRequest.Load()
 		s.parser.Parse(call)
 		call.Normalized.Error = &CallError{
 			HTTPStatus: http.StatusGatewayTimeout,
@@ -318,7 +318,11 @@ func (ex *proxyExchange) copyAndFinish(w http.ResponseWriter, resp *http.Respons
 	if headerSSE && !compressed {
 		recorder = newSSERecorder(ex.startedAt)
 	}
-	_, copyErr, copyWriteErr := copyAndFlush(w, resp.Body, func(chunk []byte) {
+	_, copyErr, copyWriteErr := copyAndFlushWithHooks(w, resp.Body, func() {
+		if idleTimer != nil {
+			idleTimer.Stop()
+		}
+	}, func(chunk []byte) {
 		if idleTimer != nil {
 			idleTimer.Reset(idleTimeout)
 		}
@@ -409,8 +413,6 @@ func (ex *proxyExchange) finishCall(resp *http.Response, rawBody []byte, firstBy
 			if err := call.Normalized.Error; err != nil {
 				if err.Normalized == "network" {
 					call.Normalized.Error = nil
-				} else {
-					err.MidStream = false
 				}
 			}
 		}

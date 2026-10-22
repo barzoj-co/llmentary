@@ -73,6 +73,25 @@ func TestHeaderIdleTimeoutErrors(t *testing.T) {
 	}
 }
 
+func TestHeaderTimeoutUpstreamCalledFollowsWroteRequest(t *testing.T) {
+	store := NewMemoryStore()
+	s := &Server{store: store, parser: TolerantParser{}}
+	started := time.Now().UTC()
+	_, id := store.Begin("s", Call{StartedAt: started, Upstream: Upstream{URL: "http://127.0.0.1/v1"}})
+	ex := &proxyExchange{s: s, session: sessionInfo{ID: "s"}, callID: id, startedAt: started, rawReq: []byte(`{"model":"m"}`)}
+	call := s.finishWithUpstreamHeaderTimeout(ex, headerTimeoutError(time.Millisecond))
+	if call.UpstreamCalled {
+		t.Fatal("wroteRequest false must leave upstream_called false")
+	}
+	ex.wroteRequest.Store(true)
+	_, id = store.Begin("s", Call{StartedAt: started, Upstream: Upstream{URL: "http://127.0.0.1/v1"}})
+	ex.callID = id
+	call = s.finishWithUpstreamHeaderTimeout(ex, headerTimeoutError(time.Millisecond))
+	if !call.UpstreamCalled {
+		t.Fatal("wroteRequest true must set upstream_called")
+	}
+}
+
 func TestValidateRejectsBadUpstreamTimeout(t *testing.T) {
 	t.Parallel()
 	cfg := Config{ListenAddr: "127.0.0.1:1", ControlAddr: "127.0.0.1:2", UpstreamHeaderTimeout: -time.Second}
