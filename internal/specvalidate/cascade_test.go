@@ -277,6 +277,9 @@ func TestCascadeHelperEdges(t *testing.T) {
 	if isOneOfBranchNoise(schemaErr{pointer: "/tools/0/role", keyword: "enum"}, "/tools/0", nil) != true {
 		t.Fatal("role enum under item should be noise")
 	}
+	if isOneOfBranchNoise(schemaErr{pointer: "/messages/0/content", keyword: "type"}, "/messages/0", nil) {
+		t.Fatal("content type is a matching-branch finding, not oneOf noise")
+	}
 	if isOneOfBranchNoise(schemaErr{pointer: "/tools/0/name/nested", keyword: "type"}, "/tools/0", nil) {
 		t.Fatal("nested type is not item-level noise")
 	}
@@ -528,7 +531,40 @@ func TestResponseUnknownRequestNamedFieldKept(t *testing.T) {
 	if len(respKept) != 1 || respKept[0].pointer != "/tools" {
 		t.Fatalf("response-side nil known should keep /tools: %v", respKept)
 	}
-	_ = eng
+	if eng.knownResp[ProfileStrict+"|openai.chat"].has("", "tools") {
+		t.Fatal("chat response known map should not include request-only tools")
+	}
+}
+
+func TestCascadeKeepsUserContentTypeOverLosingRequired(t *testing.T) {
+	eng, err := CompileEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := []byte(`{"model":"m","messages":[{"role":"user","content":123}]}`)
+	for _, profile := range []string{ProfileRelaxed, ProfileStrict} {
+		res := eng.ValidateRequest(profile, "openai.chat", body, 0)
+		if len(res.Violations) == 0 {
+			t.Fatalf("%s: expected content type finding", profile)
+		}
+		first := res.Violations[0]
+		if first.Pointer != "/messages/0/content" || first.Keyword != "type" {
+			t.Fatalf("%s first=%s %s all=%v", profile, first.Pointer, first.Keyword, summarize(res.Violations))
+		}
+		if hasKeywordPointer(res.Violations, "required", "/messages/0") {
+			t.Fatalf("%s kept losing-branch required: %v", profile, summarize(res.Violations))
+		}
+	}
+	nullAsst := []byte(`{"model":"m","messages":[{"role":"assistant","content":null,"tool_calls":[{"id":"c1","type":"function","function":{"name":"x","arguments":"{}"}}]}]}`)
+	nullRes := eng.ValidateRequest(ProfileStrict, "openai.chat", nullAsst, 0)
+	if hasKeywordPointer(nullRes.Violations, "type", "/messages/0/content") {
+		t.Fatalf("assistant content:null blamed as type: %v", summarize(nullRes.Violations))
+	}
+	obj := []byte(`{"model":"m","messages":[{"role":"user","content":{}}]}`)
+	objRes := eng.ValidateRequest(ProfileStrict, "openai.chat", obj, 0)
+	if len(objRes.Violations) == 0 || objRes.Violations[0].Pointer != "/messages/0/content" || objRes.Violations[0].Keyword != "type" {
+		t.Fatalf("object content first=%v", summarize(objRes.Violations))
+	}
 }
 
 func countSchemaFindings(vs []Violation) int {

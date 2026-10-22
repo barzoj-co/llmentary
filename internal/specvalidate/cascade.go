@@ -442,6 +442,12 @@ func isOneOfBranchNoise(item schemaErr, itemPrefix string, losingRoots []string)
 		return false
 	}
 	for _, root := range losingRoots {
+		if item.pointer == root {
+			if isLosingNullType(item) {
+				return true
+			}
+			continue
+		}
 		if underPointer(item.pointer, root) {
 			return true
 		}
@@ -458,7 +464,7 @@ func isOneOfBranchNoise(item schemaErr, itemPrefix string, losingRoots []string)
 			return false
 		}
 		switch rest {
-		case "role", "type", "content", "status":
+		case "role", "type", "status":
 			return true
 		}
 	}

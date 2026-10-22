@@ -53,6 +53,25 @@ func TestEnforceBlamesMessageExtraNotMaxTokensStrict(t *testing.T) {
 	}
 }
 
+func TestEnforceUserContentTypeNotLosingRequired(t *testing.T) {
+	p := startSpecProxy(t, "enforce", "relaxed", chatOK())
+	body := []byte(`{"model":"m","messages":[{"role":"user","content":123}]}`)
+	status, _, raw, sess := postRaw(t, p, "/v1/chat/completions", newSession(), nil, body)
+	if status != http.StatusBadRequest {
+		t.Fatalf("status=%d body=%s", status, raw)
+	}
+	if strings.Contains(string(raw), "tool_call_id") || strings.Contains(string(raw), "missing property 'name'") {
+		t.Fatalf("blamed losing-branch required: %s", raw)
+	}
+	if !strings.Contains(string(raw), "/messages/0/content") && !strings.Contains(string(raw), "messages[0].content") {
+		t.Fatalf("expected content type: %s", raw)
+	}
+	first := firstSpecFinding(normalized(lastCall(t, sess)))
+	if !strings.Contains(first, "/messages/0/content") || !strings.Contains(first, "type") {
+		t.Fatalf("first=%q", first)
+	}
+}
+
 func TestEnforceWarnFirstMatchesTrace(t *testing.T) {
 	logBuf := &syncLogBuf{}
 	p := startSpecProxy(t, "warn", "relaxed", chatOK(), func(cfg *proxy.Config) {
