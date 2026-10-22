@@ -89,11 +89,36 @@ func TestAllowedWirePathAndUnknownHint(t *testing.T) {
 	if cfg.allowedWirePath("/") || cfg.allowedWirePath("/secret/x") {
 		t.Fatal("denied")
 	}
+	if !cfg.allowedWirePath("/beta/chat/completions") || !cfg.allowedWirePath("/v1beta/openai/chat/completions") {
+		t.Fatal("beta prefixes")
+	}
 	if hint := unknownPathHint("/abc/v1/chat/completions"); hint != "/s/abc/v1/chat/completions" {
 		t.Fatalf("hint=%q", hint)
 	}
-	if hint := unknownPathHint("/only"); hint != "" {
+	if hint := unknownPathHint("/tokenize"); !strings.Contains(hint, "--allow-path-prefix tokenize") {
+		t.Fatalf("allow hint=%q", hint)
+	}
+	if hint := unknownPathHint("/only"); hint == "" || !strings.Contains(hint, "--allow-path-prefix only") {
 		t.Fatalf("short hint=%q", hint)
+	}
+	if !hasNamedUpstreamPrefix("/u/llama/completion") || hasNamedUpstreamPrefix("/completion") {
+		t.Fatal("named prefix")
+	}
+}
+
+func TestDetectAPIFamilyBetaChatCompletions(t *testing.T) {
+	t.Parallel()
+	if got := detectAPIFamily(http.MethodPost, "/beta/chat/completions"); got != "openai.chat" {
+		t.Fatalf("beta=%s", got)
+	}
+	if got := detectAPIFamily(http.MethodPost, "/v1beta/openai/chat/completions/"); got != "openai.chat" {
+		t.Fatalf("v1beta=%s", got)
+	}
+	if got := detectAPIFamily(http.MethodGet, "/beta/chat/completions"); got != "passthrough" {
+		t.Fatalf("GET=%s", got)
+	}
+	if got := detectAPIFamily(http.MethodPost, "/completion"); got != "passthrough" {
+		t.Fatalf("native=%s", got)
 	}
 }
 
