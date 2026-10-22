@@ -28,6 +28,7 @@ func parseChat(call *Call) {
 		}
 		call.Normalized.ToolResultsIn = chatToolResults(req.Messages)
 	}
+	applyRequestReasoningIn(call, reqBody)
 	if call.Stream {
 		parseChatStream(call)
 	} else {

@@ -91,6 +91,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 	fs.StringVar(&cfg.ControlAddr, "control", cfg.ControlAddr, "control API listen address (env LLMENTARY_CONTROL_LISTEN)")
 	fs.StringVar(&cfg.ControlToken, "control-token", cfg.ControlToken, "bearer token required for control API; required for non-loopback control binds (env LLMENTARY_CONTROL_TOKEN)")
 	fs.Var(&upstreams, "upstream", "upstream mapping name=https://host/base; repeatable (env LLMENTARY_UPSTREAMS)")
+	var specTargets upstreamFlags
+	fs.Var(&specTargets, "spec-target", "per-upstream spec target name=openai|openai-compatible; repeatable (env LLMENTARY_SPEC_TARGETS)")
 	fs.Var((*enumFlag)(&cfg.SpecValidation), "spec-validation", "request spec validation mode: off, warn, enforce (env LLMENTARY_SPEC_VALIDATION)")
 	fs.Var((*enumFlag)(&cfg.SpecProfile), "spec-profile", "spec validation profile: strict, relaxed (env LLMENTARY_SPEC_PROFILE)")
 	fs.Var((*nonNegIntFlag)(&cfg.SpecValidationMaxBytes), "spec-validation-max-bytes", "max request bytes to validate (env LLMENTARY_SPEC_VALIDATION_MAX_BYTES)")
@@ -132,6 +134,12 @@ func run(args []string, stdout, stderr io.Writer) int {
 	}
 	for _, spec := range upstreams {
 		if err := cfg.AddUpstream(spec); err != nil {
+			_, _ = fmt.Fprintln(stderr, err)
+			return 1
+		}
+	}
+	for _, spec := range specTargets {
+		if err := cfg.AddSpecTarget(spec); err != nil {
 			_, _ = fmt.Fprintln(stderr, err)
 			return 1
 		}

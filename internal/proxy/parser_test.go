@@ -5,6 +5,7 @@ package proxy
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 )
@@ -214,6 +215,45 @@ func TestSSERecorderUnterminatedDoneIsNotComplete(t *testing.T) {
 	_, complete, _ := rec.Finish()
 	if complete {
 		t.Fatal("unterminated [DONE] must not mark stream complete")
+	}
+}
+
+func TestChatToolCallsPreserveExtraContentInRaw(t *testing.T) {
+	req := []byte(`{"model":"gemini","messages":[{"role":"user","content":"hi"}]}`)
+	single := []byte(`{"id":"c1","model":"gemini","choices":[{"finish_reason":"tool_calls","message":{"role":"assistant","content":null,"tool_calls":[{"id":"call_1","type":"function","function":{"name":"lookup","arguments":"{\"q\":\"x\"}"},"extra_content":{"google":{"thought_signature":"sig-1"}}}]}}]}`)
+	call := baseCall("openai.chat", req, single, false)
+	TolerantParser{}.Parse(&call)
+	if len(call.Normalized.ToolCalls) != 1 || call.Normalized.ToolCalls[0].Name != "lookup" {
+		t.Fatalf("single assembly=%+v", call.Normalized.ToolCalls)
+	}
+	if !strings.Contains(string(call.RawResponse), "thought_signature") {
+		t.Fatal("raw dropped extra_content")
+	}
+
+	parallel := []byte(`{"id":"c2","model":"gemini","choices":[{"finish_reason":"tool_calls","message":{"role":"assistant","tool_calls":[
+		{"id":"call_a","type":"function","function":{"name":"a","arguments":"{}"},"extra_content":{"google":{"thought_signature":"sig-a"}}},
+		{"id":"call_b","type":"function","function":{"name":"b","arguments":"{}"},"extra_content":{"other":{"x":1}}}
+	]}}]}`)
+	call = baseCall("openai.chat", req, parallel, false)
+	TolerantParser{}.Parse(&call)
+	if len(call.Normalized.ToolCalls) != 2 {
+		t.Fatalf("parallel n=%d", len(call.Normalized.ToolCalls))
+	}
+	if call.Normalized.ToolCalls[0].Name != "a" || call.Normalized.ToolCalls[1].Name != "b" {
+		t.Fatalf("names %+v", call.Normalized.ToolCalls)
+	}
+
+	sse := []byte("data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_1\",\"type\":\"function\",\"function\":{\"name\":\"lookup\",\"arguments\":\"{}\"},\"extra_content\":{\"google\":{\"thought_signature\":\"sig-s\"}}}]}}]}\n\n" +
+		"data: {\"choices\":[{\"finish_reason\":\"tool_calls\"}]}\n\n" +
+		"data: [DONE]\n\n")
+	call = baseCall("openai.chat", req, sse, true)
+	events, complete, warnings := parseSSE(sse, call.StartedAt)
+	call.SSEEvents = events
+	call.Normalized.StreamTruncated = !complete
+	call.Normalized.ParserWarnings = warnings
+	TolerantParser{}.Parse(&call)
+	if len(call.Normalized.ToolCalls) != 1 || call.Normalized.ToolCalls[0].Name != "lookup" {
+		t.Fatalf("sse assembly=%+v", call.Normalized.ToolCalls)
 	}
 }
 

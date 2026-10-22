@@ -201,6 +201,34 @@ App / SDK base URL:
 **Verified status:** fixture-verified (`tests/proxy/testdata/openrouter/`,
 `TestU5OpenRouterFixture`). Not live-verified (no OpenRouter key in this project).
 
+## Spec target
+
+`--spec-validation enforce` applies the pinned OpenAI request schema. That is
+correct for OpenAI and Azure OpenAI, and wrong for every other OpenAI-compatible
+host: those providers accept (and sometimes require) extra fields.
+
+`--spec-target name=openai|openai-compatible` (env `LLMENTARY_SPEC_TARGETS`)
+sets the rule per upstream. When omitted:
+
+| Upstream host | Default target |
+|---|---|
+| `api.openai.com` | `openai` |
+| `*.openai.azure.com`, `*.cognitiveservices.azure.com`, `*.services.ai.azure.com` | `openai` |
+| everything else (localhost, IPs, OpenRouter, Ollama, DeepSeek, Gemini, …) | `openai-compatible` |
+
+`GET /config` reports `spec_targets`. Each call stores `normalized.validation.target`.
+
+`openai-compatible` still rejects known-field type errors (`"max_tokens":"16"`).
+It forwards vendor fields (`top_k`, `thinking`, `extra_body`, `tool_choice:"any"`,
+assistant `reasoning_content`, `reasoning_details`, `prefix`, Gemini
+`tool_calls[].extra_content`, …) and records them as `vendor_field` info
+findings instead of enforce 400s.
+
+Request-side reasoning echo is counted on `normalized.reasoning_in`
+(`assistant_turns`, `with_reasoning`, `chars`) so tests can assert that every
+assistant turn passed reasoning back. `extra_content` on response tool calls
+stays in the raw body and does not break tool-call assembly.
+
 ## Other OpenAI-compatible providers
 
 Native provider paths that are not under `/v1` (llama.cpp `/completion`,
@@ -214,14 +242,33 @@ fill tool calls, usage, and finish reasons, the request path must end in
 `/chat/completions` or `/responses` and the stream (if any) must use OpenAI SSE
 framing (`data: {json}` chunks, Chat Completions ending with `data: [DONE]`).
 
-| Provider | Typical upstream | Verified |
-|---|---|---|
-| Azure OpenAI | `https://{resource}.openai.azure.com` or `.../openai/v1` | fixture-verified (classic deployment paths, `/openai/v1`, content-filter streams). Not live-verified here. |
-| Groq | `https://api.groq.com/openai/v1` | expected to work, not verified |
-| Together | `https://api.together.xyz/v1` | expected to work, not verified |
-| vLLM | `http://{host}:8000/v1` | expected to work, not verified |
-| LiteLLM | `http://{host}:4000/v1` | expected to work, not verified |
-| Ollama | `http://{host}:11434/v1` | expected to work, not verified |
+| Provider | Typical upstream | Default spec target | Verified |
+|---|---|---|---|
+| Azure OpenAI | `https://{resource}.openai.azure.com` or `.../openai/v1` | `openai` | fixture-verified (classic deployment paths, `/openai/v1`, content-filter streams). Not live-verified here. |
+| Groq | `https://api.groq.com/openai/v1` | `openai-compatible` | expected to work, not verified |
+| Together | `https://api.together.xyz/v1` | `openai-compatible` | expected to work, not verified |
+| vLLM | `http://{host}:8000/v1` | `openai-compatible` | expected to work, not verified |
+| LiteLLM | `http://{host}:4000/v1` | `openai-compatible` | expected to work, not verified |
+| Ollama | `http://{host}:11434/v1` | `openai-compatible` | expected to work, not verified |
+| DeepSeek | `https://api.deepseek.com` | `openai-compatible` | fixture-verified passback of `reasoning_content` / `prefix`. Not live-verified here. |
+| Gemini (OpenAI compat) | `https://generativelanguage.googleapis.com/v1beta/openai` | `openai-compatible` | fixture-verified `extra_content.google.thought_signature` on tool calls. Not live-verified here. |
+
+### DeepSeek thinking passback
+
+DeepSeek thinking + tools requires every previous assistant turn's
+`reasoning_content` (and, for prefix continuation, `prefix: true`) to be sent
+back. Behind llmentary, use `--spec-target ds=openai-compatible` (or rely on the
+`api.deepseek.com` host default) so enforce does not 400 those fields. Assert
+`normalized.reasoning_in.with_reasoning == normalized.reasoning_in.assistant_turns`
+when every assistant turn carried reasoning.
+
+### Gemini thought signatures
+
+Gemini 3/4 via the OpenAI-compatible surface requires
+`tool_calls[].extra_content.google.thought_signature` on the next request.
+The raw trace keeps `extra_content` (including parallel calls where only the
+first call carries a signature). Enforce with target `openai-compatible`
+forwards it as `vendor_field`.
 
 Cross-provider stream normalization (any OpenAI-wire host, not OpenRouter-only):
 

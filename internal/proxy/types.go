@@ -99,11 +99,13 @@ type Normalized struct {
 	Validation         *ValidationInfo           `json:"validation,omitempty"`
 	SpecViolations     *[]specvalidate.Violation `json:"spec_violations,omitempty"`
 	IgnoredFields      *[]schemalint.Finding     `json:"ignored_fields,omitempty"`
+	ReasoningIn        *ReasoningIn              `json:"reasoning_in,omitempty"`
 }
 
 type ValidationInfo struct {
 	Mode                  string  `json:"mode"`
 	Profile               string  `json:"profile"`
+	Target                string  `json:"target,omitempty"`
 	SpecSHA               string  `json:"spec_sha"`
 	SchemaSubsetRetrieved string  `json:"schema_subset_retrieved"`
 	RequestChecked        bool    `json:"request_checked"`
@@ -111,6 +113,15 @@ type ValidationInfo struct {
 	SkippedReason         *string `json:"skipped_reason"`
 	DurationUS            int64   `json:"duration_us"`
 	Truncated             bool    `json:"truncated,omitempty"`
+}
+
+// ReasoningIn counts request-side assistant reasoning fields that providers
+// require the client to echo (DeepSeek reasoning_content, OpenRouter
+// reasoning_details, Gemini thought signatures live on tool_calls).
+type ReasoningIn struct {
+	AssistantTurns int `json:"assistant_turns"`
+	WithReasoning  int `json:"with_reasoning"`
+	Chars          int `json:"chars,omitempty"`
 }
 
 type Model struct {

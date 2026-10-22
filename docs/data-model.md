@@ -190,6 +190,7 @@ from an Azure-style `/deployments/{deployment}/...` path segment.
 | `output_text` | Concatenated assistant text output. |
 | `refusal` | Chat `message.refusal` / stream `delta.refusal`, or a Responses `refusal` content part. `finish_reason` is preserved separately. |
 | `reasoning` | Presence/size of exposed reasoning fields. The proxy does not decrypt hidden reasoning. |
+| `reasoning_in` | Request-side assistant reasoning echo: `assistant_turns`, `with_reasoning`, `chars` (Unicode characters from `reasoning_content`, `reasoning`, `reasoning_details`, and Responses `type:"reasoning"` text). Encrypted-only reasoning items count as `with_reasoning` with `chars=0`. |
 | `finish_reason` | Cross-API normalized finish reason. |
 | `native_finish_reason` | Provider status/finish field when distinct. |
 | `usage` | Normalized token/cost usage. |
@@ -198,7 +199,7 @@ from an Azure-style `/deployments/{deployment}/...` path segment.
 | `stream_truncated` | Stream ended without a terminal marker/event. |
 | `client_aborted` | The client disconnected before the terminal stream event (`[DONE]`, or Responses `response.completed` / `response.failed` / `response.incomplete`), or cancelled the inbound request before response headers arrived. A close after a terminal event is not an abort. |
 | `parser_warnings` | Non-fatal parser warnings. |
-| `validation` | Present in `warn`/`enforce`. Mode, profile, spec SHA, subset retrieval date, checked flags, optional `skipped_reason`, `duration_us`, and `truncated`. Absent in `off`. |
+| `validation` | Present in `warn`/`enforce`. Mode, profile, optional `target` (`openai` / `openai-compatible`), spec SHA, subset retrieval date, checked flags, optional `skipped_reason`, `duration_us`, and `truncated`. Absent in `off`. |
 | `spec_violations` | Pointer-to-slice so `[]` (clean) is distinct from absent (not checked). Sorted by side, pointer, keyword. Capped at 200. |
 | `ignored_fields` | Silently ignored request content (unknown schema keywords, unknown request fields, strict fallback). Same empty-vs-absent rule as `spec_violations`. |
 | `raw` | Reserved raw normalized payload field; currently not populated by parsers. |
@@ -207,7 +208,7 @@ from an Azure-style `/deployments/{deployment}/...` path segment.
 
 ```json
 "validation": {
-  "mode": "warn", "profile": "relaxed",
+  "mode": "warn", "profile": "relaxed", "target": "openai",
   "spec_sha": "<openai-openapi commit>", "schema_subset_retrieved": "2026-10-18",
   "request_checked": true, "response_checked": true,
   "skipped_reason": null,
@@ -215,9 +216,9 @@ from an Azure-style `/deployments/{deployment}/...` path segment.
 }
 ```
 
-`spec_violations` entries use `side` (`request`/`response`), `source` (`syntax`/`schema`/`strict_mode`), `path`, `pointer`, `keyword`, `message`, `profile`, and optional `offset` / `event_index` / `count`. Identical rows (same side, keyword, pointer, message) are stored once with `count=N`; streamed copies keep the first `event_index`. `unevaluatedProperties` / `additionalProperties` messages name the unknown field.
+`spec_violations` entries use `side` (`request`/`response`), `source` (`syntax`/`schema`/`strict_mode`), `path`, `pointer`, `keyword`, `message`, `profile`, and optional `offset` / `event_index` / `count` / `severity`. Identical rows (same side, keyword, pointer, message) are stored once with `count=N`; streamed copies keep the first `event_index`. `unevaluatedProperties` / `additionalProperties` messages name the unknown field. On `openai-compatible` targets, extended enums (`tool_choice`, `response_format.type`, `service_tier`) keep `severity=warning` and do not reject.
 
-`ignored_fields` entries use `path`, `pointer`, `key`, `kind`, `context`, `effective_strict`, `upstream_behavior`, `evidence`, `severity`, `action`, `hint`, optional `suggested_description`, and `confirmed`.
+`ignored_fields` entries use `path`, `pointer`, `key`, `kind`, `context`, `effective_strict`, `upstream_behavior`, `evidence`, `severity`, `action`, `hint`, optional `suggested_description`, and `confirmed`. On `openai-compatible` targets, vendor extras use `kind=vendor_field`, `severity=info`, `action=report_only`.
 
 In `off` mode the three keys are missing. In `warn`/`enforce` the two arrays are always present.
 
@@ -225,7 +226,7 @@ Where findings show up: trace (`normalized.spec_violations`), proxy log (WARN), 
 
 | Field | What it is | Empty vs absent |
 |---|---|---|
-| `validation` | Metadata: was the call checked, and how (`mode`, `profile`, `spec_sha`, checked flags, `skipped_reason`). Not a list of problems. | Absent when validation was not run (`off`). Present in `warn`/`enforce` even when the call is clean. |
+| `validation` | Metadata: was the call checked, and how (`mode`, `profile`, `target`, `spec_sha`, checked flags, `skipped_reason`). Not a list of problems. | Absent when validation was not run (`off`). Present in `warn`/`enforce` even when the call is clean. |
 | `spec_violations` | Findings from the spec validator. | `[]` means checked and clean. Absent means not checked. |
 | `ignored_fields` | Silently ignored request content (unknown schema keywords, unknown request fields, strict fallback). | Same empty-vs-absent rule as `spec_violations`. |
 

@@ -95,6 +95,11 @@ func (s *Server) configJSON() map[string]any {
 		}
 	}
 	out["upstreams"] = upstreams
+	targets := map[string]string{}
+	if s != nil {
+		targets = s.cfg.resolvedSpecTargets()
+	}
+	out["spec_targets"] = targets
 	out["version"] = VersionString()
 	return out
 }
@@ -218,7 +223,7 @@ func (s *Server) serveProxy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if rewritten, ok := matchSpecOperation(r.Method, restPath); ok {
-		rv := s.validation.checkRequest(call.APIFamily, r.Header.Get("Content-Type"), r.Header.Get("Content-Encoding"), rawReq)
+		rv := s.validation.checkRequest(call.APIFamily, r.Header.Get("Content-Type"), r.Header.Get("Content-Encoding"), rawReq, s.cfg.specTargetFor(upstreamName, targetBase))
 		ex.requestVal = rv
 		if s.validation != nil && s.validation.mode == "enforce" && rv.reject {
 			s.rejectLocal(w, ex, rv)

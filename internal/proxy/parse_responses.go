@@ -40,6 +40,7 @@ func parseResponses(call *Call) {
 		}
 		call.Normalized.ToolResultsIn = responsesToolResults(inputRaw)
 	}
+	applyRequestReasoningIn(call, reqBody)
 	if call.Stream {
 		parseResponsesStream(call)
 	} else {
