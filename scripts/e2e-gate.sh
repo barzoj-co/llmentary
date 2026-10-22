@@ -44,7 +44,7 @@ self_test() {
   run_case() {
     local name="$1" result="$2" event="$3" fork="$4" want_exit="$5" want_msg="${6-}"
     local status=0 out
-    out="$(E2E_RESULT="$result" EVENT_NAME="$event" IS_FORK="$fork" gate 2>&1)" || status=$?
+    out="$(E2E_RESULT="$result" EVENT_NAME="$event" IS_FORK="$fork" bash "${BASH_SOURCE[0]}" 2>&1)" || status=$?
     echo "self-test: ${name} (E2E_RESULT=${result@Q} EVENT_NAME=${event@Q} IS_FORK=${fork@Q}) → exit ${status} (expected ${want_exit})"
     if [[ -n "$out" ]]; then
       echo "$out"
@@ -68,7 +68,9 @@ self_test() {
   run_case "success/pull_request/true" "success" "pull_request" "true" 0
   run_case "skipped/pull_request/true" "skipped" "pull_request" "true" 0 \
     "skipped (fork, no secrets)"
-  out="$(E2E_RESULT=skipped EVENT_NAME=pull_request IS_FORK=true gate 2>&1)" || status=$?
+  run_case "skipped/push/true" "skipped" "push" "true" 0 \
+    "skipped (fork, no secrets)"
+  out="$(E2E_RESULT=skipped EVENT_NAME=pull_request IS_FORK=true bash "${BASH_SOURCE[0]}" 2>&1)" || status=$?
   if [[ "${status:-0}" -ne 0 ]] || grep -F -q -- "::error::" <<<"$out"; then
     echo "self-test: fork skip must not emit ::error:: (exit=${status:-0} out=${out@Q})" >&2
     failed=1
