@@ -222,7 +222,10 @@ sets the rule per upstream. When omitted:
 It forwards vendor fields (`top_k`, `thinking`, `extra_body`, `tool_choice:"any"`,
 assistant `reasoning_content`, `reasoning_details`, `prefix`, Gemini
 `tool_calls[].extra_content`, …) and records them as `vendor_field` info
-findings instead of enforce 400s.
+findings instead of enforce 400s. OpenAI Structured Outputs keyword lints
+(`minLength`, `examples`, `oneOf`, `default`, …) and Responses
+`strict_fallback_predicted` are rematched to `severity=info` / `report_only`
+on this target; target `openai` keeps them as `reject_in_enforce`.
 
 Request-side reasoning echo is counted on `normalized.reasoning_in`
 (`assistant_turns`, `with_reasoning`, `chars`) so tests can assert that every

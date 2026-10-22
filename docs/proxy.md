@@ -618,10 +618,13 @@ OpenAI schema: unknown fields and OpenAI-invalid enum values reject in enforce.
 type-checks known OpenAI fields, but unknown properties and commonly extended enums
 (`tool_choice`, `response_format.type`, `service_tier`) are forwarded. Unknown
 fields are recorded as `ignored_fields` with `kind=vendor_field`, `severity=info`,
-and `action=report_only`. Extended enums stay in `spec_violations` with
-`severity=warning` and do not reject. Duplicate keys, BOM rules, and known-field
-type errors are unchanged. Override the host default with
-`--spec-target name=openai` or `--spec-target name=openai-compatible`.
+and `action=report_only`. OpenAI-only schema-keyword lints (`minLength`, `examples`,
+`oneOf`, `default`, …) and Responses `strict_fallback_predicted` are rematched to
+`severity=info` / `report_only` so they never 400. Target `openai` keeps those
+findings as `reject_in_enforce` (default OpenAI enforce behaviour is unchanged).
+Extended enums stay in `spec_violations` with `severity=warning` and do not reject.
+Duplicate keys, BOM rules, and known-field type errors are unchanged. Override the
+host default with `--spec-target name=openai` or `--spec-target name=openai-compatible`.
 
 Local enforce 400:
 

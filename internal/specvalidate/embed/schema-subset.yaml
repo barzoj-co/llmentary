@@ -2,6 +2,15 @@
 # Single source of truth for internal/schemalint. No keyword lists are hard-coded
 # in Go. Refresh from the source URLs and bump retrieved when the docs change.
 #
+# COMPAT-3 owner decision (2026-10-22):
+# Target openai keeps reject_in_enforce for non-strict-tool keyword findings
+# (minLength, examples, oneOf, default, …) and for strict_fallback_predicted.
+# Live OpenAI returns 200 for those requests (the model still sees the schema),
+# but default OpenAI enforce behaviour is unchanged: the local subset lint is a
+# conservative OpenAI-subset check, not a claim that the API will 400.
+# Target openai-compatible rematches those findings to severity=info /
+# report_only so llama.cpp / vLLM / Ollama grammar keywords do not 400.
+#
 # Sources (retrieved 2026-10-18):
 # - https://developers.openai.com/api/docs/guides/structured-outputs#supported-schemas
 # - https://developers.openai.com/api/docs/guides/function-calling#strict-mode

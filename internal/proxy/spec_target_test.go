@@ -152,6 +152,40 @@ func TestApplySpecTargetCompatible(t *testing.T) {
 	}
 }
 
+func TestApplySpecTargetCompatibleDowngradesOpenAILints(t *testing.T) {
+	t.Parallel()
+	ig := []schemalint.Finding{
+		{Kind: schemalint.KindUnknownKeyword, Key: "minLength", Action: schemalint.ActionReject, Severity: schemalint.SeverityWarning},
+		{Kind: schemalint.KindUnsupportedKeyword, Key: "allOf", Action: schemalint.ActionReject, Severity: schemalint.SeverityWarning},
+		{Kind: schemalint.KindStrictFallbackPred, Key: "strict", Action: schemalint.ActionReject, Severity: schemalint.SeverityWarning},
+		{Kind: schemalint.KindUnresolvedRef, Key: "$ref", Action: schemalint.ActionReject, Severity: schemalint.SeverityWarning},
+	}
+	_, got := applySpecTarget(SpecTargetCompatible, nil, ig, nil)
+	if reject, kind := shouldReject(nil, got); reject {
+		t.Fatalf("compatible must not reject openai-only lints: kind=%s", kind)
+	}
+	for _, f := range got {
+		if f.Severity != schemalint.SeverityInfo || f.Action != schemalint.ActionReport {
+			t.Fatalf("not rematched: %+v", f)
+		}
+	}
+}
+
+func TestApplySpecTargetOpenAIKeepsKeywordReject(t *testing.T) {
+	t.Parallel()
+	ig := []schemalint.Finding{{
+		Kind: schemalint.KindUnknownKeyword, Key: "examples",
+		Action: schemalint.ActionReject, Severity: schemalint.SeverityWarning,
+	}}
+	_, got := applySpecTarget(SpecTargetOpenAI, nil, ig, nil)
+	if reject, kind := shouldReject(nil, got); !reject || kind != "ignored_field" {
+		t.Fatalf("openai must keep reject: reject=%v kind=%s", reject, kind)
+	}
+	if got[0].Action != schemalint.ActionReject || got[0].Severity != schemalint.SeverityWarning {
+		t.Fatalf("openai lint mutated: %+v", got[0])
+	}
+}
+
 func TestApplySpecTargetOpenAIKeepsReject(t *testing.T) {
 	t.Parallel()
 	vs := []specvalidate.Violation{{Side: specvalidate.SideRequest, Keyword: "unevaluatedProperties", Pointer: "/top_k"}}

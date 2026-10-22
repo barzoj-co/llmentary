@@ -140,16 +140,32 @@ func applyCompatibleTarget(violations []specvalidate.Violation, ignored []schema
 	}
 	promoteExhaustedItemRoleEnums(kept)
 	for i := range ignored {
-		if ignored[i].Kind != schemalint.KindUnknownRequest {
+		if ignored[i].Kind == schemalint.KindUnknownRequest {
+			ignored[i].Kind = schemalint.KindVendorField
+			ignored[i].Severity = schemalint.SeverityInfo
+			ignored[i].Action = schemalint.ActionReport
+			ignored[i].UpstreamBehavior = "forwarded"
+			ignored[i].Hint = vendorFieldHint
 			continue
 		}
-		ignored[i].Kind = schemalint.KindVendorField
-		ignored[i].Severity = schemalint.SeverityInfo
-		ignored[i].Action = schemalint.ActionReport
-		ignored[i].UpstreamBehavior = "forwarded"
-		ignored[i].Hint = vendorFieldHint
+		if isOpenAIOnlyLint(ignored[i]) {
+			ignored[i].Severity = schemalint.SeverityInfo
+			ignored[i].Action = schemalint.ActionReport
+		}
 	}
 	return kept, ignored
+}
+
+func isOpenAIOnlyLint(f schemalint.Finding) bool {
+	switch f.Kind {
+	case schemalint.KindUnsupportedKeyword, schemalint.KindUnknownKeyword,
+		schemalint.KindUnsupportedFormat, schemalint.KindSuspiciousEnum,
+		schemalint.KindStrictFallbackPred, schemalint.KindStrictFallback,
+		schemalint.KindUnresolvedRef:
+		return true
+	default:
+		return false
+	}
 }
 
 func isVendorPropertyViolation(v specvalidate.Violation) bool {
