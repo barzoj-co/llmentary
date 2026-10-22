@@ -418,7 +418,7 @@ func TestClientCancelRightBeforeDone(t *testing.T) {
 	p := startSpecProxy(t, "off", "relaxed", chatStreamHoldBeforeDone())
 	body := []byte(`{"model":"gpt-fixture","messages":[{"role":"user","content":"hi"}],"stream":true}`)
 	sid := newSession()
-	postSSECloseAfter(t, p.proxyURL, "/v1/chat/completions", sid, "pre-done", body)
+	postSSECloseAfter(t, p.proxyURL, "/v1/chat/completions", sid, `"finish_reason":"stop"`, body)
 	assertAfterHeadersAbort(t, lastCall(t, waitSession(t, p.controlURL, sid)), "pre-done")
 }
 
