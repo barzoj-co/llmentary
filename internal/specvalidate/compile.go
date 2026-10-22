@@ -43,6 +43,9 @@ type Engine struct {
 	relaxedRespResp *jsonschema.Schema
 	relaxedRespSSE  *jsonschema.Schema
 
+	// knownReq is profile|apiFamily → declared properties on request objects.
+	knownReq map[string]objectProps
+
 	overlay Overlay
 }
 
@@ -139,6 +142,11 @@ func (e *Engine) compileProfile(spec map[string]any, profile string) error {
 	if err != nil {
 		return err
 	}
+	if e.knownReq == nil {
+		e.knownReq = map[string]objectProps{}
+	}
+	e.knownReq[profile+"|openai.chat"] = collectKnownProperties(spec, chatRequest)
+	e.knownReq[profile+"|openai.responses"] = collectKnownProperties(spec, respRequest)
 	switch profile {
 	case ProfileStrict:
 		e.strictChatReq, e.strictRespReq = chatReq, respReq

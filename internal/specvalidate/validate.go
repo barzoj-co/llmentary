@@ -107,8 +107,9 @@ func (e *Engine) schemaViolations(sch *jsonschema.Schema, raw []byte, profile, s
 	if err == nil {
 		return nil
 	}
+	known := e.knownReq[profile+"|"+apiFamily]
 	var out []Violation
-	for _, item := range dropCoveredUnevaluated(flattenSchemaError(err)) {
+	for _, item := range filterCascadedFindings(dropCoveredUnevaluated(flattenSchemaError(err)), known) {
 		pointer := item.pointer
 		if pointer == "" {
 			pointer = "/"
@@ -233,7 +234,7 @@ func flattenSchemaError(err error) []schemaErr {
 		if ap, ok := e.ErrorKind.(*kind.AdditionalProperties); ok {
 			item.extraNames = append([]string(nil), ap.Properties...)
 		}
-		if isWrapperSchemaErr(item) || isCompositionArtifact(item) {
+		if isWrapperSchemaErr(item) {
 			return
 		}
 		out = append(out, item)
@@ -271,18 +272,6 @@ func dropInputTypeIfNested(in []schemaErr) []schemaErr {
 		out = append(out, item)
 	}
 	return out
-}
-
-func isCompositionArtifact(item schemaErr) bool {
-	// unevaluatedProperties on the allOf composer can flag known properties
-	// when a nested oneOf fails and annotations are not collected.
-	if item.keyword == "unevaluatedProperties" {
-		switch item.pointer {
-		case "/model", "/messages", "/input", "/tools", "/temperature", "/stream":
-			return true
-		}
-	}
-	return false
 }
 
 func isWrapperSchemaErr(item schemaErr) bool {
@@ -352,13 +341,7 @@ func trimBOM(raw []byte) []byte {
 
 func capAndSort(in []Violation, truncated *bool, side string) []Violation {
 	sort.SliceStable(in, func(i, j int) bool {
-		if in[i].Side != in[j].Side {
-			return in[i].Side < in[j].Side
-		}
-		if in[i].Pointer != in[j].Pointer {
-			return in[i].Pointer < in[j].Pointer
-		}
-		return in[i].Keyword < in[j].Keyword
+		return violationMoreSpecific(in[i], in[j])
 	})
 	if len(in) <= MaxFindings {
 		return in
