@@ -153,10 +153,20 @@ correct; pick any cell.
 | `https://openrouter.ai/api/v1` | `{proxy}/v1` | `https://openrouter.ai/api/v1/chat/completions` |
 | `https://openrouter.ai/api/v1` | `{proxy}/s/{id}/u/openrouter` | `https://openrouter.ai/api/v1/chat/completions` |
 | `https://my-resource.openai.azure.com/openai/v1` | `{proxy}/u/azure` | `https://my-resource.openai.azure.com/openai/v1/chat/completions` |
+| `https://generativelanguage.googleapis.com/v1beta/openai` | `{proxy}/v1` | `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions` |
+| `https://generativelanguage.googleapis.com/v1beta/openai` | `{proxy}/u/gemini/v1` | `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions` |
+| `https://generativelanguage.googleapis.com/v1beta/openai` | `{proxy}/u/gemini` | `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions` |
+| `https://api.deepseek.com` | `{proxy}/v1` | `https://api.deepseek.com/v1/chat/completions` |
+| `https://api.groq.com/openai/v1` | `{proxy}/v1` | `https://api.groq.com/openai/v1/chat/completions` |
+| `https://api.fireworks.ai/inference/v1` | `{proxy}/v1` | `https://api.fireworks.ai/inference/v1/chat/completions` |
 
 `{proxy}/s/{id}/...` is the path-prefix session form. The proxy strips `/s/{id}` and
-`/u/{name}` before applying the join. Model names and auth headers pass through
-unchanged.
+`/u/{name}` before applying the join. Equal overlapping path segments are used once.
+When the request starts with a version-like segment (`v1`, `v1beta`, `v1alpha`) and the
+upstream base already contains one, that leading request segment is dropped so Gemini
+`/v1beta/openai` plus `{proxy}/v1` does not become `/v1beta/openai/v1/...`. The rewrite
+logs a one-time WARN. Upstreams without a version segment keep the client's `/v1`.
+Model names and auth headers pass through unchanged.
 
 ## OpenRouter
 
