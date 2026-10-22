@@ -162,7 +162,6 @@ func sanitizeURL(raw string) string {
 	if err != nil {
 		return raw
 	}
-	u.User = nil
 	q := u.Query()
 	for _, key := range []string{"key", "api_key", "sig", "signature"} {
 		for _, value := range q[key] {
@@ -172,6 +171,16 @@ func sanitizeURL(raw string) string {
 		}
 	}
 	u.RawQuery = q.Encode()
+	return u.String()
+}
+
+func sanitizeInFlightURL(raw string) string {
+	s := sanitizeURL(raw)
+	u, err := url.Parse(s)
+	if err != nil {
+		return s
+	}
+	u.User = nil
 	return u.String()
 }
 
