@@ -40,6 +40,12 @@ func (c *capturingWriter) Write(p []byte) (int, error) {
 	return c.ResponseWriter.Write(p)
 }
 
+func (c *capturingWriter) Flush() {
+	if f, ok := c.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
 func (f *fakeUpstream) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	body, _ := io.ReadAll(r.Body)
 	cw := &capturingWriter{ResponseWriter: w}

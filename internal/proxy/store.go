@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/url"
 	"sort"
 	"sync"
 	"time"
@@ -74,8 +75,11 @@ type SessionSummary struct {
 
 type Store interface {
 	Begin(sessionID string, call Call) (int, string)
+	Progress(sessionID, callID string, update func(*Call))
 	Finish(sessionID, callID string, update func(*Call))
 	Lookup(sessionID string) (Session, bool)
+	InFlight(sessionID string) []InFlightCall
+	SessionAndInFlight(sessionID string) (Session, []InFlightCall, bool)
 	List(source string) []SessionSummary
 	Delete(sessionID string)
 	WaitQuiet(ctx context.Context, sessionID string, quiet, timeout time.Duration, minCalls int) (Session, error)
@@ -123,6 +127,48 @@ func (s *MemoryStore) Begin(sessionID string, call Call) (int, string) {
 	call.Seq = len(state.calls) + 1
 	state.calls = append(state.calls, call)
 	return call.Seq, call.ID
+}
+
+func (s *MemoryStore) Progress(sessionID, callID string, update func(*Call)) {
+	if update == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if sessionID == "" {
+		sessionID = DefaultSessionID
+	}
+	state, ok := s.sessions[sessionID]
+	if !ok {
+		return
+	}
+	for i := range state.calls {
+		if state.calls[i].ID == callID && !callSettled(state.calls[i]) {
+			update(&state.calls[i])
+			return
+		}
+	}
+}
+
+func (s *MemoryStore) InFlight(sessionID string) []InFlightCall {
+	_, inFlight, ok := s.SessionAndInFlight(sessionID)
+	if !ok {
+		return nil
+	}
+	return inFlight
+}
+
+func (s *MemoryStore) SessionAndInFlight(sessionID string) (Session, []InFlightCall, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if sessionID == "" {
+		sessionID = DefaultSessionID
+	}
+	state, ok := s.sessions[sessionID]
+	if !ok {
+		return Session{ID: sessionID}, []InFlightCall{}, false
+	}
+	return copySession(state), inFlightSnapshot(state, time.Now().UTC()), true
 }
 
 func (s *MemoryStore) Finish(sessionID, callID string, update func(*Call)) {
@@ -302,6 +348,52 @@ func summarizeSession(state *sessionState) SessionSummary {
 	sum.LastEndedAt = last
 	sum.Spec = specCounters(settledCalls(state))
 	return sum
+}
+
+func inFlightSnapshot(state *sessionState, now time.Time) []InFlightCall {
+	out := make([]InFlightCall, 0)
+	for i := range state.calls {
+		if callSettled(state.calls[i]) {
+			continue
+		}
+		out = append(out, inFlightFromCall(state.calls[i], now))
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Seq < out[j].Seq })
+	return out
+}
+
+func inFlightFromCall(call Call, now time.Time) InFlightCall {
+	phase := InFlightPhaseAwaitingHeaders
+	if call.HTTPStatus > 0 || call.FirstByteAt != nil {
+		phase = InFlightPhaseStreaming
+	}
+	safeURL := sanitizeInFlightURL(call.Upstream.URL)
+	path := ""
+	if u, err := url.Parse(safeURL); err == nil {
+		path = u.Path
+	}
+	item := InFlightCall{
+		CallID:        call.ID,
+		Seq:           call.Seq,
+		Method:        call.Upstream.Method,
+		Path:          path,
+		APIFamily:     call.APIFamily,
+		Upstream:      safeURL,
+		StartedAt:     call.StartedAt,
+		ElapsedMS:     0,
+		Phase:         phase,
+		BytesReceived: call.BytesReceived,
+	}
+	if !call.StartedAt.IsZero() {
+		item.ElapsedMS = now.Sub(call.StartedAt).Milliseconds()
+		if item.ElapsedMS < 0 {
+			item.ElapsedMS = 0
+		}
+	}
+	if call.HTTPStatus > 0 {
+		item.HTTPStatus = call.HTTPStatus
+	}
+	return item
 }
 
 func settledCalls(state *sessionState) []Call {

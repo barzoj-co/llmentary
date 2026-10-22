@@ -18,11 +18,33 @@ const (
 	AbortPhaseBeforeHeaders = "before_headers"
 	// AbortPhaseAfterHeaders is a client cancel after headers / mid-stream.
 	AbortPhaseAfterHeaders = "after_headers"
+
+	// InFlightPhaseAwaitingHeaders is an in-flight call that has no upstream headers yet.
+	InFlightPhaseAwaitingHeaders = "awaiting_headers"
+	// InFlightPhaseStreaming is an in-flight call that has received upstream headers.
+	InFlightPhaseStreaming = "streaming"
 )
 
 type Session struct {
-	ID    string `json:"id"`
-	Calls []Call `json:"calls"`
+	ID       string         `json:"id"`
+	Calls    []Call         `json:"calls"`
+	InFlight []InFlightCall `json:"in_flight,omitempty"`
+}
+
+// InFlightCall is a settled-safe snapshot of a call that has not finished.
+// It never includes request/response bodies or headers.
+type InFlightCall struct {
+	CallID        string    `json:"call_id"`
+	Seq           int       `json:"seq"`
+	Method        string    `json:"method"`
+	Path          string    `json:"path"`
+	APIFamily     string    `json:"api_family"`
+	Upstream      string    `json:"upstream"`
+	StartedAt     time.Time `json:"started_at"`
+	ElapsedMS     int64     `json:"elapsed_ms"`
+	Phase         string    `json:"phase"`
+	HTTPStatus    int       `json:"http_status,omitempty"`
+	BytesReceived int64     `json:"bytes_received"`
 }
 
 type Call struct {
@@ -51,6 +73,8 @@ type Call struct {
 	ClientAborted  bool              `json:"client_aborted"`
 	AbortPhase     string            `json:"abort_phase,omitempty"`
 	Normalized     Normalized        `json:"normalized"`
+	// BytesReceived is mid-flight progress; omitted from settled JSON.
+	BytesReceived int64 `json:"-"`
 }
 
 type Upstream struct {

@@ -177,6 +177,17 @@ func sanitizeURL(raw string) string {
 	return u.String()
 }
 
+func sanitizeInFlightURL(raw string) string {
+	s := sanitizeURL(raw)
+	u, err := url.Parse(s)
+	if err != nil {
+		return s
+	}
+	u.User = nil
+	u.RawQuery = ""
+	return u.String()
+}
+
 func hashSecret(value string) string {
 	sum := sha256.Sum256([]byte(value))
 	return "sha256:" + hex.EncodeToString(sum[:])[:16]

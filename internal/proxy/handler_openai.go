@@ -219,6 +219,7 @@ func (ex *proxyExchange) copyAndFinish(w http.ResponseWriter, resp *http.Respons
 	}
 	removeHopByHopHeaders(w.Header())
 	w.WriteHeader(resp.StatusCode)
+	ex.noteUpstreamHeaders(resp.StatusCode)
 
 	var rawResp bytes.Buffer
 	headerSSE := strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "text/event-stream")
@@ -237,6 +238,13 @@ func (ex *proxyExchange) copyAndFinish(w http.ResponseWriter, resp *http.Respons
 		if recorder != nil {
 			recorder.Write(chunk)
 		}
+		ex.s.store.Progress(ex.session.ID, ex.callID, func(call *Call) {
+			call.BytesReceived += int64(len(chunk))
+			if call.FirstByteAt == nil && firstByte != nil {
+				t := *firstByte
+				call.FirstByteAt = &t
+			}
+		})
 	})
 	ex.finishCall(resp, rawResp.Bytes(), firstByte, recorder, copyErr, copyWriteErr, headerSSE)
 	return nil
@@ -428,6 +436,22 @@ func firstJSONBytes(raw []byte) []byte {
 		return raw
 	}
 	return first
+}
+
+func (ex *proxyExchange) noteUpstreamHeaders(status int) {
+	if ex == nil || ex.s == nil {
+		return
+	}
+	ttfb := time.Since(ex.startedAt).Milliseconds()
+	ex.s.store.Progress(ex.session.ID, ex.callID, func(call *Call) {
+		call.HTTPStatus = status
+	})
+	ex.s.logger().Info("proxy upstream headers",
+		"status", status,
+		"call_id", ex.callID,
+		"seq", ex.seq,
+		"ttfb_ms", ttfb,
+	)
 }
 
 func (s *Server) logProxyResponse(ex *proxyExchange, call Call, status any, extra ...any) {

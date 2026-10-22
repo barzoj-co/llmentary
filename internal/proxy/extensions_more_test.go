@@ -64,7 +64,30 @@ func TestSanitizeURLAndParseLooseError(t *testing.T) {
 	if got == "https://api.example/v1?api_key=secret&keep=1" || !strings.Contains(got, "sha256") {
 		t.Fatalf("secret not hashed: %s", got)
 	}
-	_ = sanitizeURL("http://[::1")
+	withUser := sanitizeInFlightURL("https://user:hunter2@api.example/v1?api_key=secret")
+	if strings.Contains(withUser, "user") || strings.Contains(withUser, "hunter2") || strings.Contains(withUser, "@") {
+		t.Fatalf("userinfo leaked: %s", withUser)
+	}
+	if strings.Contains(withUser, "?") || strings.Contains(withUser, "api_key") || strings.Contains(withUser, "secret") || strings.Contains(withUser, "sha256") {
+		t.Fatalf("in-flight query leaked: %s", withUser)
+	}
+	if sanitizeInFlightURL("https://justuser@api.example/v1") != "https://api.example/v1" {
+		t.Fatalf("username-only userinfo: %s", sanitizeInFlightURL("https://justuser@api.example/v1"))
+	}
+	tokenURL := sanitizeInFlightURL("https://api.example/v1/chat?access_token=SECRET&keep=1")
+	if tokenURL != "https://api.example/v1/chat" {
+		t.Fatalf("access_token query not stripped: %s", tokenURL)
+	}
+	if got := sanitizeInFlightURL("https://api.example/v1?keep=1#frag"); got != "https://api.example/v1#frag" {
+		t.Fatalf("non-secret query should still drop: %s", got)
+	}
+	if got := sanitizeInFlightURL("https://api.example/v1#frag"); got != "https://api.example/v1#frag" {
+		t.Fatalf("fragment-only: %s", got)
+	}
+	if got := sanitizeURL("https://user:hunter2@api.example/v1"); !strings.Contains(got, "user") {
+		t.Fatalf("sanitizeURL keeps userinfo for /config redaction path: %s", got)
+	}
+	_ = sanitizeInFlightURL("http://[::1")
 	_ = sanitizeURL("%")
 	typ, code, msg, ok := parseLooseError(json.RawMessage(`{"type":"t","code":429,"message":"m"}`))
 	if !ok || typ != "t" || code != "429" || msg != "m" {
@@ -87,5 +110,24 @@ func TestSanitizeURLAndParseLooseError(t *testing.T) {
 	}
 	if normalizeError(200, "", "") != "unknown" || normalizeError(400, "", "") != "bad_request" {
 		t.Fatal("normalize default")
+	}
+}
+
+func TestRequestStreamFlagAndFirstJSONBytes(t *testing.T) {
+	t.Parallel()
+	if !requestStreamFlag([]byte(`{"stream":true}`)) {
+		t.Fatal("true")
+	}
+	if requestStreamFlag([]byte(`{"stream":false}`)) || requestStreamFlag([]byte(`{"stream":"yes"}`)) {
+		t.Fatal("non-true stream")
+	}
+	if requestStreamFlag([]byte(`not-json`)) {
+		t.Fatal("invalid")
+	}
+	if string(firstJSONBytes([]byte("not-json"))) != "not-json" {
+		t.Fatal("passthrough")
+	}
+	if string(firstJSONBytes([]byte("{\"a\":1} trailing"))) != `{"a":1}` {
+		t.Fatal("first object")
 	}
 }

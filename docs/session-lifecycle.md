@@ -17,6 +17,17 @@ may still create the session. `wait` counts only settled calls (`ended_at`
 set); `GET /sessions/{id}` and a successful `wait` never return an abort
 placeholder (`http_status=0`, `client_aborted=false`).
 
+A `504` `wait_timeout` still returns those settled `calls`, and the error
+object adds `active` plus `in_flight` (never inside `calls`) so a stalled
+upstream is visible. Each `in_flight` item has `call_id`, `seq`, `method`,
+`path`, `api_family`, `upstream`, `started_at`, `elapsed_ms`, `phase`
+(`awaiting_headers` or `streaming`), `bytes_received`, and `http_status`
+once headers have arrived. No bodies, headers, userinfo, or query string
+on `upstream` (request credentials stay off this surface). Pin the shape from
+[`api/control/testdata/wait_timeout_inflight.json`](../api/control/testdata/wait_timeout_inflight.json).
+`GET /sessions/{id}?include=in_flight` returns the same `in_flight` array
+next to `calls`.
+
 Machine-readable contract: [`api/control/openapi.yaml`](../api/control/openapi.yaml).
 Control API reference: [Proxy](proxy.md#get-sessionsidwait).
 
@@ -99,7 +110,39 @@ Content-Type: application/json
     "type": "wait_timeout",
     "message": "wait timed out",
     "calls_seen": 0,
-    "min_calls": 1
+    "min_calls": 1,
+    "active": 0,
+    "in_flight": []
+  }
+}
+```
+
+A wait that times out while a call is still running (headers never arrived):
+
+```json
+{
+  "id": "stall-example",
+  "calls": [],
+  "error": {
+    "type": "wait_timeout",
+    "message": "wait timed out",
+    "calls_seen": 0,
+    "min_calls": 1,
+    "active": 1,
+    "in_flight": [
+      {
+        "call_id": "call_1",
+        "seq": 1,
+        "method": "POST",
+        "path": "/v1/responses",
+        "api_family": "openai.responses",
+        "upstream": "http://127.0.0.1:9/v1/responses",
+        "started_at": "2026-10-22T07:00:00Z",
+        "elapsed_ms": 1000,
+        "phase": "awaiting_headers",
+        "bytes_received": 0
+      }
+    ]
   }
 }
 ```

@@ -240,10 +240,72 @@ func TestParseMinCallsAndValidSessionSource(t *testing.T) {
 	}
 }
 
+func TestWaitTimeoutSnapshotAndStrippedQuery(t *testing.T) {
+	t.Parallel()
+	store := NewMemoryStore()
+	s := newAbortTestServer(t, store)
+	ts := httptest.NewServer(s.ControlHandler())
+	t.Cleanup(ts.Close)
+
+	now := time.Now().UTC()
+	_, settledID := store.Begin("s", Call{StartedAt: now, Upstream: Upstream{URL: "https://api.example/v1/a"}})
+	store.Finish("s", settledID, func(call *Call) {
+		call.EndedAt = now
+		call.HTTPStatus = 200
+	})
+	store.Begin("s", Call{StartedAt: now, Upstream: Upstream{URL: "https://api.example/v1/b?access_token=SECRET&keep=1"}})
+
+	res, err := http.Get(ts.URL + "/sessions/s/wait?timeout=1ms&quiet=50ms&min_calls=2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := io.ReadAll(res.Body)
+	_ = res.Body.Close()
+	if res.StatusCode != http.StatusGatewayTimeout {
+		t.Fatalf("status=%d body=%s", res.StatusCode, raw)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(raw, &body); err != nil {
+		t.Fatal(err)
+	}
+	calls, _ := body["calls"].([]any)
+	errObj, _ := body["error"].(map[string]any)
+	inFlight, _ := errObj["in_flight"].([]any)
+	if len(calls) != 1 || len(inFlight) != 1 {
+		t.Fatalf("calls=%v in_flight=%v", body["calls"], errObj["in_flight"])
+	}
+	item, _ := inFlight[0].(map[string]any)
+	upstream, _ := item["upstream"].(string)
+	if upstream != "https://api.example/v1/b" {
+		t.Fatalf("wait in-flight upstream=%q", upstream)
+	}
+
+	res, err = http.Get(ts.URL + "/sessions/s?include=in_flight")
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ = io.ReadAll(res.Body)
+	_ = res.Body.Close()
+	body = map[string]any{}
+	if err := json.Unmarshal(raw, &body); err != nil {
+		t.Fatal(err)
+	}
+	calls, _ = body["calls"].([]any)
+	inFlight, _ = body["in_flight"].([]any)
+	if len(calls) != 1 || len(inFlight) != 1 {
+		t.Fatalf("include calls=%v in_flight=%v", body["calls"], body["in_flight"])
+	}
+	item, _ = inFlight[0].(map[string]any)
+	upstream, _ = item["upstream"].(string)
+	if upstream != "https://api.example/v1/b" {
+		t.Fatalf("include in-flight upstream=%q", upstream)
+	}
+}
+
 func TestWriteWaitTimeoutEmptyCalls(t *testing.T) {
 	t.Parallel()
 	rec := httptest.NewRecorder()
-	writeWaitTimeout(rec, Session{ID: "s"}, 2)
+	writeWaitTimeout(rec, Session{ID: "s"}, 2, nil)
 	if rec.Code != http.StatusGatewayTimeout {
 		t.Fatalf("code=%d", rec.Code)
 	}
@@ -254,5 +316,37 @@ func TestWriteWaitTimeoutEmptyCalls(t *testing.T) {
 	calls, ok := body["calls"].([]any)
 	if !ok || calls == nil {
 		t.Fatalf("calls=%v", body["calls"])
+	}
+	errObj, _ := body["error"].(map[string]any)
+	if intFromAny(errObj["active"]) != 0 {
+		t.Fatalf("active=%v", errObj["active"])
+	}
+	inFlight, ok := errObj["in_flight"].([]any)
+	if !ok || inFlight == nil {
+		t.Fatalf("in_flight=%v", errObj["in_flight"])
+	}
+}
+
+func TestWriteSessionNotFoundWait(t *testing.T) {
+	t.Parallel()
+	rec := httptest.NewRecorder()
+	writeSessionNotFoundWait(rec, "ghost", 12)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status=%d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "session_not_found") || !strings.Contains(body, "ghost") || !strings.Contains(body, `"waited_ms":12`) {
+		t.Fatalf("body=%s", body)
+	}
+}
+
+func intFromAny(v any) int {
+	switch n := v.(type) {
+	case float64:
+		return int(n)
+	case int:
+		return n
+	default:
+		return -1
 	}
 }
