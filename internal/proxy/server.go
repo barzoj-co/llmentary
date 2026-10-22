@@ -134,7 +134,11 @@ func (s *Server) serveProxy(w http.ResponseWriter, r *http.Request) {
 	if !hasNamedUpstreamPrefix(restPath) && !s.cfg.allowedWirePath(wirePath) {
 		s.logger().Warn("unknown path", "method", r.Method, "path", origPath)
 		msg := fmt.Sprintf("unknown path %q", origPath)
-		if hint := unknownPathHint(origPath); hint != "" {
+		hintPath := origPath
+		if hasPath {
+			hintPath = restPath
+		}
+		if hint := unknownPathHint(hintPath); hint != "" {
 			if strings.HasPrefix(hint, "--allow-path-prefix") {
 				msg += "; " + hint
 			} else {

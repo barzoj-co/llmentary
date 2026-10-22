@@ -98,6 +98,9 @@ func TestAllowedWirePathAndUnknownHint(t *testing.T) {
 	if hint := unknownPathHint("/tokenize"); !strings.Contains(hint, "--allow-path-prefix tokenize") {
 		t.Fatalf("allow hint=%q", hint)
 	}
+	if hint := unknownPathHint("/s/sid1/tokenize"); hint != "" {
+		t.Fatalf("raw session path should not hint from first segment s: %q", hint)
+	}
 	if hint := unknownPathHint("/only"); hint == "" || !strings.Contains(hint, "--allow-path-prefix only") {
 		t.Fatalf("short hint=%q", hint)
 	}

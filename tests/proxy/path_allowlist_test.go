@@ -82,6 +82,13 @@ func TestBareProviderPathsNeedAllowPrefix(t *testing.T) {
 	if !bytes.Contains(raw, []byte("LLMENTARY_ALLOW_PATH_PREFIXES")) {
 		t.Fatalf("env missing: %s", raw)
 	}
+	status, _, raw = doMethod(t, http.MethodPost, proxyURL+"/s/sid1/tokenize", []byte(`{}`))
+	if status != http.StatusNotFound {
+		t.Fatalf("session tokenize should 404: %d %s", status, raw)
+	}
+	if !bytes.Contains(raw, []byte("--allow-path-prefix tokenize")) || !bytes.Contains(raw, []byte("LLMENTARY_ALLOW_PATH_PREFIXES")) {
+		t.Fatalf("session-prefixed hint missing: %s", raw)
+	}
 	if hits, _, _, _, _ := echo.snapshot(); hits != 0 {
 		t.Fatalf("forwarded=%d", hits)
 	}
