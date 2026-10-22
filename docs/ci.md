@@ -48,9 +48,10 @@ Triggers are `push` to `main`, `pull_request`, and `workflow_dispatch`.
   uses the boolean form `secrets.OPENAI_API_KEY != ''`. Only `Run e2e tests`
   has `OPENAI_API_KEY` in step `env:` and runs `go test -v -tags=e2e ./...` in
   `tests/e2e`. Missing `OPENAI_API_KEY` fails the job.
-- `e2e-gate`: always runs, needs `e2e`, and is green only when `e2e` succeeded.
-  This is the check that should be required after the repo is public (GitHub
-  treats a skipped required `e2e` as passing).
+- `e2e-gate`: always runs, needs `e2e`. Green when `e2e` succeeded, or when a
+  fork PR skipped live e2e (`skipped (fork, no secrets)`). Same-repo PRs and
+  `main` fail the gate if live e2e did not run (GitHub treats a skipped required
+  `e2e` job as passing, so the gate is the required check).
 - `perf`: dedicated job, `GOMAXPROCS=2`, runs `go test -tags=perf` in
   `tests/proxy` for validation/lint p99 budgets (I2–I5).
 - `codegen-check` also runs `scripts/prove-a6.sh` (editing `relax-overlay.yaml`
@@ -180,9 +181,9 @@ module download, or compile. `scripts/check-secret-scope.sh` enforces that
 placement on every workflow.
 
 `e2e-gate` is a separate job (`if: always()`, `needs: [e2e]`) that runs
-`scripts/e2e-gate.sh`. It exits 0 only when `needs.e2e.result` is `success`.
-On a fork PR, `e2e` is skipped and the gate fails with
-`live e2e did not run; a maintainer must run it`.
+`scripts/e2e-gate.sh`. It exits 0 when `needs.e2e.result` is `success`, or when
+a fork PR skipped live e2e (`IS_FORK=true` and result `skipped`) and prints
+`skipped (fork, no secrets)`. Same-repo PRs still fail if `e2e` did not run.
 
 The live `e2e` job is the only job that sets `environment: openai-e2e` and the
 only job that may receive `OPENAI_API_KEY`. Unit, fixture, and perf jobs do

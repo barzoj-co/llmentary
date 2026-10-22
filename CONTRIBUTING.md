@@ -82,11 +82,12 @@ CI scopes `OPENAI_API_KEY` to the `Run e2e tests` step of the live `e2e` job.
 That job is the only one that uses `environment: openai-e2e`. Mock, fixture,
 and other integration tests do not, so they run without approval.
 
-`e2e-gate` is the always-run check that is green only when that live job
-succeeded. Fork PRs skip `e2e` and fail the gate; a maintainer reviews the
-diff, pushes it to a same-repo branch, and opens a pull request from that
-branch so e2e can run (a branch push alone does not start CI). Do not use
-`pull_request_target`.
+`e2e-gate` is the always-run check that is green when that live job succeeded,
+or when a fork PR skipped live e2e (`skipped (fork, no secrets)`). Same-repo
+PRs fail the gate if live e2e did not run. To run live e2e for a fork
+contribution, a maintainer reviews the diff, pushes it to a same-repo branch,
+and opens a pull request from that branch (a branch push alone does not start
+CI). Do not use `pull_request_target`.
 
 Maintainers approve the `openai-e2e` deployment on each PR (and on each push
 to `main`) before live e2e starts. Denis configures the required reviewers on
