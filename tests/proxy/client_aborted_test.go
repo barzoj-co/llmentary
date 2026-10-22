@@ -326,6 +326,13 @@ func TestClientAbortAfterMidStreamErrorOmitsMidStream(t *testing.T) {
 	call := lastCall(t, waitSession(t, p.controlURL, sid))
 	assertAfterHeadersAbort(t, call, "chunk-one")
 	errObj, _ := normalized(call)["error"].(map[string]any)
+	if errObj == nil {
+		t.Fatalf("missing provider error: %+v", normalized(call))
+	}
+	if fmtString(errObj["type"]) != "too_many_requests" || fmtString(errObj["code"]) != "no_capacity" ||
+		!strings.Contains(fmtString(errObj["message"]), "try later") {
+		t.Fatalf("provider error=%v", errObj)
+	}
 	if errObj["mid_stream"] == true {
 		t.Fatalf("client abort must omit mid_stream: %v", errObj)
 	}
