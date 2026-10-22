@@ -641,6 +641,15 @@ X-Llmentary-Rejected: spec_violation
 {"error":{"message":"llmentary: request rejected (profile=relaxed): …","type":"invalid_request_error","param":"…","code":"llmentary_spec_violation"}}
 ```
 
+A property that exists in the OpenAI schema for that object is never reported
+as `unevaluatedProperties`. When a nested `anyOf`/`oneOf` branch fails, JSON
+Schema would otherwise flag valid siblings such as `max_tokens` as unknown.
+Findings are ranked so the enforce `message` / `param`, the WARN `first=`
+field, and the stored `spec_violations[0]` all name the same root cause
+(deepest `enum`/`type`/`required` over parent-level cascades). Non-matching
+oneOf-branch noise (`role` enum, item-level `required`, EmptyModelParam
+`want null`) collapses to one finding per failing array item.
+
 `code` is `llmentary_spec_violation` or `llmentary_ignored_field`. Streamed requests still get a JSON 400, not SSE.
 
 Profiles:

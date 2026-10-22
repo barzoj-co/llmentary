@@ -35,7 +35,7 @@ func (e *Engine) ValidateRequest(profile, apiFamily string, raw []byte, maxBytes
 	res.Violations = append(res.Violations, prechecks(raw, profile, precheckConfig{skip: skip})...)
 	if firstJSONObject(raw) {
 		if sch := e.requestSchema(profile, apiFamily); sch != nil {
-			res.Violations = append(res.Violations, e.schemaViolations(sch, raw, profile, SideRequest, apiFamily, nil)...)
+			res.Violations = append(res.Violations, e.schemaViolations(sch, raw, profile, SideRequest, apiFamily, false, nil)...)
 		}
 	}
 	res.Violations = capAndSort(res.Violations, &res.Truncated, SideRequest)
@@ -52,7 +52,7 @@ func (e *Engine) ValidateResponse(profile, apiFamily string, raw []byte, stream 
 	}
 	sch := e.responseSchema(profile, apiFamily, stream)
 	if sch != nil {
-		res.Violations = append(res.Violations, e.schemaViolations(sch, raw, profile, SideResponse, apiFamily, eventIndex)...)
+		res.Violations = append(res.Violations, e.schemaViolations(sch, raw, profile, SideResponse, apiFamily, stream, eventIndex)...)
 	}
 	res.Violations = capAndSort(res.Violations, &res.Truncated, SideResponse)
 	res.DurationUS = time.Since(start).Microseconds()
@@ -98,7 +98,7 @@ func (e *Engine) responseSchema(profile, apiFamily string, stream bool) *jsonsch
 	return e.strictChatResp
 }
 
-func (e *Engine) schemaViolations(sch *jsonschema.Schema, raw []byte, profile, side, apiFamily string, eventIndex *int) []Violation {
+func (e *Engine) schemaViolations(sch *jsonschema.Schema, raw []byte, profile, side, apiFamily string, stream bool, eventIndex *int) []Violation {
 	inst, err := jsonschema.UnmarshalJSON(bytes.NewReader(trimBOM(firstJSONBytes(raw))))
 	if err != nil {
 		return nil
@@ -107,8 +107,21 @@ func (e *Engine) schemaViolations(sch *jsonschema.Schema, raw []byte, profile, s
 	if err == nil {
 		return nil
 	}
+	var known objectProps
+	var variants map[string]*discVariants
+	key := profile + "|" + apiFamily
+	if side == SideRequest {
+		known = e.knownReq[key]
+		variants = e.knownVar[key]
+	} else if stream {
+		known = e.knownRespStream[key]
+		variants = e.knownRespStreamVar[key]
+	} else {
+		known = e.knownResp[key]
+		variants = e.knownRespVar[key]
+	}
 	var out []Violation
-	for _, item := range dropCoveredUnevaluated(flattenSchemaError(err)) {
+	for _, item := range filterCascadedFindingsAt(dropCoveredUnevaluated(flattenSchemaError(err)), known, variants, inst) {
 		pointer := item.pointer
 		if pointer == "" {
 			pointer = "/"
@@ -233,7 +246,7 @@ func flattenSchemaError(err error) []schemaErr {
 		if ap, ok := e.ErrorKind.(*kind.AdditionalProperties); ok {
 			item.extraNames = append([]string(nil), ap.Properties...)
 		}
-		if isWrapperSchemaErr(item) || isCompositionArtifact(item) {
+		if isWrapperSchemaErr(item) {
 			return
 		}
 		out = append(out, item)
@@ -271,18 +284,6 @@ func dropInputTypeIfNested(in []schemaErr) []schemaErr {
 		out = append(out, item)
 	}
 	return out
-}
-
-func isCompositionArtifact(item schemaErr) bool {
-	// unevaluatedProperties on the allOf composer can flag known properties
-	// when a nested oneOf fails and annotations are not collected.
-	if item.keyword == "unevaluatedProperties" {
-		switch item.pointer {
-		case "/model", "/messages", "/input", "/tools", "/temperature", "/stream":
-			return true
-		}
-	}
-	return false
 }
 
 func isWrapperSchemaErr(item schemaErr) bool {
@@ -352,13 +353,7 @@ func trimBOM(raw []byte) []byte {
 
 func capAndSort(in []Violation, truncated *bool, side string) []Violation {
 	sort.SliceStable(in, func(i, j int) bool {
-		if in[i].Side != in[j].Side {
-			return in[i].Side < in[j].Side
-		}
-		if in[i].Pointer != in[j].Pointer {
-			return in[i].Pointer < in[j].Pointer
-		}
-		return in[i].Keyword < in[j].Keyword
+		return violationMoreSpecific(in[i], in[j])
 	})
 	if len(in) <= MaxFindings {
 		return in

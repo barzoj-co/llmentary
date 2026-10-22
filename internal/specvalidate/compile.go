@@ -43,6 +43,15 @@ type Engine struct {
 	relaxedRespResp *jsonschema.Schema
 	relaxedRespSSE  *jsonschema.Schema
 
+	// knownReq is profile|apiFamily → declared properties on request objects.
+	knownReq map[string]objectProps
+	knownVar map[string]map[string]*discVariants
+	// knownResp / knownRespStream are the same key for response roots.
+	knownResp          map[string]objectProps
+	knownRespVar       map[string]map[string]*discVariants
+	knownRespStream    map[string]objectProps
+	knownRespStreamVar map[string]map[string]*discVariants
+
 	overlay Overlay
 }
 
@@ -139,6 +148,42 @@ func (e *Engine) compileProfile(spec map[string]any, profile string) error {
 	if err != nil {
 		return err
 	}
+	if e.knownReq == nil {
+		e.knownReq = map[string]objectProps{}
+	}
+	if e.knownVar == nil {
+		e.knownVar = map[string]map[string]*discVariants{}
+	}
+	if e.knownResp == nil {
+		e.knownResp = map[string]objectProps{}
+	}
+	if e.knownRespVar == nil {
+		e.knownRespVar = map[string]map[string]*discVariants{}
+	}
+	if e.knownRespStream == nil {
+		e.knownRespStream = map[string]objectProps{}
+	}
+	if e.knownRespStreamVar == nil {
+		e.knownRespStreamVar = map[string]map[string]*discVariants{}
+	}
+	chatUnion, chatVar := collectKnownBundle(spec, chatRequest)
+	respUnion, respVar := collectKnownBundle(spec, respRequest)
+	e.knownReq[profile+"|openai.chat"] = chatUnion
+	e.knownReq[profile+"|openai.responses"] = respUnion
+	e.knownVar[profile+"|openai.chat"] = chatVar
+	e.knownVar[profile+"|openai.responses"] = respVar
+	chatRespUnion, chatRespVar := collectKnownBundle(spec, chatResponse)
+	respRespUnion, respRespVar := collectKnownBundle(spec, respResponse)
+	e.knownResp[profile+"|openai.chat"] = chatRespUnion
+	e.knownResp[profile+"|openai.responses"] = respRespUnion
+	e.knownRespVar[profile+"|openai.chat"] = chatRespVar
+	e.knownRespVar[profile+"|openai.responses"] = respRespVar
+	chatSSEUnion, chatSSEVar := collectKnownBundle(spec, chatStream)
+	respSSEUnion, respSSEVar := collectKnownBundle(spec, respStream)
+	e.knownRespStream[profile+"|openai.chat"] = chatSSEUnion
+	e.knownRespStream[profile+"|openai.responses"] = respSSEUnion
+	e.knownRespStreamVar[profile+"|openai.chat"] = chatSSEVar
+	e.knownRespStreamVar[profile+"|openai.responses"] = respSSEVar
 	switch profile {
 	case ProfileStrict:
 		e.strictChatReq, e.strictRespReq = chatReq, respReq
