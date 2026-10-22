@@ -3,6 +3,7 @@
 package proxy_test
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -308,15 +309,20 @@ func TestClientCancelStillAbortedNotUpstreamDrop(t *testing.T) {
 			errCh <- err
 			return
 		}
-		buf := make([]byte, 256)
-		n, readErr := res.Body.Read(buf)
-		if n == 0 {
-			_ = res.Body.Close()
+		var got []byte
+		buf := make([]byte, 64)
+		for !bytes.Contains(got, []byte("\n\n")) {
+			n, readErr := res.Body.Read(buf)
+			got = append(got, buf[:n]...)
 			if readErr != nil {
-				errCh <- readErr
+				_ = res.Body.Close()
+				errCh <- fmt.Errorf("incomplete SSE frame %q: %w", got, readErr)
 				return
 			}
-			errCh <- fmt.Errorf("empty first frame")
+		}
+		if !bytes.Contains(got, []byte("Hello")) {
+			_ = res.Body.Close()
+			errCh <- fmt.Errorf("first SSE frame missing Hello: %q", got)
 			return
 		}
 		close(gotFrame)
