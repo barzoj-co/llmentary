@@ -155,3 +155,19 @@ other sessions, and it cannot tell which one leaked.
 in the text). Keep the shared canned question only for the parallel
 same-scenario check (`A ⊥ B`). Then `C.isolated_from(A)` still fails and
 `C.isolated_from(B)` passes.
+
+## Client README contract
+
+This page plus [`testdata/isolation/`](../testdata/isolation/README.md) are
+the source of truth. Each client README must link both so a Go / Python /
+JS user does not have to open the npm pack to find the rules:
+
+| Client | README must link |
+|---|---|
+| [llmentary-go](https://github.com/barzoj-co/llmentary-go) | this spec and `testdata/isolation/` |
+| [llmentary-python](https://github.com/barzoj-co/llmentary-python) | this spec and `testdata/isolation/` |
+| [llmentary-js](https://github.com/barzoj-co/llmentary-js) | this spec and `testdata/isolation/` |
+
+The proxy [README](../README.md) already links the spec and the vectors
+path. Client repositories vendor the JSON files and fail CI if the copy
+drifts from the pinned proxy version.

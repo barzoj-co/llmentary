@@ -117,7 +117,7 @@ JS/TS tests `import { llmentary } from "llmentary/vitest"` or
 ## Documentation
 
 - [Black-box and sidecar setups](docs/black-box.md)
-- [Isolation spec](docs/isolation-spec.md)
+- [Isolation spec](docs/isolation-spec.md) ([vectors](testdata/isolation/))
 - [Assertions: trace vs free text](docs/assertions-guide.md)
 - [Proxy configuration and control API](docs/proxy.md)
 - [Provider compatibility and SDK wiring](docs/providers.md)
