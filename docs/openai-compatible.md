@@ -80,12 +80,17 @@ as `Authorization`.
 Target `openai` is the closed-world OpenAI schema: unknown fields and
 OpenAI-invalid enum values reject in enforce.
 
-Target `openai-compatible` still type-checks known OpenAI fields. It does **not**
-400 vendor fields that compatible hosts accept or require.
+Target `openai-compatible` type-rejects a core subset of known OpenAI fields:
+`model`, `messages`, `tools`, `max_tokens`, `max_completion_tokens`,
+`temperature`, `top_p`, `n`, `stream`, `presence_penalty`, `frequency_penalty`,
+`seed`, message `role`, and incompatible message `content` types. It does **not**
+400 vendor fields that compatible hosts accept or require. Other OpenAI-schema
+fields with a wrong type are forwarded as warnings.
 
 | Request finding | `openai` + enforce | `openai-compatible` + enforce |
 |---|---|---|
-| Known-field type / required (`"max_tokens":"16"`, `"messages":"hi"`, missing user `content`) | local 400, upstream not called | local 400, upstream not called |
+| Core known-field type / required (`"max_tokens":"16"`, `"messages":"hi"`, missing user `content`) | local 400, upstream not called | local 400, upstream not called |
+| Other OpenAI-schema field type (`"top_logprobs":"5"`) | local 400, upstream not called | forwarded; `spec_violations` with `severity=warning` |
 | Duplicate keys, UTF-8 BOM, trailing data | local 400 | local 400 |
 | Unknown properties (`thinking`, `top_k`, `prefix`, `reasoning_content`, `reasoning_details`, `extra_content`, `extra_body`, …) | local 400 | forwarded; recorded as `ignored_fields` `kind=vendor_field`, `severity=info`, `action=report_only` |
 | Extended enums (`tool_choice:"any"`, …) | local 400 | forwarded; `spec_violations` with `severity=warning` |

@@ -67,6 +67,8 @@ func TestOpenAICompatibleGuidePinned(t *testing.T) {
 		"llmentary_unknown_path",
 		"v1beta",
 		"v1alpha",
+		"top_logprobs",
+		"Core known-field type",
 	} {
 		if !strings.Contains(text, n) {
 			t.Errorf("docs/openai-compatible.md missing %q", n)
@@ -236,6 +238,12 @@ func TestOpenAICompatibleGuideDeepSeekFakeUpstream(t *testing.T) {
 		body:   []byte(`{"model":"deepseek-chat","prompt":"def hello():"}`),
 		want:   http.StatusOK,
 		family: "passthrough",
+	}, postCase{
+		name:   "top_logprobs_string",
+		path:   "/s/weather/u/ds/v1/chat/completions",
+		body:   []byte(`{"model":"deepseek-chat","messages":[{"role":"user","content":"hi"}],"top_logprobs":"5"}`),
+		want:   http.StatusOK,
+		family: "openai.chat",
 	})
 
 	for _, tc := range cases {
