@@ -200,7 +200,7 @@ from an Azure-style `/deployments/{deployment}/...` path segment.
 | `usage` | Normalized token/cost usage. |
 | `content_filter` | Provider content-filter data when parsed. |
 | `error` | Normalized provider/proxy error. `error.source` is `upstream` when the error was parsed from an upstream HTTP or SSE body, and `proxy` for local rejects, network failures, and header/idle timeouts. Absence on `client_aborted` is expected. |
-| `stream_truncated` | Stream ended without a terminal marker/event. |
+| `stream_truncated` | Stream ended without a terminal marker/event. A clean chunked EOF without `[DONE]` sets this flag only. An abnormal upstream drop also records `error.normalized: stream_truncated` (`source: upstream`) and `finish_reason: error`. |
 | `client_aborted` | The client disconnected before the terminal stream event (`[DONE]`, or Responses `response.completed` / `response.failed` / `response.incomplete`), or cancelled the inbound request before response headers arrived. A close after a terminal event is not an abort. |
 | `parser_warnings` | Non-fatal parser warnings. |
 | `validation` | Present in `warn`/`enforce`. Mode, profile, optional `target` (`openai` / `openai-compatible`), spec SHA, subset retrieval date, checked flags, optional `skipped_reason`, `duration_us`, and `truncated`. Absent in `off`. |
@@ -307,9 +307,14 @@ and an HTTP `502`. An optional `--upstream-header-timeout` that fires records
 "upstream_timeout"`, `error.source: "proxy"`, and `upstream_called` from
 whether `httptrace.WroteRequest` fired, and
 returns that same OpenAI-shaped error to the client. An `--upstream-idle-timeout`
-that fires after headers keeps the upstream `http_status` (usually `200`), sets
+that fires after headers keeps the upstream `http_status` (usually `200`),
+aborts the client connection after flushing partial bytes, sets
 `stream_truncated` on an incomplete SSE stream, and records
-`error.normalized: "upstream_idle_timeout"` with `mid_stream: false`. A client cancel before response headers sets
+`error.normalized: "upstream_idle_timeout"` with `mid_stream: false`.
+An upstream drop before the chunked terminator or `Content-Length` is
+complete is the same abort toward the client and records
+`error.normalized: "stream_truncated"`, `error.source: "upstream"`,
+and `finish_reason: "error"`. A client cancel before response headers sets
 `finish_reason: "cancelled"`, `client_aborted: true`, `http_status: 0`,
 `error.normalized: "client_aborted"`, and `stream` from the request body. The
 parser is not run on that empty body, so there is no "strict decode failed"

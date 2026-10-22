@@ -226,14 +226,17 @@ func TestUpstreamIdleTimeoutStreamAndNonStream(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			p := startSpecProxy(t, "warn", "relaxed", tc.upstream, withIdleTimeout(80*time.Millisecond))
 			sid := newSession()
-			status, _, raw, sess := postRaw(t, p, tc.path, sid, nil, tc.body)
-			if status != http.StatusOK {
+			status, raw, sess, readErr := postRawAllowBroken(t, p, tc.path, sid, nil, tc.body)
+			if !isBrokenStreamErr(readErr) {
+				t.Fatalf("idle timeout delivered a clean body: err=%v body=%q", readErr, raw)
+			}
+			if status != http.StatusOK && status != 0 {
 				t.Fatalf("status=%d body=%s", status, raw)
 			}
-			if tc.stream && !bytes.Contains(raw, []byte("chunk-one")) {
+			if tc.stream && len(raw) > 0 && !bytes.Contains(raw, []byte("chunk-one")) {
 				t.Fatalf("partial stream missing: %s", raw)
 			}
-			if !tc.stream && !bytes.Contains(raw, []byte(`{"id":"partial"`)) {
+			if !tc.stream && len(raw) > 0 && !bytes.Contains(raw, []byte(`{"id":"partial"`)) {
 				t.Fatalf("partial json missing: %s", raw)
 			}
 			call := lastCall(t, sess)

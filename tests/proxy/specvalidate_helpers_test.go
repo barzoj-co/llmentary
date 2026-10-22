@@ -3,9 +3,11 @@
 package proxy_test
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -14,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -44,6 +47,14 @@ func (c *capturingWriter) Flush() {
 	if f, ok := c.ResponseWriter.(http.Flusher); ok {
 		f.Flush()
 	}
+}
+
+func (c *capturingWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	hj, ok := c.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, fmt.Errorf("no hijack")
+	}
+	return hj.Hijack()
 }
 
 func (f *fakeUpstream) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -177,6 +188,47 @@ func postRaw(t *testing.T, p proxyProc, path, session string, headers map[string
 		t.Fatal(err)
 	}
 	return status, respHeaders, respBody, trace
+}
+
+// postRawAllowBroken reads the proxy response even when the upstream (or
+// idle timeout) aborted the body. Headers and the recorded call are still
+// returned so tests can assert a broken stream plus the stored error.
+func postRawAllowBroken(t *testing.T, p proxyProc, path, session string, headers map[string]string, body []byte) (status int, respBody []byte, trace map[string]any, readErr error) {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodPost, p.proxyURL+path, bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(proxy.SessionHeaderName, session)
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	client := &http.Client{Transport: &http.Transport{DisableCompression: true}}
+	res, err := client.Do(req)
+	if err != nil {
+		trace = waitMinCalls(t, p.controlURL, session, 1)
+		return 0, nil, trace, err
+	}
+	status = res.StatusCode
+	respBody, readErr = io.ReadAll(res.Body)
+	_ = res.Body.Close()
+	trace = waitMinCalls(t, p.controlURL, session, 1)
+	return status, respBody, trace, readErr
+}
+
+func isBrokenStreamErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, io.ErrUnexpectedEOF) {
+		return true
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "unexpected EOF") ||
+		strings.Contains(msg, "incomplete chunked") ||
+		strings.Contains(msg, "connection reset") ||
+		strings.Contains(msg, "EOF")
 }
 
 func lastCallErr(session map[string]any) (map[string]any, error) {
