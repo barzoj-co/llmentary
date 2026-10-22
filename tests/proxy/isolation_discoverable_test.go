@@ -25,12 +25,12 @@ func TestIsolationSpecIsDiscoverable(t *testing.T) {
 	}
 
 	readmeText := string(readme)
-	for _, n := range []string{
-		"[Isolation spec](docs/isolation-spec.md)",
+	for _, dest := range []string{
+		"docs/isolation-spec.md",
 		"testdata/isolation/",
 	} {
-		if !strings.Contains(readmeText, n) {
-			t.Errorf("README.md missing %q", n)
+		if !hasMarkdownDest(readmeText, dest) {
+			t.Errorf("README.md missing markdown link to %q", dest)
 		}
 	}
 
@@ -38,28 +38,38 @@ func TestIsolationSpecIsDiscoverable(t *testing.T) {
 	for _, n := range []string{
 		"allow_empty",
 		"introduced",
-		"testdata/isolation/",
 		"## Client README contract",
 		"https://github.com/barzoj-co/llmentary-go",
 		"https://github.com/barzoj-co/llmentary-python",
 		"https://github.com/barzoj-co/llmentary-js",
-		"[README](../README.md)",
 	} {
 		if !strings.Contains(specText, n) {
 			t.Errorf("docs/isolation-spec.md missing %q", n)
 		}
 	}
-
-	vecText := string(vectors)
-	for _, n := range []string{
-		"docs/isolation-spec.md",
-		"llmentary-go",
-		"llmentary-python",
-		"llmentary-js",
-		"README.md",
+	for _, dest := range []string{
+		"../testdata/isolation/README.md",
+		"../README.md",
 	} {
-		if !strings.Contains(vecText, n) {
-			t.Errorf("testdata/isolation/README.md missing %q", n)
+		if !hasMarkdownDest(specText, dest) {
+			t.Errorf("docs/isolation-spec.md missing markdown link to %q", dest)
 		}
 	}
+
+	vecText := string(vectors)
+	for _, dest := range []string{
+		"../../docs/isolation-spec.md",
+		"../../README.md",
+		"https://github.com/barzoj-co/llmentary-go",
+		"https://github.com/barzoj-co/llmentary-python",
+		"https://github.com/barzoj-co/llmentary-js",
+	} {
+		if !hasMarkdownDest(vecText, dest) {
+			t.Errorf("testdata/isolation/README.md missing markdown link to %q", dest)
+		}
+	}
+}
+
+func hasMarkdownDest(text, dest string) bool {
+	return strings.Contains(text, "]("+dest+")") || strings.Contains(text, "]("+dest+"#")
 }
