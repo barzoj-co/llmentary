@@ -1,0 +1,3955 @@
+[
+  {
+    "id": "deepseek/chat.json.top_k/compat/enforce/relaxed",
+    "provider": "deepseek",
+    "surface": "chat.json",
+    "mode": "enforce",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-deepseek",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "top_k": 20
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "deepseek/chat.json.top_k/openai/enforce/relaxed",
+    "provider": "deepseek",
+    "surface": "chat.json",
+    "mode": "enforce",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-deepseek",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "top_k": 20
+    },
+    "want": {
+      "status": 400,
+      "upstream_called": false,
+      "spec": "findings",
+      "reject": true
+    }
+  },
+  {
+    "id": "deepseek/chat.json/compat/enforce/relaxed",
+    "provider": "deepseek",
+    "surface": "chat.json",
+    "mode": "enforce",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-deepseek",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "deepseek/chat.json/compat/warn/relaxed",
+    "provider": "deepseek",
+    "surface": "chat.json",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-deepseek",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "deepseek/chat.json/openai/enforce/relaxed",
+    "provider": "deepseek",
+    "surface": "chat.json",
+    "mode": "enforce",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-deepseek",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "deepseek/chat.json/openai/warn/relaxed",
+    "provider": "deepseek",
+    "surface": "chat.json",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-deepseek",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "deepseek/chat.sse/compat/warn/relaxed",
+    "provider": "deepseek",
+    "surface": "chat.sse",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-deepseek",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "stream": true
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "deepseek/chat.sse/openai/warn/relaxed",
+    "provider": "deepseek",
+    "surface": "chat.sse",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-deepseek",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "stream": true
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "deepseek/chat.tool_result/compat/warn/relaxed",
+    "provider": "deepseek",
+    "surface": "chat.tool_result",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-deepseek",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "call_1",
+              "type": "function",
+              "function": {
+                "name": "get_weather",
+                "arguments": "{\"city\":\"Paris\"}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "call_1",
+          "content": "22C"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "deepseek/chat.tool_result/openai/warn/relaxed",
+    "provider": "deepseek",
+    "surface": "chat.tool_result",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-deepseek",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "call_1",
+              "type": "function",
+              "function": {
+                "name": "get_weather",
+                "arguments": "{\"city\":\"Paris\"}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "call_1",
+          "content": "22C"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "deepseek/chat.tools/compat/warn/relaxed",
+    "provider": "deepseek",
+    "surface": "chat.tools",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-deepseek",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "get_weather",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "deepseek/chat.tools/openai/warn/relaxed",
+    "provider": "deepseek",
+    "surface": "chat.tools",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-deepseek",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "get_weather",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "deepseek/responses.json/compat/enforce/relaxed",
+    "provider": "deepseek",
+    "surface": "responses.json",
+    "mode": "enforce",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-deepseek",
+      "input": "hi"
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "deepseek/responses.json/compat/warn/relaxed",
+    "provider": "deepseek",
+    "surface": "responses.json",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-deepseek",
+      "input": "hi"
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "deepseek/responses.json/openai/enforce/relaxed",
+    "provider": "deepseek",
+    "surface": "responses.json",
+    "mode": "enforce",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-deepseek",
+      "input": "hi"
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "deepseek/responses.json/openai/warn/relaxed",
+    "provider": "deepseek",
+    "surface": "responses.json",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-deepseek",
+      "input": "hi"
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "deepseek/responses.sse/compat/warn/relaxed",
+    "provider": "deepseek",
+    "surface": "responses.sse",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-deepseek",
+      "input": "hi",
+      "stream": true
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "deepseek/responses.sse/openai/warn/relaxed",
+    "provider": "deepseek",
+    "surface": "responses.sse",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-deepseek",
+      "input": "hi",
+      "stream": true
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "fixture/chat.json/compat/enforce/relaxed",
+    "provider": "fixture",
+    "surface": "chat.json",
+    "mode": "enforce",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-fixture",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "fixture/chat.json/compat/warn/relaxed",
+    "provider": "fixture",
+    "surface": "chat.json",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-fixture",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "fixture/chat.json/openai/enforce/relaxed",
+    "provider": "fixture",
+    "surface": "chat.json",
+    "mode": "enforce",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-fixture",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "fixture/chat.json/openai/warn/relaxed",
+    "provider": "fixture",
+    "surface": "chat.json",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-fixture",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "fixture/chat.sse/compat/warn/relaxed",
+    "provider": "fixture",
+    "surface": "chat.sse",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-fixture",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "stream": true
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "fixture/chat.sse/openai/warn/relaxed",
+    "provider": "fixture",
+    "surface": "chat.sse",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-fixture",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "stream": true
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "fixture/chat.tool_result/compat/warn/relaxed",
+    "provider": "fixture",
+    "surface": "chat.tool_result",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-fixture",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "call_1",
+              "type": "function",
+              "function": {
+                "name": "get_weather",
+                "arguments": "{\"city\":\"Paris\"}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "call_1",
+          "content": "22C"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "fixture/chat.tool_result/openai/warn/relaxed",
+    "provider": "fixture",
+    "surface": "chat.tool_result",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-fixture",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "call_1",
+              "type": "function",
+              "function": {
+                "name": "get_weather",
+                "arguments": "{\"city\":\"Paris\"}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "call_1",
+          "content": "22C"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "fixture/chat.tools/compat/warn/relaxed",
+    "provider": "fixture",
+    "surface": "chat.tools",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-fixture",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "get_weather",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "fixture/chat.tools/openai/warn/relaxed",
+    "provider": "fixture",
+    "surface": "chat.tools",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-fixture",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "get_weather",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "fixture/responses.json/compat/enforce/relaxed",
+    "provider": "fixture",
+    "surface": "responses.json",
+    "mode": "enforce",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-fixture",
+      "input": "hi"
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "fixture/responses.json/compat/warn/relaxed",
+    "provider": "fixture",
+    "surface": "responses.json",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-fixture",
+      "input": "hi"
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "fixture/responses.json/openai/enforce/relaxed",
+    "provider": "fixture",
+    "surface": "responses.json",
+    "mode": "enforce",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-fixture",
+      "input": "hi"
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "fixture/responses.json/openai/warn/relaxed",
+    "provider": "fixture",
+    "surface": "responses.json",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-fixture",
+      "input": "hi"
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "fixture/responses.sse/compat/warn/relaxed",
+    "provider": "fixture",
+    "surface": "responses.sse",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-fixture",
+      "input": "hi",
+      "stream": true
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "fixture/responses.sse/openai/warn/relaxed",
+    "provider": "fixture",
+    "surface": "responses.sse",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-fixture",
+      "input": "hi",
+      "stream": true
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "gemini/chat.json.top_k/compat/enforce/relaxed",
+    "provider": "gemini",
+    "surface": "chat.json",
+    "mode": "enforce",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-gemini",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "top_k": 20
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "gemini/chat.json.top_k/openai/enforce/relaxed",
+    "provider": "gemini",
+    "surface": "chat.json",
+    "mode": "enforce",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-gemini",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "top_k": 20
+    },
+    "want": {
+      "status": 400,
+      "upstream_called": false,
+      "spec": "findings",
+      "reject": true
+    }
+  },
+  {
+    "id": "gemini/chat.json/compat/enforce/relaxed",
+    "provider": "gemini",
+    "surface": "chat.json",
+    "mode": "enforce",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-gemini",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "gemini/chat.json/compat/warn/relaxed",
+    "provider": "gemini",
+    "surface": "chat.json",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-gemini",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "gemini/chat.json/openai/enforce/relaxed",
+    "provider": "gemini",
+    "surface": "chat.json",
+    "mode": "enforce",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-gemini",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "gemini/chat.json/openai/warn/relaxed",
+    "provider": "gemini",
+    "surface": "chat.json",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-gemini",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "gemini/chat.sse/compat/warn/relaxed",
+    "provider": "gemini",
+    "surface": "chat.sse",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-gemini",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "stream": true
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "gemini/chat.sse/openai/warn/relaxed",
+    "provider": "gemini",
+    "surface": "chat.sse",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-gemini",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "stream": true
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "gemini/chat.tool_result/compat/warn/relaxed",
+    "provider": "gemini",
+    "surface": "chat.tool_result",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-gemini",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "call_1",
+              "type": "function",
+              "function": {
+                "name": "get_weather",
+                "arguments": "{\"city\":\"Paris\"}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "call_1",
+          "content": "22C"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "gemini/chat.tool_result/openai/warn/relaxed",
+    "provider": "gemini",
+    "surface": "chat.tool_result",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-gemini",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "call_1",
+              "type": "function",
+              "function": {
+                "name": "get_weather",
+                "arguments": "{\"city\":\"Paris\"}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "call_1",
+          "content": "22C"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "gemini/chat.tools/compat/warn/relaxed",
+    "provider": "gemini",
+    "surface": "chat.tools",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-gemini",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "get_weather",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "gemini/chat.tools/openai/warn/relaxed",
+    "provider": "gemini",
+    "surface": "chat.tools",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-gemini",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "get_weather",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "gemini/responses.json/compat/enforce/relaxed",
+    "provider": "gemini",
+    "surface": "responses.json",
+    "mode": "enforce",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-gemini",
+      "input": "hi"
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "gemini/responses.json/compat/warn/relaxed",
+    "provider": "gemini",
+    "surface": "responses.json",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-gemini",
+      "input": "hi"
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "gemini/responses.json/openai/enforce/relaxed",
+    "provider": "gemini",
+    "surface": "responses.json",
+    "mode": "enforce",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-gemini",
+      "input": "hi"
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "gemini/responses.json/openai/warn/relaxed",
+    "provider": "gemini",
+    "surface": "responses.json",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-gemini",
+      "input": "hi"
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "gemini/responses.sse/compat/warn/relaxed",
+    "provider": "gemini",
+    "surface": "responses.sse",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-gemini",
+      "input": "hi",
+      "stream": true
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "gemini/responses.sse/openai/warn/relaxed",
+    "provider": "gemini",
+    "surface": "responses.sse",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-gemini",
+      "input": "hi",
+      "stream": true
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "groq/chat.json.top_k/compat/enforce/relaxed",
+    "provider": "groq",
+    "surface": "chat.json",
+    "mode": "enforce",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-groq",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "top_k": 20
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "groq/chat.json.top_k/openai/enforce/relaxed",
+    "provider": "groq",
+    "surface": "chat.json",
+    "mode": "enforce",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-groq",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "top_k": 20
+    },
+    "want": {
+      "status": 400,
+      "upstream_called": false,
+      "spec": "findings",
+      "reject": true
+    }
+  },
+  {
+    "id": "groq/chat.json/compat/enforce/relaxed",
+    "provider": "groq",
+    "surface": "chat.json",
+    "mode": "enforce",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-groq",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "groq/chat.json/compat/warn/relaxed",
+    "provider": "groq",
+    "surface": "chat.json",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-groq",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "groq/chat.json/openai/enforce/relaxed",
+    "provider": "groq",
+    "surface": "chat.json",
+    "mode": "enforce",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-groq",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "groq/chat.json/openai/warn/relaxed",
+    "provider": "groq",
+    "surface": "chat.json",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-groq",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "groq/chat.sse/compat/warn/relaxed",
+    "provider": "groq",
+    "surface": "chat.sse",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-groq",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "stream": true
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "groq/chat.sse/openai/warn/relaxed",
+    "provider": "groq",
+    "surface": "chat.sse",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-groq",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "stream": true
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "groq/chat.tool_result/compat/warn/relaxed",
+    "provider": "groq",
+    "surface": "chat.tool_result",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-groq",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "call_1",
+              "type": "function",
+              "function": {
+                "name": "get_weather",
+                "arguments": "{\"city\":\"Paris\"}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "call_1",
+          "content": "22C"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "groq/chat.tool_result/openai/warn/relaxed",
+    "provider": "groq",
+    "surface": "chat.tool_result",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-groq",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "call_1",
+              "type": "function",
+              "function": {
+                "name": "get_weather",
+                "arguments": "{\"city\":\"Paris\"}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "call_1",
+          "content": "22C"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "groq/chat.tools/compat/warn/relaxed",
+    "provider": "groq",
+    "surface": "chat.tools",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-groq",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "get_weather",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "groq/chat.tools/openai/warn/relaxed",
+    "provider": "groq",
+    "surface": "chat.tools",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-groq",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "get_weather",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "groq/responses.json/compat/enforce/relaxed",
+    "provider": "groq",
+    "surface": "responses.json",
+    "mode": "enforce",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-groq",
+      "input": "hi"
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "groq/responses.json/compat/warn/relaxed",
+    "provider": "groq",
+    "surface": "responses.json",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-groq",
+      "input": "hi"
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "groq/responses.json/openai/enforce/relaxed",
+    "provider": "groq",
+    "surface": "responses.json",
+    "mode": "enforce",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-groq",
+      "input": "hi"
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "groq/responses.json/openai/warn/relaxed",
+    "provider": "groq",
+    "surface": "responses.json",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-groq",
+      "input": "hi"
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "groq/responses.sse/compat/warn/relaxed",
+    "provider": "groq",
+    "surface": "responses.sse",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-groq",
+      "input": "hi",
+      "stream": true
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "groq/responses.sse/openai/warn/relaxed",
+    "provider": "groq",
+    "surface": "responses.sse",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-groq",
+      "input": "hi",
+      "stream": true
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "llamacpp/chat.json.top_k/compat/enforce/relaxed",
+    "provider": "llamacpp",
+    "surface": "chat.json",
+    "mode": "enforce",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-llamacpp",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "top_k": 20
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "llamacpp/chat.json.top_k/openai/enforce/relaxed",
+    "provider": "llamacpp",
+    "surface": "chat.json",
+    "mode": "enforce",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-llamacpp",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "top_k": 20
+    },
+    "want": {
+      "status": 400,
+      "upstream_called": false,
+      "spec": "findings",
+      "reject": true
+    }
+  },
+  {
+    "id": "llamacpp/chat.json/compat/enforce/relaxed",
+    "provider": "llamacpp",
+    "surface": "chat.json",
+    "mode": "enforce",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-llamacpp",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "llamacpp/chat.json/compat/warn/relaxed",
+    "provider": "llamacpp",
+    "surface": "chat.json",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-llamacpp",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "llamacpp/chat.json/openai/enforce/relaxed",
+    "provider": "llamacpp",
+    "surface": "chat.json",
+    "mode": "enforce",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-llamacpp",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "llamacpp/chat.json/openai/warn/relaxed",
+    "provider": "llamacpp",
+    "surface": "chat.json",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-llamacpp",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "llamacpp/chat.sse/compat/warn/relaxed",
+    "provider": "llamacpp",
+    "surface": "chat.sse",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-llamacpp",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "stream": true
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "llamacpp/chat.sse/openai/warn/relaxed",
+    "provider": "llamacpp",
+    "surface": "chat.sse",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-llamacpp",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "stream": true
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "llamacpp/chat.tool_result/compat/warn/relaxed",
+    "provider": "llamacpp",
+    "surface": "chat.tool_result",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-llamacpp",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "call_1",
+              "type": "function",
+              "function": {
+                "name": "get_weather",
+                "arguments": "{\"city\":\"Paris\"}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "call_1",
+          "content": "22C"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "llamacpp/chat.tool_result/openai/warn/relaxed",
+    "provider": "llamacpp",
+    "surface": "chat.tool_result",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-llamacpp",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "call_1",
+              "type": "function",
+              "function": {
+                "name": "get_weather",
+                "arguments": "{\"city\":\"Paris\"}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "call_1",
+          "content": "22C"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "llamacpp/chat.tools/compat/warn/relaxed",
+    "provider": "llamacpp",
+    "surface": "chat.tools",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-llamacpp",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "get_weather",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "llamacpp/chat.tools/openai/warn/relaxed",
+    "provider": "llamacpp",
+    "surface": "chat.tools",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-llamacpp",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "get_weather",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "llamacpp/responses.json/compat/enforce/relaxed",
+    "provider": "llamacpp",
+    "surface": "responses.json",
+    "mode": "enforce",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-llamacpp",
+      "input": "hi"
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "llamacpp/responses.json/compat/warn/relaxed",
+    "provider": "llamacpp",
+    "surface": "responses.json",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-llamacpp",
+      "input": "hi"
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "llamacpp/responses.json/openai/enforce/relaxed",
+    "provider": "llamacpp",
+    "surface": "responses.json",
+    "mode": "enforce",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-llamacpp",
+      "input": "hi"
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "llamacpp/responses.json/openai/warn/relaxed",
+    "provider": "llamacpp",
+    "surface": "responses.json",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-llamacpp",
+      "input": "hi"
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "llamacpp/responses.sse/compat/warn/relaxed",
+    "provider": "llamacpp",
+    "surface": "responses.sse",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-llamacpp",
+      "input": "hi",
+      "stream": true
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "llamacpp/responses.sse/openai/warn/relaxed",
+    "provider": "llamacpp",
+    "surface": "responses.sse",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-llamacpp",
+      "input": "hi",
+      "stream": true
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "mistral/chat.json/compat/enforce/relaxed",
+    "provider": "mistral",
+    "surface": "chat.json",
+    "mode": "enforce",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-mistral",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "mistral/chat.json/compat/warn/relaxed",
+    "provider": "mistral",
+    "surface": "chat.json",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-mistral",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "mistral/chat.json/openai/enforce/relaxed",
+    "provider": "mistral",
+    "surface": "chat.json",
+    "mode": "enforce",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-mistral",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "mistral/chat.json/openai/warn/relaxed",
+    "provider": "mistral",
+    "surface": "chat.json",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-mistral",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "mistral/chat.sse/compat/warn/relaxed",
+    "provider": "mistral",
+    "surface": "chat.sse",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-mistral",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "stream": true
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "mistral/chat.sse/openai/warn/relaxed",
+    "provider": "mistral",
+    "surface": "chat.sse",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-mistral",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "stream": true
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "mistral/chat.tool_result/compat/warn/relaxed",
+    "provider": "mistral",
+    "surface": "chat.tool_result",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-mistral",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "call_1",
+              "type": "function",
+              "function": {
+                "name": "get_weather",
+                "arguments": "{\"city\":\"Paris\"}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "call_1",
+          "content": "22C"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "mistral/chat.tool_result/openai/warn/relaxed",
+    "provider": "mistral",
+    "surface": "chat.tool_result",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-mistral",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "call_1",
+              "type": "function",
+              "function": {
+                "name": "get_weather",
+                "arguments": "{\"city\":\"Paris\"}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "call_1",
+          "content": "22C"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "mistral/chat.tools/compat/warn/relaxed",
+    "provider": "mistral",
+    "surface": "chat.tools",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-mistral",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "get_weather",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "mistral/chat.tools/openai/warn/relaxed",
+    "provider": "mistral",
+    "surface": "chat.tools",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-mistral",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "get_weather",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "mistral/responses.json/compat/enforce/relaxed",
+    "provider": "mistral",
+    "surface": "responses.json",
+    "mode": "enforce",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-mistral",
+      "input": "hi"
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "mistral/responses.json/compat/warn/relaxed",
+    "provider": "mistral",
+    "surface": "responses.json",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-mistral",
+      "input": "hi"
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "mistral/responses.json/openai/enforce/relaxed",
+    "provider": "mistral",
+    "surface": "responses.json",
+    "mode": "enforce",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-mistral",
+      "input": "hi"
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "mistral/responses.json/openai/warn/relaxed",
+    "provider": "mistral",
+    "surface": "responses.json",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-mistral",
+      "input": "hi"
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "mistral/responses.sse/compat/warn/relaxed",
+    "provider": "mistral",
+    "surface": "responses.sse",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-mistral",
+      "input": "hi",
+      "stream": true
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "mistral/responses.sse/openai/warn/relaxed",
+    "provider": "mistral",
+    "surface": "responses.sse",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-mistral",
+      "input": "hi",
+      "stream": true
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "ollama/chat.json.top_k/compat/enforce/relaxed",
+    "provider": "ollama",
+    "surface": "chat.json",
+    "mode": "enforce",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-ollama",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "top_k": 20
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "ollama/chat.json.top_k/openai/enforce/relaxed",
+    "provider": "ollama",
+    "surface": "chat.json",
+    "mode": "enforce",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-ollama",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "top_k": 20
+    },
+    "want": {
+      "status": 400,
+      "upstream_called": false,
+      "spec": "findings",
+      "reject": true
+    }
+  },
+  {
+    "id": "ollama/chat.json/compat/enforce/relaxed",
+    "provider": "ollama",
+    "surface": "chat.json",
+    "mode": "enforce",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-ollama",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "ollama/chat.json/compat/warn/relaxed",
+    "provider": "ollama",
+    "surface": "chat.json",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-ollama",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "ollama/chat.json/openai/enforce/relaxed",
+    "provider": "ollama",
+    "surface": "chat.json",
+    "mode": "enforce",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-ollama",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "ollama/chat.json/openai/warn/relaxed",
+    "provider": "ollama",
+    "surface": "chat.json",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-ollama",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "ollama/chat.sse/compat/warn/relaxed",
+    "provider": "ollama",
+    "surface": "chat.sse",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-ollama",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "stream": true
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "ollama/chat.sse/openai/warn/relaxed",
+    "provider": "ollama",
+    "surface": "chat.sse",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-ollama",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "stream": true
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "ollama/chat.tool_result/compat/warn/relaxed",
+    "provider": "ollama",
+    "surface": "chat.tool_result",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-ollama",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "call_1",
+              "type": "function",
+              "function": {
+                "name": "get_weather",
+                "arguments": "{\"city\":\"Paris\"}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "call_1",
+          "content": "22C"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "ollama/chat.tool_result/openai/warn/relaxed",
+    "provider": "ollama",
+    "surface": "chat.tool_result",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-ollama",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "call_1",
+              "type": "function",
+              "function": {
+                "name": "get_weather",
+                "arguments": "{\"city\":\"Paris\"}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "call_1",
+          "content": "22C"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "ollama/chat.tools/compat/warn/relaxed",
+    "provider": "ollama",
+    "surface": "chat.tools",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-ollama",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "get_weather",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "ollama/chat.tools/openai/warn/relaxed",
+    "provider": "ollama",
+    "surface": "chat.tools",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-ollama",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "get_weather",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "ollama/responses.json/compat/enforce/relaxed",
+    "provider": "ollama",
+    "surface": "responses.json",
+    "mode": "enforce",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-ollama",
+      "input": "hi"
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "ollama/responses.json/compat/warn/relaxed",
+    "provider": "ollama",
+    "surface": "responses.json",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-ollama",
+      "input": "hi"
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "ollama/responses.json/openai/enforce/relaxed",
+    "provider": "ollama",
+    "surface": "responses.json",
+    "mode": "enforce",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-ollama",
+      "input": "hi"
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "ollama/responses.json/openai/warn/relaxed",
+    "provider": "ollama",
+    "surface": "responses.json",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-ollama",
+      "input": "hi"
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "ollama/responses.sse/compat/warn/relaxed",
+    "provider": "ollama",
+    "surface": "responses.sse",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-ollama",
+      "input": "hi",
+      "stream": true
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "ollama/responses.sse/openai/warn/relaxed",
+    "provider": "ollama",
+    "surface": "responses.sse",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-ollama",
+      "input": "hi",
+      "stream": true
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "openrouter/chat.json/compat/enforce/relaxed",
+    "provider": "openrouter",
+    "surface": "chat.json",
+    "mode": "enforce",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-openrouter",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "openrouter/chat.json/compat/warn/relaxed",
+    "provider": "openrouter",
+    "surface": "chat.json",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-openrouter",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "openrouter/chat.json/openai/enforce/relaxed",
+    "provider": "openrouter",
+    "surface": "chat.json",
+    "mode": "enforce",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-openrouter",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "openrouter/chat.json/openai/warn/relaxed",
+    "provider": "openrouter",
+    "surface": "chat.json",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-openrouter",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "openrouter/chat.sse/compat/warn/relaxed",
+    "provider": "openrouter",
+    "surface": "chat.sse",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-openrouter",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "stream": true
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "openrouter/chat.sse/openai/warn/relaxed",
+    "provider": "openrouter",
+    "surface": "chat.sse",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-openrouter",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "stream": true
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "openrouter/chat.tool_result/compat/warn/relaxed",
+    "provider": "openrouter",
+    "surface": "chat.tool_result",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-openrouter",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "call_1",
+              "type": "function",
+              "function": {
+                "name": "get_weather",
+                "arguments": "{\"city\":\"Paris\"}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "call_1",
+          "content": "22C"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "openrouter/chat.tool_result/openai/warn/relaxed",
+    "provider": "openrouter",
+    "surface": "chat.tool_result",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-openrouter",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "call_1",
+              "type": "function",
+              "function": {
+                "name": "get_weather",
+                "arguments": "{\"city\":\"Paris\"}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "call_1",
+          "content": "22C"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "openrouter/chat.tools/compat/warn/relaxed",
+    "provider": "openrouter",
+    "surface": "chat.tools",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-openrouter",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "get_weather",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "openrouter/chat.tools/openai/warn/relaxed",
+    "provider": "openrouter",
+    "surface": "chat.tools",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-openrouter",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "get_weather",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "openrouter/responses.json/compat/enforce/relaxed",
+    "provider": "openrouter",
+    "surface": "responses.json",
+    "mode": "enforce",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-openrouter",
+      "input": "hi"
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "openrouter/responses.json/compat/warn/relaxed",
+    "provider": "openrouter",
+    "surface": "responses.json",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-openrouter",
+      "input": "hi"
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "openrouter/responses.json/openai/enforce/relaxed",
+    "provider": "openrouter",
+    "surface": "responses.json",
+    "mode": "enforce",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-openrouter",
+      "input": "hi"
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "openrouter/responses.json/openai/warn/relaxed",
+    "provider": "openrouter",
+    "surface": "responses.json",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-openrouter",
+      "input": "hi"
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "openrouter/responses.sse/compat/warn/relaxed",
+    "provider": "openrouter",
+    "surface": "responses.sse",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-openrouter",
+      "input": "hi",
+      "stream": true
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "openrouter/responses.sse/openai/warn/relaxed",
+    "provider": "openrouter",
+    "surface": "responses.sse",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-openrouter",
+      "input": "hi",
+      "stream": true
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "together/chat.json/compat/enforce/relaxed",
+    "provider": "together",
+    "surface": "chat.json",
+    "mode": "enforce",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-together",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "together/chat.json/compat/warn/relaxed",
+    "provider": "together",
+    "surface": "chat.json",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-together",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "together/chat.json/openai/enforce/relaxed",
+    "provider": "together",
+    "surface": "chat.json",
+    "mode": "enforce",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-together",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "together/chat.json/openai/warn/relaxed",
+    "provider": "together",
+    "surface": "chat.json",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-together",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "together/chat.sse/compat/warn/relaxed",
+    "provider": "together",
+    "surface": "chat.sse",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-together",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "stream": true
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "together/chat.sse/openai/warn/relaxed",
+    "provider": "together",
+    "surface": "chat.sse",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-together",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "stream": true
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "together/chat.tool_result/compat/warn/relaxed",
+    "provider": "together",
+    "surface": "chat.tool_result",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-together",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "call_1",
+              "type": "function",
+              "function": {
+                "name": "get_weather",
+                "arguments": "{\"city\":\"Paris\"}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "call_1",
+          "content": "22C"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "together/chat.tool_result/openai/warn/relaxed",
+    "provider": "together",
+    "surface": "chat.tool_result",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-together",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "call_1",
+              "type": "function",
+              "function": {
+                "name": "get_weather",
+                "arguments": "{\"city\":\"Paris\"}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "call_1",
+          "content": "22C"
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "together/chat.tools/compat/warn/relaxed",
+    "provider": "together",
+    "surface": "chat.tools",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-together",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "get_weather",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "together/chat.tools/openai/warn/relaxed",
+    "provider": "together",
+    "surface": "chat.tools",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/chat/completions",
+    "request": {
+      "model": "compat-together",
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "get_weather",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "together/responses.json/compat/enforce/relaxed",
+    "provider": "together",
+    "surface": "responses.json",
+    "mode": "enforce",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-together",
+      "input": "hi"
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "together/responses.json/compat/warn/relaxed",
+    "provider": "together",
+    "surface": "responses.json",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-together",
+      "input": "hi"
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "together/responses.json/openai/enforce/relaxed",
+    "provider": "together",
+    "surface": "responses.json",
+    "mode": "enforce",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-together",
+      "input": "hi"
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "together/responses.json/openai/warn/relaxed",
+    "provider": "together",
+    "surface": "responses.json",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-together",
+      "input": "hi"
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  },
+  {
+    "id": "together/responses.sse/compat/warn/relaxed",
+    "provider": "together",
+    "surface": "responses.sse",
+    "mode": "warn",
+    "target": "openai-compatible",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-together",
+      "input": "hi",
+      "stream": true
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "clean"
+    }
+  },
+  {
+    "id": "together/responses.sse/openai/warn/relaxed",
+    "provider": "together",
+    "surface": "responses.sse",
+    "mode": "warn",
+    "target": "openai",
+    "profile": "relaxed",
+    "path": "/v1/responses",
+    "request": {
+      "model": "compat-together",
+      "input": "hi",
+      "stream": true
+    },
+    "want": {
+      "status": 200,
+      "upstream_called": true,
+      "spec": "findings"
+    }
+  }
+]

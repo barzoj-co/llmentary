@@ -3,7 +3,7 @@
 This guide is for a developer who already talks to an OpenAI-compatible
 upstream (DeepSeek, Gemini's OpenAI surface, OpenRouter, Groq, Mistral, Ollama,
 llama.cpp, vLLM, …) and wants `llmentary` in front of it. It matches v0.5.x
-(COMPAT-1..8). The proxy does not translate request or response
+(COMPAT-1..9). Fixture-verified rows live in [compat-matrix.md](compat-matrix.md). The proxy does not translate request or response
 formats. It forwards the body and auth headers unchanged and records a tee copy.
 
 What is validated in `--spec-validation enforce` depends on the per-upstream
