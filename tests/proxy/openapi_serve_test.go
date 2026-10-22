@@ -3,6 +3,9 @@
 package proxy_test
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -121,6 +124,53 @@ func TestGetOpenAPIYAML(t *testing.T) {
 	}
 }
 
+func TestServedOpenAPIMatchesStampedSHA256(t *testing.T) {
+	_, control, _ := startControl(t)
+	res, err := http.Get(control + "/openapi.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := io.ReadAll(res.Body)
+	_ = res.Body.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status=%d", res.StatusCode)
+	}
+	packaged, err := os.ReadFile(filepath.Join("..", "..", "api", "control", "openapi.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	stamped := proxy.StampOpenAPIVersion(packaged, proxy.VersionString())
+	gotSum := sha256.Sum256(got)
+	wantSum := sha256.Sum256(stamped)
+	if gotSum != wantSum {
+		t.Fatalf("served sha256=%s stamped sha256=%s", hex.EncodeToString(gotSum[:]), hex.EncodeToString(wantSum[:]))
+	}
+	if bytes.Equal(got, packaged) {
+		t.Fatal("served bytes unexpectedly match the raw packaged file")
+	}
+
+	packagedVer, err := proxy.OpenAPIInfoVersion(packaged)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sameVer := proxy.StampOpenAPIVersion(packaged, packagedVer)
+	comment := []byte(" # x-release-please-version")
+	wantSame := bytes.Replace(packaged, comment, nil, 1)
+	if !bytes.Equal(sameVer, wantSame) {
+		t.Fatal("normalized difference is not only the release-please comment")
+	}
+	if len(packaged)-len(sameVer) != len(comment) {
+		t.Fatalf("delta=%d want %d", len(packaged)-len(sameVer), len(comment))
+	}
+	rawSum := sha256.Sum256(packaged)
+	if rawSum == wantSum {
+		t.Fatal("raw packaged sha256 unexpectedly matches served")
+	}
+}
+
 func TestUnknownControlPathMentionsOpenAPI(t *testing.T) {
 	_, control, _ := startControl(t)
 	status, _, body := getJSON(t, control+"/nope")
@@ -130,6 +180,23 @@ func TestUnknownControlPathMentionsOpenAPI(t *testing.T) {
 	errObj, _ := body["error"].(map[string]any)
 	if !strings.Contains(fmtString(errObj["message"]), "/openapi.yaml") {
 		t.Fatalf("message=%v", errObj["message"])
+	}
+}
+
+func TestOpenAPIStampDifferenceDocumented(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "docs", "proxy.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(raw)
+	for _, n := range []string{
+		"StampOpenAPIVersion(packaged, version)",
+		"# x-release-please-version",
+		"sha256 of the stamped packaged file",
+	} {
+		if !strings.Contains(text, n) {
+			t.Errorf("docs/proxy.md missing %q", n)
+		}
 	}
 }
 
