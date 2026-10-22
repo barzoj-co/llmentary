@@ -162,6 +162,7 @@ func sanitizeURL(raw string) string {
 	if err != nil {
 		return raw
 	}
+	u.User = nil
 	q := u.Query()
 	for _, key := range []string{"key", "api_key", "sig", "signature"} {
 		for _, value := range q[key] {

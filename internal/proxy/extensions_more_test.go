@@ -64,6 +64,16 @@ func TestSanitizeURLAndParseLooseError(t *testing.T) {
 	if got == "https://api.example/v1?api_key=secret&keep=1" || !strings.Contains(got, "sha256") {
 		t.Fatalf("secret not hashed: %s", got)
 	}
+	withUser := sanitizeURL("https://user:hunter2@api.example/v1?api_key=secret")
+	if strings.Contains(withUser, "user") || strings.Contains(withUser, "hunter2") || strings.Contains(withUser, "@") {
+		t.Fatalf("userinfo leaked: %s", withUser)
+	}
+	if !strings.Contains(withUser, "sha256") {
+		t.Fatalf("query secret not hashed: %s", withUser)
+	}
+	if sanitizeURL("https://justuser@api.example/v1") != "https://api.example/v1" {
+		t.Fatalf("username-only userinfo: %s", sanitizeURL("https://justuser@api.example/v1"))
+	}
 	_ = sanitizeURL("http://[::1")
 	_ = sanitizeURL("%")
 	typ, code, msg, ok := parseLooseError(json.RawMessage(`{"type":"t","code":429,"message":"m"}`))

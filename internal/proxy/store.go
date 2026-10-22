@@ -358,8 +358,9 @@ func inFlightFromCall(call Call, now time.Time) InFlightCall {
 	if call.HTTPStatus > 0 || call.FirstByteAt != nil {
 		phase = InFlightPhaseStreaming
 	}
+	safeURL := sanitizeURL(call.Upstream.URL)
 	path := ""
-	if u, err := url.Parse(call.Upstream.URL); err == nil {
+	if u, err := url.Parse(safeURL); err == nil {
 		path = u.Path
 	}
 	item := InFlightCall{
@@ -368,7 +369,7 @@ func inFlightFromCall(call Call, now time.Time) InFlightCall {
 		Method:        call.Upstream.Method,
 		Path:          path,
 		APIFamily:     call.APIFamily,
-		Upstream:      call.Upstream.URL,
+		Upstream:      safeURL,
 		StartedAt:     call.StartedAt,
 		ElapsedMS:     0,
 		Phase:         phase,

@@ -9,6 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -201,13 +202,31 @@ func TestWaitInFlightCancelLeavesAbort(t *testing.T) {
 	cancel, done := startAsyncPOST(t, p.proxyURL+"/v1/responses", sid, []byte(`{"model":"gpt-fixture","input":"hi"}`))
 	waitUntilInFlightCount(t, p.controlURL, sid, 1)
 	waitDone := make(chan map[string]any, 1)
+	waitErr := make(chan error, 1)
 	go func() {
-		_, _, body := getJSON(t, p.controlURL+"/sessions/"+sid+"/wait?quiet=20ms&timeout=3s&min_calls=1")
+		res, err := http.Get(p.controlURL + "/sessions/" + sid + "/wait?quiet=20ms&timeout=3s&min_calls=1")
+		if err != nil {
+			waitErr <- err
+			return
+		}
+		defer res.Body.Close()
+		var body map[string]any
+		if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
+			waitErr <- err
+			return
+		}
 		waitDone <- body
 	}()
 	cancel()
 	<-done
-	body := <-waitDone
+	var body map[string]any
+	select {
+	case body = <-waitDone:
+	case err := <-waitErr:
+		t.Fatal(err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("wait request did not finish")
+	}
 	call := lastCall(t, body)
 	if call["client_aborted"] != true {
 		t.Fatalf("expected abort after cancel: %v", call)
@@ -393,7 +412,47 @@ func assertWaitTimeoutInFlight(t *testing.T, body map[string]any, active, callsS
 	if item == nil {
 		t.Fatal("in_flight[0] missing")
 	}
+	if fmtString(item["call_id"]) == "" {
+		t.Fatal("missing call_id")
+	}
+	if _, ok := item["id"]; ok {
+		t.Fatalf("legacy id key present: %v", item["id"])
+	}
 	return item
+}
+
+func TestWaitInFlightRedactsUpstreamUserinfo(t *testing.T) {
+	p := startSpecProxy(t, "off", "relaxed", stallBeforeHeaders(), func(cfg *proxy.Config) {
+		u := cfg.Upstreams["default"]
+		if u == nil {
+			t.Fatal("missing default upstream")
+		}
+		cloned, err := url.Parse(u.String())
+		if err != nil {
+			t.Fatal(err)
+		}
+		cloned.User = url.UserPassword("dog38", "hunter2-wait")
+		cfg.Upstreams["default"] = cloned
+	})
+	sid := newSession()
+	cancel, done := startAsyncPOST(t, p.proxyURL+"/v1/responses", sid, []byte(`{"model":"gpt-fixture","input":"hi"}`))
+	t.Cleanup(func() {
+		cancel()
+		<-done
+	})
+	waitUntilInFlightCount(t, p.controlURL, sid, 1)
+	status, _, body := getJSON(t, p.controlURL+"/sessions/"+sid+"/wait?quiet=20ms&timeout=200ms&min_calls=1")
+	if status != http.StatusGatewayTimeout {
+		t.Fatalf("status=%d body=%v", status, body)
+	}
+	item := assertWaitTimeoutInFlight(t, body, 1, 0, 1)
+	raw, _ := json.Marshal(body)
+	if strings.Contains(string(raw), "hunter2-wait") || strings.Contains(string(raw), "dog38") {
+		t.Fatalf("userinfo leaked: %s", raw)
+	}
+	if fmtString(item["path"]) != "/v1/responses" {
+		t.Fatalf("path=%v", item["path"])
+	}
 }
 
 func assertNoSecrets(t *testing.T, body map[string]any, log string) {

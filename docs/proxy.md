@@ -438,7 +438,7 @@ returns `404` `session_not_found` immediately, with the same error as
 `GET /sessions/{id}` plus `id` and `waited_ms`. `min_calls>=1` on a missing
 session keeps waiting until a call arrives or `timeout`, then `504`
 `wait_timeout` with `calls_seen:0`. When a call is still in flight the 504
-also has `error.active` and `error.in_flight` (id, path, started_at, phase).
+also has `error.active` and `error.in_flight` (call_id, path, started_at, phase).
 Use `min_calls` when a call is about to start and must be observed; `quiet`
 is not a grace period for that.
 

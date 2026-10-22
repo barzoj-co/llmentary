@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -476,6 +477,41 @@ func TestInFlightSnapshotOrderedAndHiddenFromLookup(t *testing.T) {
 	got = store.InFlight("s")
 	if len(got) != 1 || got[0].CallID != id2 {
 		t.Fatalf("after settle=%+v", got)
+	}
+}
+
+func TestInFlightFromCallCorners(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC)
+	future := now.Add(5 * time.Second)
+	fb := now.Add(-time.Millisecond)
+	item := inFlightFromCall(Call{
+		ID:          "call_x",
+		Seq:         3,
+		StartedAt:   future,
+		FirstByteAt: &fb,
+		HTTPStatus:  200,
+		Upstream:    Upstream{Method: httpMethodPost, URL: "https://user:hunter2@api.example/v1/chat?api_key=secret"},
+	}, now)
+	if item.Phase != InFlightPhaseStreaming {
+		t.Fatalf("phase=%s", item.Phase)
+	}
+	if item.ElapsedMS != 0 {
+		t.Fatalf("future start elapsed=%d", item.ElapsedMS)
+	}
+	if item.Path != "/v1/chat" {
+		t.Fatalf("path=%q", item.Path)
+	}
+	if strings.Contains(item.Upstream, "hunter2") || strings.Contains(item.Upstream, "user:") || strings.Contains(item.Upstream, "secret") {
+		t.Fatalf("credentials leaked: %s", item.Upstream)
+	}
+	bad := inFlightFromCall(Call{ID: "c", Upstream: Upstream{URL: "://%"}}, now)
+	if bad.Path != "" {
+		t.Fatalf("invalid url path=%q", bad.Path)
+	}
+	awaiting := inFlightFromCall(Call{ID: "c", StartedAt: now.Add(-time.Second), Upstream: Upstream{URL: "http://127.0.0.1/v1/x"}}, now)
+	if awaiting.Phase != InFlightPhaseAwaitingHeaders || awaiting.ElapsedMS < 1000 {
+		t.Fatalf("awaiting=%+v", awaiting)
 	}
 }
 
