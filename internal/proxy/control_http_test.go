@@ -265,6 +265,19 @@ func TestWriteWaitTimeoutEmptyCalls(t *testing.T) {
 	}
 }
 
+func TestWriteSessionNotFoundWait(t *testing.T) {
+	t.Parallel()
+	rec := httptest.NewRecorder()
+	writeSessionNotFoundWait(rec, "ghost", 12)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status=%d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "session_not_found") || !strings.Contains(body, "ghost") || !strings.Contains(body, `"waited_ms":12`) {
+		t.Fatalf("body=%s", body)
+	}
+}
+
 func intFromAny(v any) int {
 	switch n := v.(type) {
 	case float64:

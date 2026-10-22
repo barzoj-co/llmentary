@@ -102,3 +102,22 @@ func TestSanitizeURLAndParseLooseError(t *testing.T) {
 		t.Fatal("normalize default")
 	}
 }
+
+func TestRequestStreamFlagAndFirstJSONBytes(t *testing.T) {
+	t.Parallel()
+	if !requestStreamFlag([]byte(`{"stream":true}`)) {
+		t.Fatal("true")
+	}
+	if requestStreamFlag([]byte(`{"stream":false}`)) || requestStreamFlag([]byte(`{"stream":"yes"}`)) {
+		t.Fatal("non-true stream")
+	}
+	if requestStreamFlag([]byte(`not-json`)) {
+		t.Fatal("invalid")
+	}
+	if string(firstJSONBytes([]byte("not-json"))) != "not-json" {
+		t.Fatal("passthrough")
+	}
+	if string(firstJSONBytes([]byte("{\"a\":1} trailing"))) != `{"a":1}` {
+		t.Fatal("first object")
+	}
+}
