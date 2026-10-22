@@ -93,15 +93,19 @@ func (rt *validationRuntime) configJSON() map[string]any {
 	}
 }
 
-func (rt *validationRuntime) checkRequest(apiFamily, contentType, contentEncoding string, raw []byte) requestValidation {
+func (rt *validationRuntime) checkRequest(apiFamily, contentType, contentEncoding string, raw []byte, specTarget string) requestValidation {
 	var out requestValidation
 	out.warnings = requestDecodeWarnings(apiFamily, raw, contentType)
 	if rt == nil || rt.mode == specvalidate.ModeOff {
 		return out
 	}
+	if specTarget == "" {
+		specTarget = SpecTargetOpenAI
+	}
 	out.info = ValidationInfo{
 		Mode:                  rt.mode,
 		Profile:               rt.profile,
+		Target:                specTarget,
 		SpecSHA:               rt.engine.SpecSHA,
 		SchemaSubsetRetrieved: rt.engine.SubsetRetrieved,
 		RequestChecked:        true,
@@ -157,6 +161,7 @@ func (rt *validationRuntime) checkRequest(apiFamily, contentType, contentEncodin
 		lintRes.StrictViolations[i].Profile = rt.profile
 	}
 	out.violations = append(out.violations, lintRes.StrictViolations...)
+	out.violations, out.ignored = applySpecTarget(specTarget, out.violations, out.ignored)
 	out.reject, out.rejectKind = shouldReject(out.violations, out.ignored)
 	return out
 }
@@ -187,9 +192,13 @@ func (rt *validationRuntime) checkResponse(apiFamily string, status int, raw []b
 
 func shouldReject(violations []specvalidate.Violation, ignored []schemalint.Finding) (bool, string) {
 	for _, v := range violations {
-		if v.Side == specvalidate.SideRequest || v.Side == "" {
-			return true, "spec_violation"
+		if v.Side != specvalidate.SideRequest && v.Side != "" {
+			continue
 		}
+		if v.Severity == specvalidate.SeverityWarning || v.Severity == specvalidate.SeverityInfo {
+			continue
+		}
+		return true, "spec_violation"
 	}
 	for _, f := range ignored {
 		if f.Action == schemalint.ActionReject && f.Severity != schemalint.SeverityInfo {
@@ -231,6 +240,19 @@ func (s *Server) logSpecValidationStartup() {
 		"spec_sha", sha,
 		"max_bytes", maxBytes,
 	)
+	if s.cfg.Upstreams != nil {
+		for name, u := range s.cfg.Upstreams {
+			rawURL := ""
+			if u != nil {
+				rawURL = sanitizeURL(u.Redacted())
+			}
+			s.logger().Info("spec target",
+				"upstream", name,
+				"target", s.cfg.specTargetFor(name, u),
+				"url", rawURL,
+			)
+		}
+	}
 }
 
 func specLogValue(call Call, mode string) string {

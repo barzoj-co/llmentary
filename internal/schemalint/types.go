@@ -10,6 +10,7 @@ const (
 	KindUnsupportedFormat  = "unsupported_format_value"
 	KindSuspiciousEnum     = "suspicious_enum_values"
 	KindUnknownRequest     = "unknown_request_field"
+	KindVendorField        = "vendor_field"
 	KindStrictFallbackPred = "strict_fallback_predicted"
 	KindStrictFallback     = "strict_fallback"
 	KindUnresolvedRef      = "unresolved_ref"

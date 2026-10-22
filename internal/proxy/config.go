@@ -36,6 +36,9 @@ type Config struct {
 	SpecValidation         string
 	SpecProfile            string
 	SpecValidationMaxBytes int
+	// SpecTargets maps upstream name → openai | openai-compatible.
+	// Missing names use defaultSpecTarget on the upstream URL.
+	SpecTargets map[string]string
 	// SpecLogMax is the number of per-finding WARN lines after the summary.
 	// nil means DefaultSpecLogMax. 0 means the summary line only.
 	SpecLogMax        *int
@@ -54,6 +57,7 @@ func ConfigFromEnv() (Config, error) {
 		SpecValidation:         getenv("LLMENTARY_SPEC_VALIDATION", DefaultSpecValidation),
 		SpecProfile:            getenv("LLMENTARY_SPEC_PROFILE", DefaultSpecProfile),
 		SpecValidationMaxBytes: DefaultSpecValidationMaxBytes,
+		SpecTargets:            map[string]string{},
 		DefaultSession:         getenv("LLMENTARY_DEFAULT_SESSION", DefaultSessionID),
 		PropagateTrace:         getenv("LLMENTARY_PROPAGATE_TRACE", DefaultPropagateTrace),
 	}
@@ -86,14 +90,27 @@ func ConfigFromEnv() (Config, error) {
 		raw = strings.TrimSpace(os.Getenv("LLMENTARY_UPSTREAM"))
 	}
 	if raw == "" {
-		return cfg, nil
+		return cfg, parseSpecTargetsEnv(&cfg)
 	}
 	for _, item := range strings.Split(raw, ",") {
 		if err := cfg.AddUpstream(item); err != nil {
 			return cfg, err
 		}
 	}
-	return cfg, nil
+	return cfg, parseSpecTargetsEnv(&cfg)
+}
+
+func parseSpecTargetsEnv(cfg *Config) error {
+	raw := strings.TrimSpace(os.Getenv("LLMENTARY_SPEC_TARGETS"))
+	if raw == "" {
+		return nil
+	}
+	for _, item := range strings.Split(raw, ",") {
+		if err := cfg.AddSpecTarget(item); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (c *Config) AddUpstream(spec string) error {
@@ -153,6 +170,9 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("control API on non-loopback address %q requires --control-token or LLMENTARY_CONTROL_TOKEN", c.ControlAddr)
 	}
 	if err := validateSpecSettings(orDefault(c.SpecValidation, DefaultSpecValidation), orDefault(c.SpecProfile, DefaultSpecProfile), c.SpecValidationMaxBytes, specLogMaxValue(*c)); err != nil {
+		return err
+	}
+	if err := c.validateSpecTargets(); err != nil {
 		return err
 	}
 	if err := c.applyAttributionDefaults(); err != nil {

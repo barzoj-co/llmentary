@@ -102,6 +102,7 @@ func startSpecProxyStore(t *testing.T, store *proxy.MemoryStore, mode, profile s
 		ControlAddr:    "127.0.0.1:0",
 		SpecValidation: mode,
 		SpecProfile:    profile,
+		SpecTargets:    map[string]string{"default": proxy.SpecTargetOpenAI},
 	}
 	if err := cfg.AddUpstream("default=" + srv.URL); err != nil {
 		t.Fatal(err)

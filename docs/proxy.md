@@ -41,6 +41,7 @@ variables plus CLI flags.
 | `--control` | `LLMENTARY_CONTROL_LISTEN` | `127.0.0.1:7778` | Control API listen address. |
 | `--control-token` | `LLMENTARY_CONTROL_TOKEN` | empty | Bearer token required by the control API when set. Also required when the control listener is non-loopback. |
 | `--upstream` | `LLMENTARY_UPSTREAMS`, fallback `LLMENTARY_UPSTREAM` | `openai=https://api.openai.com/v1` | Upstream mapping. Repeat the flag or use comma-separated environment values. When omitted, the proxy logs `no upstream configured; defaulting to openai=https://api.openai.com/v1`. |
+| `--spec-target` | `LLMENTARY_SPEC_TARGETS` | host-based | Per-upstream spec target `name=openai` or `name=openai-compatible`. Repeatable. Default: `openai` for `api.openai.com` and Azure OpenAI hosts; `openai-compatible` for every other host (including localhost). Invalid values and unknown upstream names exit non-zero. |
 | `--tls` | none | `false` | Parsed by the CLI, but not wired to a TLS listener in the current code. |
 | `--spec-validation` | `LLMENTARY_SPEC_VALIDATION` | `warn` | Request spec validation mode: `off`, `warn`, or `enforce`. Invalid values exit non-zero. |
 | `--spec-profile` | `LLMENTARY_SPEC_PROFILE` | `relaxed` | Spec profile: `strict` (pinned spec + closed-world) or `relaxed` (strict plus `api/openai/relax-overlay.yaml`). |
@@ -524,8 +525,11 @@ Unsupported methods return `405` `{"error":{"type":"method_not_allowed"}}` with 
 Returns the effective spec-validation settings so clients can tell "validated, clean" from "not validated", plus the clean binary version:
 
 ```json
-{"spec_validation":"warn","spec_profile":"relaxed","spec_sha":"…","schema_subset_retrieved":"2026-10-18","upstreams":{"openai":"https://api.openai.com/v1"},"version":"0.3.0"}
+{"spec_validation":"warn","spec_profile":"relaxed","spec_sha":"…","schema_subset_retrieved":"2026-10-18","upstreams":{"openai":"https://api.openai.com/v1"},"spec_targets":{"openai":"openai"},"version":"0.3.0"}
 ```
+
+Startup logs one `spec target` line per upstream (`upstream`, `target`, `url`). The per-call
+trace records `normalized.validation.target`.
 
 ### `GET /version`
 
@@ -586,6 +590,18 @@ Identical findings (same side, keyword, pointer, message) on one call are stored
 | `off` | No compile, no run. `validation`, `spec_violations`, and `ignored_fields` are absent from the trace. |
 | `warn` (default) | Record findings and forward byte-for-byte. Arrays are always present (`[]` when clean). |
 | `enforce` | If there is a request-side `spec_violation` or a `reject_in_enforce` ignored field, the proxy answers a local 400 and does **not** call the upstream. Response-side findings never reject. |
+
+`--spec-target` selects how strictly those findings are applied per upstream.
+`openai` (default for `api.openai.com` and Azure OpenAI hosts) is today's closed-world
+OpenAI schema: unknown fields and OpenAI-invalid enum values reject in enforce.
+`openai-compatible` (default for every other host, including localhost) still
+type-checks known OpenAI fields, but unknown properties and commonly extended enums
+(`tool_choice`, `response_format.type`, `service_tier`) are forwarded. Unknown
+fields are recorded as `ignored_fields` with `kind=vendor_field`, `severity=info`,
+and `action=report_only`. Extended enums stay in `spec_violations` with
+`severity=warning` and do not reject. Duplicate keys, BOM rules, and known-field
+type errors are unchanged. Override the host default with
+`--spec-target name=openai` or `--spec-target name=openai-compatible`.
 
 Local enforce 400:
 

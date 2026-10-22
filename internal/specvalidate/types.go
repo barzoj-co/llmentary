@@ -21,6 +21,9 @@ const (
 	SourceSchema     = "schema"
 	SourceStrictMode = "strict_mode"
 
+	SeverityWarning = "warning"
+	SeverityInfo    = "info"
+
 	MaxFindings     = 200
 	MaxJSONDepth    = 128
 	DefaultMaxBytes = 8 << 20
@@ -45,6 +48,7 @@ type Violation struct {
 	Offset     *int   `json:"offset"`
 	EventIndex *int   `json:"event_index"`
 	Count      int    `json:"count,omitempty"`
+	Severity   string `json:"severity,omitempty"`
 }
 
 type Result struct {
