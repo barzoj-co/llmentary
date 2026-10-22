@@ -69,6 +69,8 @@ func TestOpenAICompatibleGuidePinned(t *testing.T) {
 		"v1alpha",
 		"top_logprobs",
 		"Core known-field type",
+		"Response-side `spec_violations`",
+		"`strict_fallback` is the exception",
 	} {
 		if !strings.Contains(text, n) {
 			t.Errorf("docs/openai-compatible.md missing %q", n)

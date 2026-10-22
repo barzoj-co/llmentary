@@ -95,7 +95,7 @@ fields with a wrong type are forwarded as warnings.
 | Unknown properties (`thinking`, `top_k`, `prefix`, `reasoning_content`, `reasoning_details`, `extra_content`, `extra_body`, …) | local 400 | forwarded; recorded as `ignored_fields` `kind=vendor_field`, `severity=info`, `action=report_only` |
 | Extended enums (`tool_choice:"any"`, …) | local 400 | forwarded; `spec_violations` with `severity=warning` |
 | OpenAI-only schema-keyword lints (`minLength`, `examples`, `oneOf`, `allOf`, unresolved `$ref`, Responses `strict_fallback_predicted`, …) | `reject_in_enforce` | rematched to `severity=info` / `report_only` (COMPAT-3) |
-| Response-side spec findings | recorded, never reject | recorded unchanged (see [Known gaps](#known-gaps-compat-7)) |
+| Response-side `spec_violations` | recorded, never reject | recorded unchanged (see [Known gaps](#known-gaps-compat-7)) |
 
 Unknown fields use hint
 `Forwarded to the upstream unchanged. This field is not in the OpenAI request schema.`
@@ -482,15 +482,20 @@ rematches them to `severity=info` / `report_only`:
 - `strict_fallback_predicted` / `strict_fallback`
 - `unresolved_ref`
 
-`default` on a schema is a structural keyword, not this rematch class. The
-compatible rematch is request-side only.
+`default` on a schema is a structural keyword, not this rematch class.
+Request-side OpenAI-only lints rematch as above. Response-side
+`ignored_fields` `strict_fallback` also rematches (see below); other
+response-side findings do not.
 
 ## Known gaps (COMPAT-7)
 
-Response-side spec findings are **not** rematched for `openai-compatible`.
+Response-side `spec_violations` are **not** rematched for `openai-compatible`.
 Compatible upstreams often omit or add response fields the pinned OpenAI
 schema does not expect, so `spec_violations` on the response can be noisy
-(`severity` stays as compiled; they never reject). COMPAT-7 is open.
+(`severity` stays as compiled; they never reject). Response-side
+`ignored_fields` `strict_fallback` is the exception: when a successful
+Responses body confirms a tool that omitted `strict`, rematching sets
+`severity=info` and `action=report_only`. COMPAT-7 is open.
 
 ## Client examples
 
