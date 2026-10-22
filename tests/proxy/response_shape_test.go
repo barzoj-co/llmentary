@@ -219,9 +219,10 @@ func TestResponseFindingsCapBothTargets(t *testing.T) {
 		{"openai", withOpenAITarget()},
 	} {
 		t.Run(opt.name, func(t *testing.T) {
+			logBuf := &syncLogBuf{}
 			p := startSpecProxy(t, "warn", "relaxed", chatJSONHandler(body), opt.fn, func(cfg *proxy.Config) {
 				cfg.SpecResponseFindingsMax = capN
-			})
+			}, withTestLogger(logBuf))
 			sid := newSession()
 			_, _, _, sess := postRaw(t, p, "/v1/chat/completions", sid, nil, chatJSONBody)
 			call := lastCall(t, sess)
@@ -243,6 +244,19 @@ func TestResponseFindingsCapBothTargets(t *testing.T) {
 			}
 			if !asBool(info["truncated"]) && !truncatedMarker {
 				t.Fatalf("expected truncated flag; info=%v vs=%v", info, vs)
+			}
+			spec := proxyResponseSpec(logBuf.String())
+			if opt.name == "compatible" {
+				if strings.HasPrefix(spec, "findings:") {
+					t.Fatalf("compatible overflow counted as WARN: spec=%s", spec)
+				}
+				_, _, listed := getJSON(t, p.controlURL+"/sessions")
+				sessSpec := sessionSpecFromList(t, listed, sid)
+				if asIntValue(sessSpec["findings"]) != 0 || asIntValue(sessSpec["clean"]) != 1 {
+					t.Fatalf("compatible overflow /sessions spec=%v want clean=1", sessSpec)
+				}
+			} else if !strings.HasPrefix(spec, "findings:") {
+				t.Fatalf("openai overflow should count: spec=%s", spec)
 			}
 		})
 	}

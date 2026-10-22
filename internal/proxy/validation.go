@@ -521,7 +521,7 @@ func snapshotAndCollapseViolations(call *Call) Call {
 	return logCopy
 }
 
-func capStoredResponseFindings(in []specvalidate.Violation, max int) ([]specvalidate.Violation, bool) {
+func capStoredResponseFindings(in []specvalidate.Violation, max int, target string) ([]specvalidate.Violation, bool) {
 	if max <= 0 {
 		max = DefaultSpecResponseFindingsMax
 	}
@@ -538,19 +538,28 @@ func capStoredResponseFindings(in []specvalidate.Violation, max int) ([]specvali
 		return append(append(out, req...), resp...), false
 	}
 	kept := append([]specvalidate.Violation(nil), resp[:max]...)
-	kept = append(kept, specvalidate.Violation{
+	marker := specvalidate.Violation{
 		Side:    specvalidate.SideResponse,
 		Source:  specvalidate.SourceSyntax,
 		Keyword: "truncated",
 		Message: "too many response findings",
 		Count:   len(resp),
-	})
+	}
+	if target == SpecTargetCompatible {
+		// Compatible response noise is info; the overflow marker must
+		// classify the same way so it stays out of spec=findings / WARN.
+		marker.Severity = specvalidate.SeverityInfo
+	}
+	kept = append(kept, marker)
 	return append(req, kept...), true
 }
 
-func mergeResponseValidation(call *Call, violations []specvalidate.Violation, extraIgnored []schemalint.Finding, duration int64, truncated bool, max int) {
+func mergeResponseValidation(call *Call, violations []specvalidate.Violation, extraIgnored []schemalint.Finding, duration int64, truncated bool, max int, target string) {
 	if call.Normalized.Validation == nil {
 		return
+	}
+	if target == "" {
+		target = call.Normalized.Validation.Target
 	}
 	call.Normalized.Validation.ResponseChecked = true
 	call.Normalized.Validation.DurationUS += duration
@@ -562,7 +571,7 @@ func mergeResponseValidation(call *Call, violations []specvalidate.Violation, ex
 		call.Normalized.SpecViolations = &empty
 	}
 	*call.Normalized.SpecViolations = append(*call.Normalized.SpecViolations, violations...)
-	capped, more := capStoredResponseFindings(*call.Normalized.SpecViolations, max)
+	capped, more := capStoredResponseFindings(*call.Normalized.SpecViolations, max, target)
 	*call.Normalized.SpecViolations = capped
 	if more {
 		call.Normalized.Validation.Truncated = true

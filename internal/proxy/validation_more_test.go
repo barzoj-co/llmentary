@@ -44,11 +44,11 @@ func TestGunzipSplitJSONAndMergeValidation(t *testing.T) {
 	}
 
 	call := &Call{Normalized: Normalized{Validation: &ValidationInfo{}}}
-	mergeResponseValidation(call, []specvalidate.Violation{{Keyword: "type"}}, []schemalint.Finding{{Key: "x"}}, 3, true, 50)
+	mergeResponseValidation(call, []specvalidate.Violation{{Keyword: "type"}}, []schemalint.Finding{{Key: "x"}}, 3, true, 50, SpecTargetOpenAI)
 	if !call.Normalized.Validation.ResponseChecked || !call.Normalized.Validation.Truncated {
 		t.Fatalf("%+v", call.Normalized.Validation)
 	}
-	mergeResponseValidation(&Call{}, nil, nil, 0, false, 50)
+	mergeResponseValidation(&Call{}, nil, nil, 0, false, 50, SpecTargetOpenAI)
 
 	warns := requestDecodeWarnings("openai.chat", []byte(`{}`), "application/json")
 	if len(warns) == 0 || !strings.Contains(warns[0], "messages") {
@@ -177,5 +177,92 @@ func TestParseChatHelpersAndSSEDelimiter(t *testing.T) {
 	}
 	if jsonField(json.RawMessage(`{`), "k") != nil {
 		t.Fatal("bad jsonField")
+	}
+}
+
+func TestCapStoredResponseFindingsTargetAware(t *testing.T) {
+	t.Parallel()
+	overflow := make([]specvalidate.Violation, 0, 6)
+	for i := 0; i < 5; i++ {
+		overflow = append(overflow, specvalidate.Violation{
+			Side: specvalidate.SideResponse, Keyword: specvalidate.KeywordResponseShape,
+			Severity: specvalidate.SeverityInfo, Pointer: "/choices/0", Count: 1,
+		})
+	}
+	overflow = append(overflow, specvalidate.Violation{
+		Side: specvalidate.SideRequest, Keyword: "type", Pointer: "/max_tokens",
+	})
+
+	compat, hit := capStoredResponseFindings(overflow, 2, SpecTargetCompatible)
+	if !hit {
+		t.Fatal("compatible should truncate")
+	}
+	var marker specvalidate.Violation
+	keptReq := false
+	for _, v := range compat {
+		if v.Keyword == "truncated" {
+			marker = v
+		}
+		if v.Keyword == "type" && v.Pointer == "/max_tokens" {
+			keptReq = true
+		}
+	}
+	if !keptReq {
+		t.Fatalf("request finding lost: %v", compat)
+	}
+	if marker.Keyword != "truncated" || marker.Severity != specvalidate.SeverityInfo || marker.Count != 5 {
+		t.Fatalf("compatible marker=%+v", marker)
+	}
+	if isWarnSpecFinding(marker) {
+		t.Fatal("compatible overflow must not be a warn finding")
+	}
+
+	openai, hit := capStoredResponseFindings(overflow, 2, SpecTargetOpenAI)
+	if !hit {
+		t.Fatal("openai should truncate")
+	}
+	var oa specvalidate.Violation
+	for _, v := range openai {
+		if v.Keyword == "truncated" {
+			oa = v
+		}
+	}
+	if oa.Keyword != "truncated" || oa.Severity != "" || !isWarnSpecFinding(oa) {
+		t.Fatalf("openai marker must stay a warn finding: %+v", oa)
+	}
+
+	under, hit := capStoredResponseFindings(overflow[:2], 8, SpecTargetCompatible)
+	if hit || len(under) != 2 {
+		t.Fatalf("under cap hit=%v n=%d", hit, len(under))
+	}
+
+	many := make([]specvalidate.Violation, 6)
+	for i := range many {
+		many[i] = specvalidate.Violation{
+			Side: specvalidate.SideResponse, Keyword: specvalidate.KeywordResponseShape,
+			Severity: specvalidate.SeverityInfo, Pointer: "/choices/" + string(rune('0'+i)),
+		}
+	}
+	call := &Call{Normalized: Normalized{Validation: &ValidationInfo{Target: SpecTargetCompatible, RequestChecked: true}}}
+	mergeResponseValidation(call, many, nil, 1, false, 2, SpecTargetCompatible)
+	if !call.Normalized.Validation.Truncated {
+		t.Fatal("merge should mark truncated")
+	}
+	if specLogValue(*call, "warn") != "clean" {
+		t.Fatalf("compatible overflow log=%q", specLogValue(*call, "warn"))
+	}
+	if hasWarnSpecFindings(*call) {
+		t.Fatalf("compatible overflow must stay out of session findings: %v", *call.Normalized.SpecViolations)
+	}
+
+	oaCall := &Call{Normalized: Normalized{Validation: &ValidationInfo{Target: SpecTargetOpenAI, RequestChecked: true}}}
+	raw := []specvalidate.Violation{
+		{Side: specvalidate.SideResponse, Keyword: "enum", Pointer: "/a"},
+		{Side: specvalidate.SideResponse, Keyword: "enum", Pointer: "/b"},
+		{Side: specvalidate.SideResponse, Keyword: "enum", Pointer: "/c"},
+	}
+	mergeResponseValidation(oaCall, raw, nil, 1, false, 1, SpecTargetOpenAI)
+	if specLogValue(*oaCall, "warn") == "clean" {
+		t.Fatal("openai overflow must count as findings")
 	}
 }

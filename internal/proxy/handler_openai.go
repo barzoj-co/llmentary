@@ -423,7 +423,7 @@ func (ex *proxyExchange) finishCall(resp *http.Response, rawBody []byte, firstBy
 				extra = append(extra, ex.s.validation.linter.ConfirmStrictFallback(parseBody, omittedStrictToolIndexes(call.RawRequest))...)
 			}
 			vios, extra = applySpecTarget(target, vios, extra, nil)
-			mergeResponseValidation(call, vios, extra, dur, trunc, ex.s.validation.responseCap())
+			mergeResponseValidation(call, vios, extra, dur, trunc, ex.s.validation.responseCap(), target)
 		}
 		if call.Normalized.ClientAborted {
 			call.ClientAborted = true
