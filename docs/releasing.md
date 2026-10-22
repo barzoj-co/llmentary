@@ -3,7 +3,8 @@
 Merging the release-please PR tags the next version and publishes GitHub
 Release notes. GoReleaser then attaches signed archives, checksums, and SBOMs
 to that existing release. Later versions come from conventional commits
-(`feat`, `fix`). Do not use `!` or a `BREAKING CHANGE:` footer; a 1.0 bump
+(`feat`, `fix`). While the package is 0.x, both bump patch (`0.5.0` → `0.5.1`),
+not minor. Do not use `!` or a `BREAKING CHANGE:` footer; a 1.0 bump
 needs an explicit maintainer decision.
 
 `api/control/openapi.yaml` `info.version` is bumped by a generic extra-file
