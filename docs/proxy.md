@@ -73,9 +73,13 @@ a bare second count; `0` disables). Timeouts apply per call, not per session.
   line uses `status=504`, `seq=`, and `spec=request_only` when the request was
   checked and no response arrived.
 - Idle timeout: headers have already been written (typically `200`). Partial
-  bytes already flushed to the client are kept. The recorded call sets
+  bytes already flushed to the client are kept. The client connection is then
+  aborted so the app sees a broken stream (incomplete chunked read / reset),
+  the same class of error as without the proxy. The recorded call sets
   `stream_truncated` on an incomplete SSE stream, `error.normalized:
   upstream_idle_timeout`, `error.source: proxy`, and never `error.mid_stream`.
+  The `INFO proxy response` line includes `error=upstream_idle_timeout` and
+  `stream_truncated=true` when the stream was incomplete.
 - A client cancel that wins the race is still `client_aborted` (DOG-15 / DOG-28).
 
 `GET /config` reports the effective values as Go duration strings (`"0s"` when
@@ -283,7 +287,20 @@ For recording:
   by the Chat Completions `[DONE]` hardening.
 - SSE comment lines, including OpenRouter keep-alive comments, are recorded as comments
   and ignored by the normalizer.
-- If no terminal marker/event is seen, `normalized.stream_truncated` is set.
+- If no terminal marker/event is seen, `normalized.stream_truncated` is set
+  unless the Chat Completions finish+usage `no_done_marker` rule above
+  already treated the stream as complete. A **complete** HTTP body
+  (chunked terminator received) that simply omits `[DONE]` stays a clean
+  HTTP response toward the client: `stream_truncated` may be set and
+  `error` is absent. An **abnormal** upstream end — connection drop
+  before the chunked terminator or before `Content-Length` bytes, an
+  HTTP/2 `RST_STREAM` / connection error, or an
+  idle timeout — aborts the inbound connection after flushing what
+  arrived, records `error.normalized: stream_truncated` with
+  `error.source: upstream` (idle timeout keeps `upstream_idle_timeout` /
+  `source: proxy`), and sets `finish_reason: error`. The `INFO proxy
+  response` line then includes `error=<normalized>` and
+  `stream_truncated=true`.
 
 ## Secret redaction
 

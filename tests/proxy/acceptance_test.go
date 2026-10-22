@@ -412,6 +412,9 @@ func TestB12ChatStreamTruncated(t *testing.T) {
 	if !rt.call.Normalized.StreamTruncated || rt.call.Normalized.OutputText != "partial" {
 		t.Fatalf("truncated=%v text=%q", rt.call.Normalized.StreamTruncated, rt.call.Normalized.OutputText)
 	}
+	if rt.call.Normalized.Error != nil {
+		t.Fatalf("complete chunked body without [DONE] must not record an error: %+v", rt.call.Normalized.Error)
+	}
 }
 
 func TestC1ResponsesNonStreamText(t *testing.T) {

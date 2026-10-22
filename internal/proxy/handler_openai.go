@@ -347,6 +347,12 @@ func (ex *proxyExchange) copyAndFinish(w http.ResponseWriter, resp *http.Respons
 		copyErr = idleTimeoutError(idleTimeout)
 	}
 	ex.finishCall(resp, rawResp.Bytes(), firstByte, recorder, copyErr, copyWriteErr, headerSSE)
+	clientGone := ex.r != nil && ex.r.Context().Err() != nil
+	if shouldAbortClientResponse(copyErr, copyWriteErr, errors.Is(copyErr, ErrUpstreamIdleTimeout), clientGone) {
+		// Flush already happened. Abort so the client does not see a
+		// clean chunked terminator / keep-alive end (DOG-47).
+		panic(http.ErrAbortHandler)
+	}
 	return nil
 }
 
@@ -444,6 +450,24 @@ func (ex *proxyExchange) finishCall(resp *http.Response, rawBody []byte, firstBy
 				Normalized: "upstream_idle_timeout",
 				Source:     "proxy",
 				MidStream:  false,
+			}
+			call.Normalized.FinishReason = "error"
+		} else if !copyWriteErr && isIncompleteUpstreamBody(copyErr) && !call.Normalized.ClientAborted {
+			// Abnormal upstream end (dropped connection / short body).
+			// A clean EOF after a complete chunked body without [DONE]
+			// is stream_truncated only — not an error (provider omit).
+			if stream && !complete {
+				call.Normalized.StreamTruncated = true
+			}
+			if call.Normalized.Error == nil {
+				call.Normalized.Error = &CallError{
+					HTTPStatus: resp.StatusCode,
+					Type:       normalizedStreamTruncated,
+					Code:       normalizedStreamTruncated,
+					Message:    copyErr.Error(),
+					Normalized: normalizedStreamTruncated,
+					Source:     errorSourceUpstream,
+				}
 			}
 			call.Normalized.FinishReason = "error"
 		}
@@ -586,12 +610,7 @@ func (s *Server) logProxyResponse(ex *proxyExchange, call Call, status any, extr
 		"spec", specLogValue(call, s.specMode()),
 	}
 	args = append(args, extra...)
-	if err := call.Normalized.Error; err != nil && err.Normalized != "" {
-		args = append(args, "error", err.Normalized)
-	}
-	if call.Normalized.StreamTruncated {
-		args = append(args, "stream_truncated", true)
-	}
+	args = append(args, callOutcomeLogArgs(call)...)
 	s.logger().Info("proxy response", args...)
 }
 
