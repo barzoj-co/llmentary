@@ -3,6 +3,7 @@
 package specvalidate
 
 import (
+	"strconv"
 	"strings"
 )
 
@@ -10,16 +11,30 @@ import (
 // replaced with *) to the property names declared on that object.
 type objectProps map[string]map[string]struct{}
 
+const knownPropsDepthCap = 32
+
+type discVariants struct {
+	key   string
+	props map[string]map[string]struct{}
+}
+
 func collectKnownProperties(spec map[string]any, root string) objectProps {
+	union, _ := collectKnownBundle(spec, root)
+	return union
+}
+
+func collectKnownBundle(spec map[string]any, root string) (objectProps, map[string]*discVariants) {
 	schemas := componentSchemas(spec)
 	if schemas == nil || root == "" {
-		return nil
+		return nil, nil
 	}
 	out := objectProps{}
+	variants := map[string]*discVariants{}
 	visited := map[string]struct{}{}
-	var walk func(node any, pattern string, depth int)
-	walk = func(node any, pattern string, depth int) {
-		if depth > 10 {
+	inStack := map[string]struct{}{}
+	var walk func(node any, pattern string, depth int, skipProps bool)
+	walk = func(node any, pattern string, depth int, skipProps bool) {
+		if depth > knownPropsDepthCap {
 			return
 		}
 		m, ok := node.(map[string]any)
@@ -31,47 +46,227 @@ func collectKnownProperties(spec map[string]any, root string) objectProps {
 			if !ok {
 				return
 			}
+			if _, cyc := inStack[name]; cyc {
+				recordKnownProps(out, schemas[name], pattern, skipProps)
+				return
+			}
 			key := name + "@" + pattern
 			if _, seen := visited[key]; seen {
 				return
 			}
 			visited[key] = struct{}{}
-			walk(schemas[name], pattern, depth+1)
+			inStack[name] = struct{}{}
+			walk(schemas[name], pattern, depth, skipProps)
+			delete(inStack, name)
 			return
 		}
 		if props, ok := m["properties"].(map[string]any); ok {
-			if out[pattern] == nil {
-				out[pattern] = map[string]struct{}{}
+			if !skipProps {
+				if out[pattern] == nil {
+					out[pattern] = map[string]struct{}{}
+				}
+				for k := range props {
+					out[pattern][k] = struct{}{}
+				}
 			}
 			for k, v := range props {
-				out[pattern][k] = struct{}{}
 				child := pattern + "/" + k
 				if pattern == "" {
 					child = "/" + k
 				}
-				walk(v, child, depth+1)
+				walk(v, child, depth+1, false)
 			}
 		}
 		if items, ok := m["items"]; ok {
-			walk(items, joinPattern(pattern, "*"), depth+1)
+			walk(items, joinPattern(pattern, "*"), depth+1, false)
 		}
 		if arr, ok := m["prefixItems"].([]any); ok {
 			for _, v := range arr {
-				walk(v, joinPattern(pattern, "*"), depth+1)
+				walk(v, joinPattern(pattern, "*"), depth+1, false)
 			}
 		}
-		for _, key := range []string{"anyOf", "oneOf", "allOf"} {
+		if arr, ok := m["allOf"].([]any); ok {
+			for _, v := range arr {
+				walk(v, pattern, depth, skipProps)
+			}
+		}
+		for _, key := range []string{"anyOf", "oneOf"} {
 			arr, ok := m[key].([]any)
 			if !ok {
 				continue
 			}
 			for _, v := range arr {
-				walk(v, pattern, depth+1)
+				recordVariantProps(variants, schemas, v, pattern, inStack)
+				walk(v, pattern, depth, skipProps)
 			}
 		}
 	}
-	walk(schemas[root], "", 0)
-	return out
+	if root != "" {
+		inStack[root] = struct{}{}
+	}
+	walk(schemas[root], "", 0, false)
+	if root != "" {
+		delete(inStack, root)
+	}
+	return out, variants
+}
+
+func recordKnownProps(out objectProps, node any, pattern string, skipProps bool) {
+	if skipProps {
+		return
+	}
+	m, ok := node.(map[string]any)
+	if !ok {
+		return
+	}
+	props, ok := m["properties"].(map[string]any)
+	if !ok {
+		return
+	}
+	if out[pattern] == nil {
+		out[pattern] = map[string]struct{}{}
+	}
+	for k := range props {
+		out[pattern][k] = struct{}{}
+	}
+}
+
+func directKnownProps(schemas map[string]any, node any, inStack map[string]struct{}, dest map[string]struct{}) {
+	m, ok := node.(map[string]any)
+	if !ok {
+		return
+	}
+	if ref, _ := m["$ref"].(string); ref != "" {
+		name, ok := schemaRefName(ref)
+		if !ok {
+			return
+		}
+		if _, cyc := inStack[name]; cyc {
+			return
+		}
+		inStack[name] = struct{}{}
+		directKnownProps(schemas, schemas[name], inStack, dest)
+		delete(inStack, name)
+		return
+	}
+	if props, ok := m["properties"].(map[string]any); ok {
+		for k := range props {
+			dest[k] = struct{}{}
+		}
+	}
+	if arr, ok := m["allOf"].([]any); ok {
+		for _, v := range arr {
+			directKnownProps(schemas, v, inStack, dest)
+		}
+	}
+}
+
+func recordVariantProps(variants map[string]*discVariants, schemas map[string]any, node any, pattern string, inStack map[string]struct{}) {
+	props := map[string]struct{}{}
+	directKnownProps(schemas, node, inStack, props)
+	key, value := branchDiscriminator(schemas, node, inStack)
+	if key == "" || value == "" || len(props) == 0 {
+		return
+	}
+	cur := variants[pattern]
+	if cur == nil {
+		cur = &discVariants{key: key, props: map[string]map[string]struct{}{}}
+		variants[pattern] = cur
+	}
+	if cur.key != key {
+		return
+	}
+	if cur.props[value] == nil {
+		cur.props[value] = map[string]struct{}{}
+	}
+	for k := range props {
+		cur.props[value][k] = struct{}{}
+	}
+}
+
+func branchDiscriminator(schemas map[string]any, node any, inStack map[string]struct{}) (key, value string) {
+	m, ok := node.(map[string]any)
+	if !ok {
+		return "", ""
+	}
+	if ref, _ := m["$ref"].(string); ref != "" {
+		name, ok := schemaRefName(ref)
+		if !ok {
+			return "", ""
+		}
+		if _, cyc := inStack[name]; cyc {
+			return "", ""
+		}
+		inStack[name] = struct{}{}
+		key, value = branchDiscriminator(schemas, schemas[name], inStack)
+		delete(inStack, name)
+		return key, value
+	}
+	props, _ := m["properties"].(map[string]any)
+	for _, disc := range []string{"role", "type"} {
+		p, _ := props[disc].(map[string]any)
+		if p == nil {
+			continue
+		}
+		if c, ok := p["const"].(string); ok && c != "" {
+			return disc, c
+		}
+		if e, ok := p["enum"].([]any); ok && len(e) == 1 {
+			if s, ok := e[0].(string); ok && s != "" {
+				return disc, s
+			}
+		}
+	}
+	return "", ""
+}
+
+func instanceObject(inst any, pointer string) map[string]any {
+	cur := inst
+	pointer = strings.Trim(pointer, "/")
+	if pointer != "" {
+		for _, part := range strings.Split(pointer, "/") {
+			part = strings.ReplaceAll(strings.ReplaceAll(part, "~1", "/"), "~0", "~")
+			switch c := cur.(type) {
+			case map[string]any:
+				cur = c[part]
+			case []any:
+				i, err := strconv.Atoi(part)
+				if err != nil || i < 0 || i >= len(c) {
+					return nil
+				}
+				cur = c[i]
+			default:
+				return nil
+			}
+		}
+	}
+	m, _ := cur.(map[string]any)
+	return m
+}
+
+func variantHasField(variants map[string]*discVariants, parentPointer, field string, inst any) (known bool, ok bool) {
+	if variants == nil || inst == nil || field == "" {
+		return false, false
+	}
+	pattern := generalizePointer(parentPointer)
+	v := variants[pattern]
+	if v == nil {
+		return false, false
+	}
+	obj := instanceObject(inst, parentPointer)
+	if obj == nil {
+		return false, false
+	}
+	disc, _ := obj[v.key].(string)
+	if disc == "" {
+		return false, false
+	}
+	names := v.props[disc]
+	if names == nil {
+		return false, true
+	}
+	_, has := names[field]
+	return has, true
 }
 
 func joinPattern(parent, child string) string {
@@ -196,6 +391,10 @@ func dedupeSchemaErr(in []schemaErr) []schemaErr {
 }
 
 func filterCascadedFindings(in []schemaErr, known objectProps) []schemaErr {
+	return filterCascadedFindingsAt(in, known, nil, nil)
+}
+
+func filterCascadedFindingsAt(in []schemaErr, known objectProps, variants map[string]*discVariants, inst any) []schemaErr {
 	if len(in) == 0 {
 		return in
 	}
@@ -204,6 +403,10 @@ func filterCascadedFindings(in []schemaErr, known objectProps) []schemaErr {
 		if item.keyword == "unevaluatedProperties" && known != nil {
 			parent, field := splitPointerField(item.pointer)
 			if field != "" && known.has(generalizePointer(parent), field) {
+				if has, ok := variantHasField(variants, parent, field, inst); ok && !has {
+					filtered = append(filtered, item)
+					continue
+				}
 				continue
 			}
 			if parent == "" || parent == "/" {

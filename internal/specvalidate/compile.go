@@ -45,6 +45,7 @@ type Engine struct {
 
 	// knownReq is profile|apiFamily → declared properties on request objects.
 	knownReq map[string]objectProps
+	knownVar map[string]map[string]*discVariants
 
 	overlay Overlay
 }
@@ -145,8 +146,15 @@ func (e *Engine) compileProfile(spec map[string]any, profile string) error {
 	if e.knownReq == nil {
 		e.knownReq = map[string]objectProps{}
 	}
-	e.knownReq[profile+"|openai.chat"] = collectKnownProperties(spec, chatRequest)
-	e.knownReq[profile+"|openai.responses"] = collectKnownProperties(spec, respRequest)
+	if e.knownVar == nil {
+		e.knownVar = map[string]map[string]*discVariants{}
+	}
+	chatUnion, chatVar := collectKnownBundle(spec, chatRequest)
+	respUnion, respVar := collectKnownBundle(spec, respRequest)
+	e.knownReq[profile+"|openai.chat"] = chatUnion
+	e.knownReq[profile+"|openai.responses"] = respUnion
+	e.knownVar[profile+"|openai.chat"] = chatVar
+	e.knownVar[profile+"|openai.responses"] = respVar
 	switch profile {
 	case ProfileStrict:
 		e.strictChatReq, e.strictRespReq = chatReq, respReq

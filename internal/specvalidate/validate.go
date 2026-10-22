@@ -107,9 +107,15 @@ func (e *Engine) schemaViolations(sch *jsonschema.Schema, raw []byte, profile, s
 	if err == nil {
 		return nil
 	}
-	known := e.knownReq[profile+"|"+apiFamily]
+	var known objectProps
+	var variants map[string]*discVariants
+	if side == SideRequest {
+		key := profile + "|" + apiFamily
+		known = e.knownReq[key]
+		variants = e.knownVar[key]
+	}
 	var out []Violation
-	for _, item := range filterCascadedFindings(dropCoveredUnevaluated(flattenSchemaError(err)), known) {
+	for _, item := range filterCascadedFindingsAt(dropCoveredUnevaluated(flattenSchemaError(err)), known, variants, inst) {
 		pointer := item.pointer
 		if pointer == "" {
 			pointer = "/"

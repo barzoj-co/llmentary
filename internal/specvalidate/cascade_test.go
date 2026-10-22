@@ -3,6 +3,8 @@
 package specvalidate
 
 import (
+	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -278,7 +280,7 @@ func TestCascadeHelperEdges(t *testing.T) {
 	if isOneOfBranchNoise(schemaErr{pointer: "/tools/0/name/nested", keyword: "type"}, "/tools/0", nil) {
 		t.Fatal("nested type is not item-level noise")
 	}
-	if got := filterCascadedFindings(nil, objectProps{}); got != nil && len(got) != 0 {
+	if got := filterCascadedFindings(nil, objectProps{}); len(got) != 0 {
 		t.Fatalf("empty in=%v", got)
 	}
 	known := objectProps{"": {"model": {}, "max_tokens": {}}}
@@ -319,6 +321,117 @@ func TestCascadeHelperEdges(t *testing.T) {
 	if !props.has("/*", "a") {
 		t.Fatalf("prefixItems props=%v", props)
 	}
+}
+
+func TestCollectKnownPropertiesCyclesAndDepth(t *testing.T) {
+	t.Parallel()
+	spec := map[string]any{
+		"components": map[string]any{
+			"schemas": map[string]any{
+				"Self": map[string]any{
+					"properties": map[string]any{
+						"keep": map[string]any{"type": "string"},
+						"x":    map[string]any{"$ref": "#/components/schemas/Self"},
+					},
+				},
+				"A": map[string]any{
+					"properties": map[string]any{
+						"a": map[string]any{"$ref": "#/components/schemas/B"},
+					},
+				},
+				"B": map[string]any{
+					"properties": map[string]any{
+						"b": map[string]any{"$ref": "#/components/schemas/A"},
+					},
+				},
+			},
+		},
+	}
+	self := collectKnownProperties(spec, "Self")
+	if !self.has("", "keep") || !self.has("", "x") {
+		t.Fatalf("self root=%v", self)
+	}
+	if !self.has("/x", "keep") {
+		t.Fatalf("self cycle should still record properties at /x: %v", self)
+	}
+	ab := collectKnownProperties(spec, "A")
+	if !ab.has("", "a") || !ab.has("/a", "b") || !ab.has("/a/b", "a") {
+		t.Fatalf("mutual cycle=%v", ab)
+	}
+
+	chain := map[string]any{"components": map[string]any{"schemas": map[string]any{}}}
+	schemas := chain["components"].(map[string]any)["schemas"].(map[string]any)
+	schemas["N12"] = map[string]any{"properties": map[string]any{"leaf": map[string]any{"type": "string"}}}
+	for i := 11; i >= 0; i-- {
+		schemas[fmt.Sprintf("N%d", i)] = map[string]any{
+			"properties": map[string]any{
+				fmt.Sprintf("p%d", i): map[string]any{"$ref": fmt.Sprintf("#/components/schemas/N%d", i+1)},
+			},
+		}
+	}
+	deep := collectKnownProperties(chain, "N0")
+	if !deep.has("/p0/p1/p2/p3/p4/p5/p6/p7/p8/p9/p10/p11", "leaf") {
+		t.Fatalf("deep $ref chain missed leaf: %v", deep)
+	}
+}
+
+func TestCollectKnownChatAndResponsesRoots(t *testing.T) {
+	t.Parallel()
+	if _, err := CompileEmbedded(); err != nil {
+		t.Fatal(err)
+	}
+	var spec map[string]any
+	if err := json.Unmarshal(EmbeddedSubspec(), &spec); err != nil {
+		t.Fatal(err)
+	}
+	chat := collectKnownProperties(spec, chatRequest)
+	for _, name := range []string{"model", "messages", "max_tokens", "temperature"} {
+		if !chat.has("", name) {
+			t.Fatalf("chat missing %s: %v", name, chat[""])
+		}
+	}
+	resp := collectKnownProperties(spec, respRequest)
+	for _, name := range []string{"model", "input"} {
+		if !resp.has("", name) {
+			t.Fatalf("responses missing %s: %v", name, resp[""])
+		}
+	}
+}
+
+func TestStrictUserToolCallIDStillReported(t *testing.T) {
+	eng, err := CompileEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := []byte(`{"model":"m","messages":[{"role":"user","content":"u","tool_call_id":"c1"}]}`)
+	res := eng.ValidateRequest(ProfileStrict, "openai.chat", body, 0)
+	found := false
+	for _, v := range res.Violations {
+		if v.Keyword == "unevaluatedProperties" && (v.Pointer == "/messages/0/tool_call_id" || strings.Contains(v.Message, "tool_call_id")) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected tool_call_id finding: %v", summarize(res.Violations))
+	}
+}
+
+func TestResponseUnknownRequestNamedFieldKept(t *testing.T) {
+	eng, err := CompileEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	known := objectProps{"": {"tools": {}, "temperature": {}}}
+	reqDropped := filterCascadedFindings([]schemaErr{{keyword: "unevaluatedProperties", pointer: "/tools"}}, known)
+	if len(reqDropped) != 0 {
+		t.Fatalf("request-side known should drop /tools: %v", reqDropped)
+	}
+	respKept := filterCascadedFindings([]schemaErr{{keyword: "unevaluatedProperties", pointer: "/tools"}}, nil)
+	if len(respKept) != 1 || respKept[0].pointer != "/tools" {
+		t.Fatalf("response-side nil known should keep /tools: %v", respKept)
+	}
+	_ = eng
 }
 
 func countSchemaFindings(vs []Violation) int {
