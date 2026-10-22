@@ -410,7 +410,7 @@ func specCounters(calls []Call) SpecCounters {
 	var out SpecCounters
 	for i := range calls {
 		info := calls[i].Normalized.Validation
-		findings := calls[i].Normalized.SpecViolations != nil && len(*calls[i].Normalized.SpecViolations) > 0
+		findings := hasWarnSpecFindings(calls[i])
 		switch {
 		case findings:
 			out.Checked++
@@ -425,6 +425,18 @@ func specCounters(calls []Call) SpecCounters {
 		}
 	}
 	return out
+}
+
+func hasWarnSpecFindings(call Call) bool {
+	if call.Normalized.SpecViolations == nil {
+		return false
+	}
+	for _, violation := range *call.Normalized.SpecViolations {
+		if isWarnSpecFinding(violation) {
+			return true
+		}
+	}
+	return false
 }
 
 func uniqueSources(calls []Call) []string {

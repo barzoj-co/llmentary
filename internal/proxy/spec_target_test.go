@@ -186,6 +186,23 @@ func TestApplyCompatibleSummarizesAndDropsResponseNoise(t *testing.T) {
 	}
 }
 
+func TestSummarizeCompatibleResponseFindingsCorners(t *testing.T) {
+	t.Parallel()
+	if got := summarizeCompatibleResponseFindings(nil); len(got) != 0 {
+		t.Fatalf("nil=%v", got)
+	}
+	req := []specvalidate.Violation{{Side: specvalidate.SideRequest, Keyword: "type", Pointer: "/max_tokens"}}
+	if got := summarizeCompatibleResponseFindings(req); len(got) != 1 || got[0].Keyword != "type" {
+		t.Fatalf("request=%v", got)
+	}
+	blank := summarizeCompatibleResponseFindings([]specvalidate.Violation{{
+		Side: specvalidate.SideResponse, Keyword: "enum", Pointer: "/choices/0/finish_reason",
+	}})
+	if len(blank) != 1 || blank[0].Keyword != specvalidate.KeywordResponseShape || blank[0].Message != "enum" || blank[0].Count != 1 {
+		t.Fatalf("blank message=%+v", blank)
+	}
+}
+
 func TestApplySpecTargetCompatibleRelaxesResponseRequired(t *testing.T) {
 	t.Parallel()
 	vs := []specvalidate.Violation{

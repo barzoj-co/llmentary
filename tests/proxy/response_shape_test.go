@@ -129,10 +129,6 @@ func TestCompatibleVendorResponseShapes(t *testing.T) {
 					t.Fatalf("raw response finding leaked: %v", v)
 				}
 			}
-			if tc.needle != "" && countResponseShapes(vs) == 0 && !hasResponseShape(vs, "", tc.needle) {
-				// fingerprint/tier/finish_reason may or may not violate depending on schema;
-				// if they do, they must be response_shape. If they don't, that's also fine.
-			}
 			spec := proxyResponseSpec(logBuf.String())
 			if strings.HasPrefix(spec, "findings:") {
 				t.Fatalf("compatible response noise counted as WARN: spec=%s vs=%v log=%s", spec, vs, logBuf.String())
@@ -262,20 +258,19 @@ func TestCompatibleRepeatedStreamFindingCountsOnce(t *testing.T) {
 	sid := newSession()
 	_, _, _, sess := postRaw(t, p, "/v1/chat/completions", sid, nil, chatStreamBody)
 	vs := specViolations(lastCall(t, sess))
-	shapes := 0
+	shapes := countResponseShapes(vs)
 	var count float64
 	for _, v := range vs {
 		if fmtString(v["keyword"]) != "response_shape" {
 			continue
 		}
-		shapes++
 		count, _ = v["count"].(float64)
 	}
-	if shapes > 1 {
-		t.Fatalf("want one response_shape per pointer+keyword, got %d: %v", shapes, vs)
+	if shapes != 1 {
+		t.Fatalf("want exactly one response_shape, got %d: %v", shapes, vs)
 	}
-	if shapes == 1 && count != n && count < 2 {
-		t.Fatalf("count=%v want collapsed stream copies: %v", count, vs)
+	if count < n {
+		t.Fatalf("count=%v want >= %d collapsed stream copies: %v", count, n, vs)
 	}
 	if spec := proxyResponseSpec(logBuf.String()); strings.HasPrefix(spec, "findings:") {
 		t.Fatalf("stream response_shape counted as WARN: spec=%s", spec)
