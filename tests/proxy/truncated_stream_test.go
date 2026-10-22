@@ -281,7 +281,6 @@ func TestCompleteChunkedWithoutDoneIsTruncatedNotError(t *testing.T) {
 }
 
 func TestClientCancelStillAbortedNotUpstreamDrop(t *testing.T) {
-	started := make(chan struct{})
 	p := startSpecProxy(t, "off", "relaxed", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(http.StatusOK)
@@ -290,7 +289,6 @@ func TestClientCancelStillAbortedNotUpstreamDrop(t *testing.T) {
 		if flusher != nil {
 			flusher.Flush()
 		}
-		close(started)
 		<-r.Context().Done()
 	})
 	sid := newSession()
@@ -303,20 +301,35 @@ func TestClientCancelStillAbortedNotUpstreamDrop(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	req = req.WithContext(ctx)
 	errCh := make(chan error, 1)
+	gotFrame := make(chan struct{})
 	go func() {
 		res, err := http.DefaultClient.Do(req)
 		if err != nil {
 			errCh <- err
 			return
 		}
+		buf := make([]byte, 256)
+		n, readErr := res.Body.Read(buf)
+		if n == 0 {
+			_ = res.Body.Close()
+			if readErr != nil {
+				errCh <- readErr
+				return
+			}
+			errCh <- fmt.Errorf("empty first frame")
+			return
+		}
+		close(gotFrame)
 		_, _ = io.Copy(io.Discard, res.Body)
 		_ = res.Body.Close()
 		errCh <- nil
 	}()
 	select {
-	case <-started:
+	case <-gotFrame:
+	case err := <-errCh:
+		t.Fatalf("client failed before first SSE frame: %v", err)
 	case <-time.After(2 * time.Second):
-		t.Fatal("upstream did not start")
+		t.Fatal("client did not read first SSE frame")
 	}
 	cancel()
 	<-errCh

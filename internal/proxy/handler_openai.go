@@ -452,7 +452,7 @@ func (ex *proxyExchange) finishCall(resp *http.Response, rawBody []byte, firstBy
 				MidStream:  false,
 			}
 			call.Normalized.FinishReason = "error"
-		} else if isIncompleteUpstreamBody(copyErr) && !call.Normalized.ClientAborted {
+		} else if !copyWriteErr && isIncompleteUpstreamBody(copyErr) && !call.Normalized.ClientAborted {
 			// Abnormal upstream end (dropped connection / short body).
 			// A clean EOF after a complete chunked body without [DONE]
 			// is stream_truncated only — not an error (provider omit).
