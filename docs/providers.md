@@ -183,8 +183,14 @@ App / SDK base URL:
     `usage.cost_usd`;
   - keep-alive comments such as `: OPENROUTER PROCESSING` (recorded as SSE comments,
     ignored by the normalizer);
-  - `delta.reasoning` (recorded as `reasoning.chars`).
+  - `delta.reasoning` (recorded as `reasoning.chars`);
+  - mid-stream `error.code: "server_error"` with `finish_reason: "error"` (normalized
+    `error.normalized: "server"`, `finish_reason: "error"`).
 - Chunks with `choices: []` are tolerated.
+- Groq last-chunk `x_groq.usage` is recorded as `usage` with `source: "x_groq"` when
+  top-level `usage` is absent.
+- Together / Ollama `finish_reason: "eos"` maps to `stop`; the raw value stays in
+  `native_finish_reason`.
 
 **Verified status:** fixture-verified (`tests/proxy/testdata/openrouter/`,
 `TestU5OpenRouterFixture`). Not live-verified (no OpenRouter key in this project).

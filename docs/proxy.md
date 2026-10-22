@@ -235,8 +235,13 @@ For recording:
   wire-capture of the HTTP envelope. See `docs/data-model.md` § Gzip and
   raw-byte hashes.
 - A Chat Completions stream is considered complete when a `data: [DONE]` event is seen.
+  If every seen choice has a `finish_reason` and a usage object arrived, but `[DONE]`
+  is missing, the stream is treated as complete with parser warning `no_done_marker`
+  instead of `stream_truncated`. A finish without usage (or usage without finish) and
+  no `[DONE]` stays truncated.
 - A Responses stream is considered complete when a terminal `response.completed`,
-  `response.failed`, or `response.incomplete` event is parsed.
+  `response.failed`, or `response.incomplete` event is parsed. Responses is unchanged
+  by the Chat Completions `[DONE]` hardening.
 - SSE comment lines, including OpenRouter keep-alive comments, are recorded as comments
   and ignored by the normalizer.
 - If no terminal marker/event is seen, `normalized.stream_truncated` is set.

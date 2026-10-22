@@ -272,8 +272,16 @@ they come from `type: "function_call_output"` input items.
 
 ## Finish reasons
 
-Chat Completions uses provider `finish_reason` when present. Some compatible providers
-also expose `native_finish_reason`.
+Chat Completions maps provider `finish_reason` as follows. The raw vendor value is kept
+in `native_finish_reason` when it is not already set by a distinct `native_finish_reason`
+field.
+
+| Provider `finish_reason` | `finish_reason` | `native_finish_reason` |
+|---|---|---|
+| `stop`, `length`, `tool_calls`, `content_filter`, `function_call` | same | unchanged |
+| `eos` (Together / Ollama) | `stop` | raw (`eos`) when unset |
+| `error` (OpenRouter) | `error` | raw (`error`) when unset |
+| anything else | `unknown` | raw value; parser warning `unknown finish_reason` |
 
 Responses synthesizes `finish_reason` as follows:
 
@@ -312,7 +320,7 @@ for JSON `error` fields in stream chunks and set:
   "type": "too_many_requests",
   "code": "no_capacity",
   "message": "try later",
-  "normalized": "unknown",
+  "normalized": "rate_limit",
   "mid_stream": true
 }
 ```
@@ -326,8 +334,8 @@ error chunk). Network/proxy errors are recorded with a proxy HTTP status and
 Error normalization categories are:
 
 - `auth`
-- `rate_limit`
-- `server`
+- `rate_limit` — HTTP 429, numeric code `429`, or type/code containing `rate` / `capacity`
+- `server` — HTTP ≥500, numeric code ≥500, `server_error`, `InternalServerError` / `internal_server_error`, or `overloaded`
 - `content_filter`
 - `bad_request`
 - `network`
@@ -361,8 +369,9 @@ Responses usage maps:
 | `input_tokens_details.cached_tokens` | `cached_input_tokens` |
 | `output_tokens_details.reasoning_tokens` | `reasoning_tokens` |
 
-`usage.source` is `body`, `final_chunk`, or `terminal_event` depending on where usage was
-found.
+`usage.source` is `body`, `final_chunk`, `terminal_event`, or `x_groq` depending on where
+usage was found. Groq's last-chunk `x_groq.usage` is used only when top-level `usage` is
+absent.
 
 ## Timing and TTFT
 

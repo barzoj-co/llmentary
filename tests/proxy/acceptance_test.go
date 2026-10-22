@@ -1193,11 +1193,11 @@ func TestE8OffSpecCompatibleProvider(t *testing.T) {
 		body := `{"id":"c","object":"chat.completion","model":"ollama-qwen","choices":[{"index":0,"message":{"role":"assistant","content":"done"},"finish_reason":"eos"}]}`
 		proxy, control, _ := startAcceptance(t, func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, 200, body, nil) })
 		rt := doProxy(t, http.MethodPost, proxy, control, "/v1/chat/completions", nil, req)
-		if !containsWarning(rt.call.Normalized.ParserWarnings, "unknown finish_reason") {
-			t.Fatalf("warnings=%v", rt.call.Normalized.ParserWarnings)
+		if containsWarning(rt.call.Normalized.ParserWarnings, "unknown finish_reason") {
+			t.Fatalf("eos should map without unknown warning, warnings=%v", rt.call.Normalized.ParserWarnings)
 		}
-		if rt.call.Normalized.FinishReason != "eos" || rt.call.Normalized.OutputText != "done" {
-			t.Fatalf("finish=%q text=%q", rt.call.Normalized.FinishReason, rt.call.Normalized.OutputText)
+		if rt.call.Normalized.FinishReason != "stop" || rt.call.Normalized.NativeFinishReason != "eos" || rt.call.Normalized.OutputText != "done" {
+			t.Fatalf("finish=%q native=%q text=%q", rt.call.Normalized.FinishReason, rt.call.Normalized.NativeFinishReason, rt.call.Normalized.OutputText)
 		}
 	})
 	t.Run("missing_required_field", func(t *testing.T) {
