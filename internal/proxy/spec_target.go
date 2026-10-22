@@ -143,6 +143,9 @@ func applyCompatibleTarget(violations []specvalidate.Violation, ignored []schema
 				ignored = append(ignored, relaxedResponseFindings(v)...)
 				continue
 			}
+			if isVendorPropertyViolation(v) {
+				continue
+			}
 			kept = append(kept, v)
 			continue
 		}
@@ -173,7 +176,47 @@ func applyCompatibleTarget(violations []specvalidate.Violation, ignored []schema
 			ignored[i].Hint = compatibleLintHint
 		}
 	}
-	return kept, ignored
+	return summarizeCompatibleResponseFindings(kept), ignored
+}
+
+func summarizeCompatibleResponseFindings(in []specvalidate.Violation) []specvalidate.Violation {
+	type key struct{ pointer, keyword string }
+	seen := map[key]int{}
+	out := make([]specvalidate.Violation, 0, len(in))
+	for _, v := range in {
+		if v.Side != specvalidate.SideResponse {
+			out = append(out, v)
+			continue
+		}
+		n := v.Count
+		if n < 1 {
+			n = 1
+		}
+		k := key{v.Pointer, v.Keyword}
+		if i, ok := seen[k]; ok {
+			out[i].Count += n
+			continue
+		}
+		seen[k] = len(out)
+		msg := v.Keyword
+		if strings.TrimSpace(v.Message) != "" {
+			msg = v.Keyword + ": " + v.Message
+		}
+		out = append(out, specvalidate.Violation{
+			Side:       specvalidate.SideResponse,
+			Source:     v.Source,
+			Path:       v.Path,
+			Pointer:    v.Pointer,
+			Keyword:    specvalidate.KeywordResponseShape,
+			Message:    msg,
+			Profile:    v.Profile,
+			SchemaRef:  v.SchemaRef,
+			EventIndex: v.EventIndex,
+			Count:      n,
+			Severity:   specvalidate.SeverityInfo,
+		})
+	}
+	return out
 }
 
 func isOpenAIOnlyLint(f schemalint.Finding) bool {

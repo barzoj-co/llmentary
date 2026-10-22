@@ -231,11 +231,18 @@ findings instead of enforce 400s. OpenAI Structured Outputs keyword lints
 `strict_fallback_predicted` are rematched to `severity=info` / `report_only`
 on this target; target `openai` keeps them as `reject_in_enforce`.
 
-Response-side, `openai-compatible` also rematches OpenAI-required keys whose
+Response-side, `openai-compatible` rematches OpenAI-required keys whose
 schema allows `null` when the provider omits them. Those become
 `ignored_fields` with `kind=compatible_optional`, `severity=info`,
-`action=report_only` — never `spec_violations`. Type errors on the same
-keys stay violations. Target `openai` keeps the required check. The
+`action=report_only` — never `spec_violations`. Remaining response findings
+are summarized as one `response_shape` row per distinct pointer+keyword
+(`severity=info`, with `count`). They are stored but never counted in
+`spec=findings:N` and are not WARN-logged. Vendor extras such as `timings`,
+`x_groq`, and `provider` produce no finding. Type errors on relaxed keys
+become `response_shape` info rows. Target `openai` keeps the original
+response findings and WARN count. Both targets cap stored response findings
+at `--spec-response-findings-max` (default 50) and set `validation.truncated`
+when the cap is hit. The
 relaxed keys are:
 
 - `CreateChatCompletionResponse.choices[].logprobs`

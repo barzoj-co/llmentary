@@ -81,6 +81,21 @@ func specViolations(call map[string]any) []map[string]any {
 	return out
 }
 
+func hasResponseShape(vs []map[string]any, pointer, needle string) bool {
+	for _, v := range vs {
+		if fmtString(v["keyword"]) != "response_shape" {
+			continue
+		}
+		if pointer != "" && fmtString(v["pointer"]) != pointer {
+			continue
+		}
+		if needle == "" || strings.Contains(fmtString(v["message"]), needle) {
+			return true
+		}
+	}
+	return false
+}
+
 func hasRequired(vs []map[string]any, pointer, prop string) bool {
 	for _, v := range vs {
 		if fmtString(v["keyword"]) != "required" {
@@ -143,7 +158,11 @@ func TestLogprobsWrongTypeStillViolation(t *testing.T) {
 			_, _, _, sess := postRaw(t, p, "/v1/chat/completions", sid, nil, chatJSONBody)
 			found := false
 			for _, v := range specViolations(lastCall(t, sess)) {
-				if strings.Contains(fmtString(v["pointer"]), "logprobs") && fmtString(v["keyword"]) == "type" {
+				if !strings.Contains(fmtString(v["pointer"]), "logprobs") {
+					continue
+				}
+				kw := fmtString(v["keyword"])
+				if kw == "type" || kw == "response_shape" {
 					found = true
 				}
 			}
@@ -158,7 +177,8 @@ func TestMissingMessageStillViolation(t *testing.T) {
 	p := startSpecProxy(t, "warn", "relaxed", chatMissingMessage(), withCompatTarget())
 	sid := newSession()
 	_, _, _, sess := postRaw(t, p, "/v1/chat/completions", sid, nil, chatJSONBody)
-	if !hasRequired(specViolations(lastCall(t, sess)), "/choices/0", "message") {
+	vs := specViolations(lastCall(t, sess))
+	if !hasRequired(vs, "/choices/0", "message") && !hasResponseShape(vs, "/choices/0", "message") {
 		t.Fatalf("missing message rematched: %v", normalized(lastCall(t, sess))["spec_violations"])
 	}
 }

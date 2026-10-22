@@ -24,6 +24,10 @@ const (
 	SeverityWarning = "warning"
 	SeverityInfo    = "info"
 
+	// KeywordResponseShape is the summarized openai-compatible response
+	// finding (one stored row per distinct pointer+keyword).
+	KeywordResponseShape = "response_shape"
+
 	MaxFindings     = 200
 	MaxJSONDepth    = 128
 	DefaultMaxBytes = 8 << 20

@@ -83,6 +83,96 @@ func TestSpecLogValueFindingsBeatSkipped(t *testing.T) {
 	}
 }
 
+func TestSpecCountersSkipsResponseShape(t *testing.T) {
+	infoBoth := &ValidationInfo{RequestChecked: true, ResponseChecked: true}
+	infoReq := &ValidationInfo{RequestChecked: true, ResponseChecked: false}
+	shapeOnly := []specvalidate.Violation{
+		{Keyword: specvalidate.KeywordResponseShape, Side: specvalidate.SideResponse, Severity: specvalidate.SeverityInfo, Count: 4},
+	}
+	warnPlusShape := []specvalidate.Violation{
+		{Keyword: specvalidate.KeywordResponseShape, Side: specvalidate.SideResponse, Severity: specvalidate.SeverityInfo, Count: 2},
+		{Keyword: "required", Side: specvalidate.SideRequest, Count: 1},
+	}
+	infoSeverity := []specvalidate.Violation{
+		{Keyword: "type", Side: specvalidate.SideResponse, Severity: specvalidate.SeverityInfo},
+	}
+	empty := []specvalidate.Violation{}
+
+	cases := []struct {
+		name string
+		call Call
+		want SpecCounters
+	}{
+		{
+			name: "shape_only_is_clean",
+			call: Call{Normalized: Normalized{Validation: infoBoth, SpecViolations: &shapeOnly}},
+			want: SpecCounters{Checked: 1, Clean: 1},
+		},
+		{
+			name: "info_severity_is_clean",
+			call: Call{Normalized: Normalized{Validation: infoBoth, SpecViolations: &infoSeverity}},
+			want: SpecCounters{Checked: 1, Clean: 1},
+		},
+		{
+			name: "warn_plus_shape_is_findings",
+			call: Call{Normalized: Normalized{Validation: infoBoth, SpecViolations: &warnPlusShape}},
+			want: SpecCounters{Checked: 1, Findings: 1},
+		},
+		{
+			name: "empty_slice_both_checked_is_clean",
+			call: Call{Normalized: Normalized{Validation: infoBoth, SpecViolations: &empty}},
+			want: SpecCounters{Checked: 1, Clean: 1},
+		},
+		{
+			name: "request_only_shape_stays_request_only",
+			call: Call{Normalized: Normalized{Validation: infoReq, SpecViolations: &shapeOnly}},
+			want: SpecCounters{RequestOnly: 1},
+		},
+		{
+			name: "nil_info_nil_violations_not_checked",
+			call: Call{},
+			want: SpecCounters{NotChecked: 1},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := specCounters([]Call{tc.call})
+			if got != tc.want {
+				t.Fatalf("got=%+v want=%+v", got, tc.want)
+			}
+			if got.CallsInvariantBroken(1) {
+				t.Fatalf("invariant: %+v", got)
+			}
+		})
+	}
+}
+
+func TestSpecLogValueSkipsResponseShape(t *testing.T) {
+	info := []specvalidate.Violation{
+		{Keyword: specvalidate.KeywordResponseShape, Side: specvalidate.SideResponse, Severity: specvalidate.SeverityInfo, Count: 4},
+		{Keyword: "required", Side: specvalidate.SideRequest, Count: 1},
+	}
+	got := specLogValue(Call{
+		Normalized: Normalized{
+			Validation:     &ValidationInfo{RequestChecked: true, ResponseChecked: true},
+			SpecViolations: &info,
+		},
+	}, "warn")
+	if got != "findings:1" {
+		t.Fatalf("got=%q want findings:1", got)
+	}
+	onlyInfo := []specvalidate.Violation{{Keyword: specvalidate.KeywordResponseShape, Severity: specvalidate.SeverityInfo, Count: 9}}
+	got = specLogValue(Call{
+		Normalized: Normalized{
+			Validation:     &ValidationInfo{RequestChecked: true, ResponseChecked: true},
+			SpecViolations: &onlyInfo,
+		},
+	}, "warn")
+	if got != "clean" {
+		t.Fatalf("got=%q want clean", got)
+	}
+}
+
 func TestWaitQuietUnknownSessionNotFound(t *testing.T) {
 	store := NewMemoryStore()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)

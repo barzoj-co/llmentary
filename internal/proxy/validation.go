@@ -17,12 +17,13 @@ import (
 )
 
 type validationRuntime struct {
-	mode       string
-	profile    string
-	maxBytes   int
-	specLogMax int
-	engine     *specvalidate.Engine
-	linter     *schemalint.Linter
+	mode                string
+	profile             string
+	maxBytes            int
+	specLogMax          int
+	responseFindingsMax int
+	engine              *specvalidate.Engine
+	linter              *schemalint.Linter
 }
 
 type requestValidation struct {
@@ -36,10 +37,11 @@ type requestValidation struct {
 
 func newValidationRuntime(cfg Config) (*validationRuntime, error) {
 	rt := &validationRuntime{
-		mode:       cfg.SpecValidation,
-		profile:    cfg.SpecProfile,
-		maxBytes:   cfg.SpecValidationMaxBytes,
-		specLogMax: specLogMaxValue(cfg),
+		mode:                cfg.SpecValidation,
+		profile:             cfg.SpecProfile,
+		maxBytes:            cfg.SpecValidationMaxBytes,
+		specLogMax:          specLogMaxValue(cfg),
+		responseFindingsMax: specResponseFindingsMaxValue(cfg),
 	}
 	if rt.mode == "" {
 		rt.mode = DefaultSpecValidation
@@ -85,11 +87,16 @@ func (rt *validationRuntime) configJSON() map[string]any {
 		mode = rt.mode
 		profile = rt.profile
 	}
+	maxResp := DefaultSpecResponseFindingsMax
+	if rt != nil && rt.responseFindingsMax > 0 {
+		maxResp = rt.responseFindingsMax
+	}
 	return map[string]any{
-		"spec_validation":         mode,
-		"spec_profile":            profile,
-		"spec_sha":                sha,
-		"schema_subset_retrieved": retrieved,
+		"spec_validation":            mode,
+		"spec_profile":               profile,
+		"spec_sha":                   sha,
+		"schema_subset_retrieved":    retrieved,
+		"spec_response_findings_max": maxResp,
 	}
 }
 
@@ -166,28 +173,115 @@ func (rt *validationRuntime) checkRequest(apiFamily, contentType, contentEncodin
 	return out
 }
 
-func (rt *validationRuntime) checkResponse(apiFamily string, status int, raw []byte, stream bool, events []SSEEvent) (violations []specvalidate.Violation, ignored []schemalint.Finding, duration int64, truncated bool) {
+func (rt *validationRuntime) responseCap() int {
+	if rt == nil || rt.responseFindingsMax <= 0 {
+		return DefaultSpecResponseFindingsMax
+	}
+	return rt.responseFindingsMax
+}
+
+func (rt *validationRuntime) checkResponse(apiFamily string, status int, raw []byte, stream bool, events []SSEEvent, target string) (violations []specvalidate.Violation, ignored []schemalint.Finding, duration int64, truncated bool) {
 	if rt == nil || rt.mode == specvalidate.ModeOff || rt.engine == nil {
 		return nil, nil, 0, false
 	}
 	if status >= 400 {
 		return nil, nil, 0, false
 	}
+	acc := newResponseFindingAcc(rt.responseCap())
+	skipVendor := target == SpecTargetCompatible
 	if stream && len(events) > 0 {
+		// Short streams keep per-event rows so WARN can print event=N
+		// before snapshotAndCollapseViolations. Long streams accumulate
+		// so storage stays O(cap), not O(events).
+		bound := len(events) > rt.responseCap()
 		for i, ev := range events {
 			if len(bytes.TrimSpace(ev.Data)) == 0 {
 				continue
 			}
 			idx := i
 			res := rt.engine.ValidateResponse(rt.profile, apiFamily, ev.Data, true, &idx)
-			violations = append(violations, res.Violations...)
+			if bound {
+				acc.add(res.Violations, skipVendor)
+			} else {
+				violations = append(violations, filterVendorResponse(res.Violations, skipVendor)...)
+			}
 			duration += res.DurationUS
 			truncated = truncated || res.Truncated
+		}
+		if bound {
+			return acc.slice(), ignored, duration, truncated || acc.truncated
 		}
 		return violations, ignored, duration, truncated
 	}
 	res := rt.engine.ValidateResponse(rt.profile, apiFamily, raw, false, nil)
-	return res.Violations, nil, res.DurationUS, res.Truncated
+	acc.add(res.Violations, skipVendor)
+	return acc.slice(), nil, res.DurationUS, res.Truncated || acc.truncated
+}
+
+type responseFindingAcc struct {
+	order     []specvalidate.Violation
+	idx       map[string]int
+	max       int
+	truncated bool
+}
+
+func newResponseFindingAcc(max int) *responseFindingAcc {
+	if max <= 0 {
+		max = DefaultSpecResponseFindingsMax
+	}
+	return &responseFindingAcc{idx: map[string]int{}, max: max}
+}
+
+func responseFindingKey(v specvalidate.Violation) string {
+	return v.Keyword + "\x00" + v.Pointer + "\x00" + v.Message
+}
+
+func filterVendorResponse(vs []specvalidate.Violation, skipVendor bool) []specvalidate.Violation {
+	if !skipVendor {
+		return vs
+	}
+	out := vs[:0]
+	for _, v := range vs {
+		if isVendorPropertyViolation(v) {
+			continue
+		}
+		out = append(out, v)
+	}
+	return out
+}
+
+func (a *responseFindingAcc) add(vs []specvalidate.Violation, skipVendor bool) {
+	if a == nil {
+		return
+	}
+	for _, v := range vs {
+		if skipVendor && isVendorPropertyViolation(v) {
+			continue
+		}
+		n := v.Count
+		if n < 1 {
+			n = 1
+		}
+		k := responseFindingKey(v)
+		if i, ok := a.idx[k]; ok {
+			a.order[i].Count += n
+			continue
+		}
+		if len(a.order) >= a.max {
+			a.truncated = true
+			continue
+		}
+		v.Count = n
+		a.idx[k] = len(a.order)
+		a.order = append(a.order, v)
+	}
+}
+
+func (a *responseFindingAcc) slice() []specvalidate.Violation {
+	if a == nil {
+		return nil
+	}
+	return append([]specvalidate.Violation(nil), a.order...)
 }
 
 func shouldReject(violations []specvalidate.Violation, ignored []schemalint.Finding) (bool, string) {
@@ -266,6 +360,9 @@ func specLogValue(call Call, mode string) string {
 	findings := 0
 	if call.Normalized.SpecViolations != nil {
 		for _, v := range *call.Normalized.SpecViolations {
+			if !isWarnSpecFinding(v) {
+				continue
+			}
 			n := v.Count
 			if n < 1 {
 				n = 1
@@ -301,7 +398,12 @@ func (s *Server) logValidationFindings(call Call) {
 
 	var violations []specvalidate.Violation
 	if call.Normalized.SpecViolations != nil {
-		violations = *call.Normalized.SpecViolations
+		for _, v := range *call.Normalized.SpecViolations {
+			if !isWarnSpecFinding(v) {
+				continue
+			}
+			violations = append(violations, v)
+		}
 	}
 	if len(violations) > 0 {
 		first := violations[0]
@@ -369,6 +471,16 @@ func (s *Server) logValidationFindings(call Call) {
 	}
 }
 
+func isWarnSpecFinding(v specvalidate.Violation) bool {
+	if v.Severity == specvalidate.SeverityInfo {
+		return false
+	}
+	if v.Keyword == specvalidate.KeywordResponseShape {
+		return false
+	}
+	return true
+}
+
 func warnViolationMessage(v specvalidate.Violation) string {
 	switch v.Keyword {
 	case "format":
@@ -409,9 +521,53 @@ func snapshotAndCollapseViolations(call *Call) Call {
 	return logCopy
 }
 
-func mergeResponseValidation(call *Call, violations []specvalidate.Violation, extraIgnored []schemalint.Finding, duration int64, truncated bool) {
+func capStoredResponseFindings(in []specvalidate.Violation, max int, target string) ([]specvalidate.Violation, bool) {
+	if max <= 0 {
+		max = DefaultSpecResponseFindingsMax
+	}
+	var req, resp []specvalidate.Violation
+	for _, v := range in {
+		if v.Side == specvalidate.SideResponse {
+			resp = append(resp, v)
+			continue
+		}
+		req = append(req, v)
+	}
+	if len(resp) <= max {
+		out := make([]specvalidate.Violation, 0, len(req)+len(resp))
+		return append(append(out, req...), resp...), false
+	}
+	kept := append([]specvalidate.Violation(nil), resp[:max]...)
+	omitted := 0
+	for _, v := range resp[max:] {
+		n := v.Count
+		if n < 1 {
+			n = 1
+		}
+		omitted += n
+	}
+	marker := specvalidate.Violation{
+		Side:    specvalidate.SideResponse,
+		Source:  specvalidate.SourceSyntax,
+		Keyword: "truncated",
+		Message: "too many response findings",
+		Count:   omitted,
+	}
+	if target == SpecTargetCompatible {
+		// Compatible response noise is info; the overflow marker must
+		// classify the same way so it stays out of spec=findings / WARN.
+		marker.Severity = specvalidate.SeverityInfo
+	}
+	kept = append(kept, marker)
+	return append(req, kept...), true
+}
+
+func mergeResponseValidation(call *Call, violations []specvalidate.Violation, extraIgnored []schemalint.Finding, duration int64, truncated bool, max int, target string) {
 	if call.Normalized.Validation == nil {
 		return
+	}
+	if target == "" {
+		target = call.Normalized.Validation.Target
 	}
 	call.Normalized.Validation.ResponseChecked = true
 	call.Normalized.Validation.DurationUS += duration
@@ -423,6 +579,11 @@ func mergeResponseValidation(call *Call, violations []specvalidate.Violation, ex
 		call.Normalized.SpecViolations = &empty
 	}
 	*call.Normalized.SpecViolations = append(*call.Normalized.SpecViolations, violations...)
+	capped, more := capStoredResponseFindings(*call.Normalized.SpecViolations, max, target)
+	*call.Normalized.SpecViolations = capped
+	if more {
+		call.Normalized.Validation.Truncated = true
+	}
 	if call.Normalized.IgnoredFields == nil {
 		empty := []schemalint.Finding{}
 		call.Normalized.IgnoredFields = &empty

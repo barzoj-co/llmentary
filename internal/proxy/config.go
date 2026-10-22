@@ -16,13 +16,14 @@ import (
 )
 
 const (
-	DefaultSpecValidation         = "warn"
-	DefaultSpecProfile            = "relaxed"
-	DefaultSpecValidationMaxBytes = 8 << 20
-	DefaultSpecLogMax             = 5
-	DefaultUpstreamName           = "openai"
-	DefaultUpstreamURL            = "https://api.openai.com/v1"
-	DefaultUpstreamSpec           = DefaultUpstreamName + "=" + DefaultUpstreamURL
+	DefaultSpecValidation          = "warn"
+	DefaultSpecProfile             = "relaxed"
+	DefaultSpecValidationMaxBytes  = 8 << 20
+	DefaultSpecLogMax              = 5
+	DefaultSpecResponseFindingsMax = 50
+	DefaultUpstreamName            = "openai"
+	DefaultUpstreamURL             = "https://api.openai.com/v1"
+	DefaultUpstreamSpec            = DefaultUpstreamName + "=" + DefaultUpstreamURL
 	// DefaultUpstreamLog is the startup line written when no --upstream / env mapping is set.
 	DefaultUpstreamLog    = "no upstream configured; defaulting to openai=https://api.openai.com/v1"
 	DefaultPropagateTrace = PropagateTraceOff
@@ -42,11 +43,14 @@ type Config struct {
 	SpecTargets map[string]string
 	// SpecLogMax is the number of per-finding WARN lines after the summary.
 	// nil means DefaultSpecLogMax. 0 means the summary line only.
-	SpecLogMax        *int
-	SessionFrom       []string
-	DefaultSession    string
-	AllowPathPrefixes []string
-	PropagateTrace    string
+	SpecLogMax *int
+	// SpecResponseFindingsMax caps stored response-side spec findings per call.
+	// Zero means DefaultSpecResponseFindingsMax.
+	SpecResponseFindingsMax int
+	SessionFrom             []string
+	DefaultSession          string
+	AllowPathPrefixes       []string
+	PropagateTrace          string
 	// UpstreamHeaderTimeout cancels an upstream request that sends no
 	// response headers. Zero disables (the default forwarding contract).
 	UpstreamHeaderTimeout time.Duration
@@ -91,6 +95,13 @@ func ConfigFromEnv() (Config, error) {
 			return cfg, fmt.Errorf("--spec-log-max=%q is invalid; allowed values: non-negative count (env LLMENTARY_SPEC_LOG_MAX)", raw)
 		}
 		cfg.SpecLogMax = &n
+	}
+	if raw := strings.TrimSpace(os.Getenv("LLMENTARY_SPEC_RESPONSE_FINDINGS_MAX")); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 0 {
+			return cfg, fmt.Errorf("--spec-response-findings-max=%q is invalid; allowed values: non-negative count (env LLMENTARY_SPEC_RESPONSE_FINDINGS_MAX)", raw)
+		}
+		cfg.SpecResponseFindingsMax = n
 	}
 	if raw := strings.TrimSpace(os.Getenv("LLMENTARY_UPSTREAM_HEADER_TIMEOUT")); raw != "" {
 		d, err := ParseOptionalTimeout("upstream-header-timeout", "LLMENTARY_UPSTREAM_HEADER_TIMEOUT", raw)
@@ -190,7 +201,7 @@ func (c *Config) Validate() error {
 	if !isLoopbackListenAddr(c.ControlAddr) && c.ControlToken == "" {
 		return fmt.Errorf("control API on non-loopback address %q requires --control-token or LLMENTARY_CONTROL_TOKEN", c.ControlAddr)
 	}
-	if err := validateSpecSettings(orDefault(c.SpecValidation, DefaultSpecValidation), orDefault(c.SpecProfile, DefaultSpecProfile), c.SpecValidationMaxBytes, specLogMaxValue(*c)); err != nil {
+	if err := validateSpecSettings(orDefault(c.SpecValidation, DefaultSpecValidation), orDefault(c.SpecProfile, DefaultSpecProfile), c.SpecValidationMaxBytes, specLogMaxValue(*c), specResponseFindingsMaxRaw(*c)); err != nil {
 		return err
 	}
 	if err := c.validateSpecTargets(); err != nil {
@@ -326,9 +337,20 @@ func specLogMaxValue(c Config) int {
 	return *c.SpecLogMax
 }
 
+func specResponseFindingsMaxRaw(c Config) int {
+	return c.SpecResponseFindingsMax
+}
+
+func specResponseFindingsMaxValue(c Config) int {
+	if c.SpecResponseFindingsMax <= 0 {
+		return DefaultSpecResponseFindingsMax
+	}
+	return c.SpecResponseFindingsMax
+}
+
 func IntPtr(n int) *int { return &n }
 
-func validateSpecSettings(mode, profile string, maxBytes, specLogMax int) error {
+func validateSpecSettings(mode, profile string, maxBytes, specLogMax, responseFindingsMax int) error {
 	switch mode {
 	case "off", "warn", "enforce":
 	default:
@@ -344,6 +366,9 @@ func validateSpecSettings(mode, profile string, maxBytes, specLogMax int) error 
 	}
 	if specLogMax < 0 {
 		return fmt.Errorf("--spec-log-max=%d is invalid; allowed values: non-negative count (env LLMENTARY_SPEC_LOG_MAX)", specLogMax)
+	}
+	if responseFindingsMax < 0 {
+		return fmt.Errorf("--spec-response-findings-max=%d is invalid; allowed values: non-negative count (env LLMENTARY_SPEC_RESPONSE_FINDINGS_MAX)", responseFindingsMax)
 	}
 	return nil
 }

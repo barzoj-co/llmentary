@@ -5,6 +5,7 @@ package proxy_test
 import (
 	"bytes"
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -130,6 +131,9 @@ func TestFixtureProxyAssertions(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			// Drain before Close. A mid-stream error SSE has no [DONE], so
+			// closing early races into after-headers abort and clears MidStream.
+			_, _ = io.Copy(io.Discard, resp.Body)
 			_ = resp.Body.Close()
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()

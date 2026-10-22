@@ -18,6 +18,7 @@ func TestConfigFromEnvDefaultsAndOverrides(t *testing.T) {
 	t.Setenv("LLMENTARY_SPEC_PROFILE", "strict")
 	t.Setenv("LLMENTARY_SPEC_VALIDATION_MAX_BYTES", "4096")
 	t.Setenv("LLMENTARY_SPEC_LOG_MAX", "0")
+	t.Setenv("LLMENTARY_SPEC_RESPONSE_FINDINGS_MAX", "25")
 	t.Setenv("LLMENTARY_SESSION_FROM", "header,default")
 	t.Setenv("LLMENTARY_ALLOW_PATH_PREFIXES", "custom, /Other/, custom, a/b,")
 	t.Setenv("LLMENTARY_DEFAULT_SESSION", "sess-env")
@@ -38,6 +39,9 @@ func TestConfigFromEnvDefaultsAndOverrides(t *testing.T) {
 	}
 	if cfg.SpecLogMax == nil || *cfg.SpecLogMax != 0 {
 		t.Fatalf("spec log max=%v", cfg.SpecLogMax)
+	}
+	if cfg.SpecResponseFindingsMax != 25 {
+		t.Fatalf("spec response findings max=%d", cfg.SpecResponseFindingsMax)
 	}
 	if strings.Join(cfg.SessionFrom, ",") != "header,default" {
 		t.Fatalf("session-from=%v", cfg.SessionFrom)
@@ -63,6 +67,7 @@ func TestConfigFromEnvErrors(t *testing.T) {
 		{"bad_session_from", "LLMENTARY_SESSION_FROM", "nope", "session-from"},
 		{"bad_max_bytes", "LLMENTARY_SPEC_VALIDATION_MAX_BYTES", "x", "spec-validation-max-bytes"},
 		{"bad_log_max", "LLMENTARY_SPEC_LOG_MAX", "-1", "spec-log-max"},
+		{"bad_response_findings_max", "LLMENTARY_SPEC_RESPONSE_FINDINGS_MAX", "-1", "spec-response-findings-max"},
 		{"bad_upstream", "LLMENTARY_UPSTREAMS", "name=not-a-url", "scheme"},
 		{"bad_header_timeout", "LLMENTARY_UPSTREAM_HEADER_TIMEOUT", "nope", "upstream-header-timeout"},
 		{"bad_idle_timeout", "LLMENTARY_UPSTREAM_IDLE_TIMEOUT", "-1s", "upstream-idle-timeout"},
@@ -112,19 +117,22 @@ func TestAddUpstreamCorners(t *testing.T) {
 
 func TestValidateSpecSettingsAndLoopback(t *testing.T) {
 	t.Parallel()
-	if err := validateSpecSettings("nope", "relaxed", 1, 1); err == nil {
+	if err := validateSpecSettings("nope", "relaxed", 1, 1, 0); err == nil {
 		t.Fatal("mode")
 	}
-	if err := validateSpecSettings("warn", "nope", 1, 1); err == nil {
+	if err := validateSpecSettings("warn", "nope", 1, 1, 0); err == nil {
 		t.Fatal("profile")
 	}
-	if err := validateSpecSettings("warn", "relaxed", -1, 1); err == nil {
+	if err := validateSpecSettings("warn", "relaxed", -1, 1, 0); err == nil {
 		t.Fatal("max bytes")
 	}
-	if err := validateSpecSettings("off", "strict", 1, -2); err == nil {
+	if err := validateSpecSettings("off", "strict", 1, -2, 0); err == nil {
 		t.Fatal("log max")
 	}
-	if err := validateSpecSettings("off", "strict", 0, 0); err != nil {
+	if err := validateSpecSettings("off", "strict", 0, 0, -1); err == nil {
+		t.Fatal("response findings max")
+	}
+	if err := validateSpecSettings("off", "strict", 0, 0, 0); err != nil {
 		t.Fatal(err)
 	}
 	if !isLoopbackListenAddr("127.0.0.1:9") || !isLoopbackListenAddr("localhost") || !isLoopbackListenAddr("[::1]:8") {
@@ -206,6 +214,12 @@ func TestOrDefaultAndSpecLogMaxValue(t *testing.T) {
 	if specLogMaxValue(Config{SpecLogMax: IntPtr(0)}) != 0 {
 		t.Fatal("zero spec log")
 	}
+	if specResponseFindingsMaxValue(Config{}) != DefaultSpecResponseFindingsMax {
+		t.Fatal("default response findings cap")
+	}
+	if specResponseFindingsMaxValue(Config{SpecResponseFindingsMax: 12}) != 12 {
+		t.Fatal("explicit response findings cap")
+	}
 }
 
 func clearConfigEnv(t *testing.T) {
@@ -214,6 +228,7 @@ func clearConfigEnv(t *testing.T) {
 		"LLMENTARY_LISTEN", "LLMENTARY_CONTROL_LISTEN", "LLMENTARY_CONTROL_TOKEN",
 		"LLMENTARY_UPSTREAMS", "LLMENTARY_UPSTREAM", "LLMENTARY_SPEC_VALIDATION",
 		"LLMENTARY_SPEC_PROFILE", "LLMENTARY_SPEC_VALIDATION_MAX_BYTES", "LLMENTARY_SPEC_LOG_MAX",
+		"LLMENTARY_SPEC_RESPONSE_FINDINGS_MAX",
 		"LLMENTARY_SPEC_TARGETS",
 		"LLMENTARY_SESSION_FROM", "LLMENTARY_DEFAULT_SESSION",
 		"LLMENTARY_ALLOW_PATH_PREFIXES", "LLMENTARY_PROPAGATE_TRACE",
