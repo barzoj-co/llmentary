@@ -11,6 +11,7 @@ const (
 	KindSuspiciousEnum     = "suspicious_enum_values"
 	KindUnknownRequest     = "unknown_request_field"
 	KindVendorField        = "vendor_field"
+	KindCompatibleOptional = "compatible_optional"
 	KindStrictFallbackPred = "strict_fallback_predicted"
 	KindStrictFallback     = "strict_fallback"
 	KindUnresolvedRef      = "unresolved_ref"

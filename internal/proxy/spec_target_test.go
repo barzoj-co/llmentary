@@ -154,6 +154,55 @@ func TestApplySpecTargetCompatible(t *testing.T) {
 	}
 }
 
+func TestApplySpecTargetCompatibleRelaxesResponseRequired(t *testing.T) {
+	t.Parallel()
+	vs := []specvalidate.Violation{
+		{Side: specvalidate.SideResponse, Keyword: "required", Pointer: "/choices/0", Path: "choices[0]", Message: "missing property 'logprobs'"},
+		{Side: specvalidate.SideResponse, Keyword: "required", Pointer: "/choices/0/message", Path: "choices[0].message", Message: "missing property 'content'"},
+		{Side: specvalidate.SideResponse, Keyword: "required", Pointer: "/", Path: "", Message: "missing properties 'error', 'incomplete_details'"},
+		{Side: specvalidate.SideResponse, Keyword: "required", Pointer: "/choices/0", Path: "choices[0]", Message: "missing property 'message'"},
+		{Side: specvalidate.SideResponse, Keyword: "type", Pointer: "/choices/0/logprobs", Path: "choices[0].logprobs", Message: "got string, want object"},
+	}
+	gotV, gotI := applySpecTarget(SpecTargetCompatible, vs, nil, nil)
+	var keptMessage, keptType bool
+	for _, v := range gotV {
+		if v.Keyword == "required" && strings.Contains(v.Message, "logprobs") {
+			t.Fatalf("logprobs stayed a violation: %+v", v)
+		}
+		if v.Keyword == "required" && strings.Contains(v.Message, "content") {
+			t.Fatalf("content stayed a violation: %+v", v)
+		}
+		if v.Keyword == "required" && strings.Contains(v.Message, "error") {
+			t.Fatalf("response error stayed a violation: %+v", v)
+		}
+		if v.Keyword == "required" && strings.Contains(v.Message, "message") {
+			keptMessage = true
+		}
+		if v.Keyword == "type" && v.Pointer == "/choices/0/logprobs" {
+			keptType = true
+		}
+	}
+	if !keptMessage || !keptType {
+		t.Fatalf("kept=%v", gotV)
+	}
+	if len(gotI) != 3 {
+		t.Fatalf("ignored=%v", gotI)
+	}
+	for _, f := range gotI {
+		if f.Kind != schemalint.KindCompatibleOptional || f.Severity != schemalint.SeverityInfo || f.Action != schemalint.ActionReport || f.Context != "response" {
+			t.Fatalf("finding=%+v", f)
+		}
+	}
+
+	oaV, oaI := applySpecTarget(SpecTargetOpenAI, vs, nil, nil)
+	if len(oaV) != len(vs) {
+		t.Fatalf("openai rematched: %d -> %d", len(vs), len(oaV))
+	}
+	if len(oaI) != 0 {
+		t.Fatalf("openai ignored=%v", oaI)
+	}
+}
+
 func TestApplySpecTargetCompatibleDowngradesOpenAILints(t *testing.T) {
 	t.Parallel()
 	ig := []schemalint.Finding{
