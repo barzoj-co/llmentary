@@ -51,6 +51,9 @@ func TestIsIncompleteUpstreamBody(t *testing.T) {
 	if !isIncompleteUpstreamBody(errors.New("connection error: PROTOCOL_ERROR")) {
 		t.Fatal("http2 connection error")
 	}
+	if !isIncompleteUpstreamBody(errors.New("http2: server sent GOAWAY and closed the connection; LastStreamID=1, ErrCode=NO_ERROR, debug=\"\"")) {
+		t.Fatal("http2 goaway")
+	}
 	if isIncompleteUpstreamBody(errors.New("context canceled")) {
 		t.Fatal("canceled is not an incomplete body")
 	}
@@ -84,6 +87,9 @@ func TestShouldAbortClientResponse(t *testing.T) {
 	}
 	if shouldAbortClientResponse(errors.New("stream error: stream ID 5; CANCEL; received from peer"), true, false, false) {
 		t.Fatal("write error stays a client abort")
+	}
+	if shouldAbortClientResponse(errors.New("http2: server sent GOAWAY and closed the connection; LastStreamID=1, ErrCode=NO_ERROR, debug=\"\""), false, false, false) != true {
+		t.Fatal("http2 goaway")
 	}
 }
 

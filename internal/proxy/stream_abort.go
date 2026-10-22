@@ -34,6 +34,7 @@ func isIncompleteUpstreamBody(err error) bool {
 		strings.Contains(msg, "empty hex number for chunk length") ||
 		strings.Contains(msg, "stream error:") ||
 		strings.Contains(msg, "connection error:") ||
+		strings.Contains(msg, "server sent GOAWAY and closed the connection") ||
 		strings.Contains(msg, "connection reset") ||
 		strings.Contains(msg, "peer closed")
 }
