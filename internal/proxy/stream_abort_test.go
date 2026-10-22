@@ -30,6 +30,12 @@ func TestIsIncompleteUpstreamBody(t *testing.T) {
 	if !isIncompleteUpstreamBody(errors.New("peer closed connection without sending complete message body")) {
 		t.Fatal("peer closed")
 	}
+	if !isIncompleteUpstreamBody(errors.New("http: malformed chunked data")) {
+		t.Fatal("malformed chunked")
+	}
+	if !isIncompleteUpstreamBody(errors.New("read tcp: connection reset by peer")) {
+		t.Fatal("connection reset")
+	}
 	if isIncompleteUpstreamBody(errors.New("context canceled")) {
 		t.Fatal("canceled is not an incomplete body")
 	}

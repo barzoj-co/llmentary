@@ -28,6 +28,8 @@ func isIncompleteUpstreamBody(err error) bool {
 	msg := err.Error()
 	return strings.Contains(msg, "unexpected EOF") ||
 		strings.Contains(msg, "incomplete chunked") ||
+		strings.Contains(msg, "malformed chunked") ||
+		strings.Contains(msg, "connection reset") ||
 		strings.Contains(msg, "peer closed")
 }
 

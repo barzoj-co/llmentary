@@ -287,12 +287,14 @@ For recording:
   by the Chat Completions `[DONE]` hardening.
 - SSE comment lines, including OpenRouter keep-alive comments, are recorded as comments
   and ignored by the normalizer.
-- If no terminal marker/event is seen, `normalized.stream_truncated` is set.
-  A **complete** chunked body (terminator received) that simply omits
-  `[DONE]` stays a clean HTTP response toward the client: `stream_truncated`
-  is set and `error` is absent. An **abnormal** upstream end — connection
-  drop before the chunked terminator or before `Content-Length` bytes, or
-  an idle timeout — aborts the inbound connection after flushing what
+- If no terminal marker/event is seen, `normalized.stream_truncated` is set
+  unless the Chat Completions finish+usage `no_done_marker` rule above
+  already treated the stream as complete. A **complete** HTTP body
+  (chunked terminator received) that simply omits `[DONE]` stays a clean
+  HTTP response toward the client: `stream_truncated` may be set and
+  `error` is absent. An **abnormal** upstream end — connection drop
+  before the chunked terminator or before `Content-Length` bytes, or an
+  idle timeout — aborts the inbound connection after flushing what
   arrived, records `error.normalized: stream_truncated` with
   `error.source: upstream` (idle timeout keeps `upstream_idle_timeout` /
   `source: proxy`), and sets `finish_reason: error`. The `INFO proxy

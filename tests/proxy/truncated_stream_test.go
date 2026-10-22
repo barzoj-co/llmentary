@@ -283,4 +283,7 @@ func TestTruncatedStreamDocs(t *testing.T) {
 	if !strings.Contains(string(dm), `error.normalized: "stream_truncated"`) {
 		t.Error("docs/data-model.md missing stream_truncated error")
 	}
+	if !strings.Contains(string(dm), "`stream_truncated`") || !strings.Contains(string(dm), "Error normalization categories") {
+		t.Error("docs/data-model.md missing stream_truncated in error categories")
+	}
 }
