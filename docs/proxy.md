@@ -590,9 +590,12 @@ Returns the clean version and commit (no `v` prefix):
 ### Versions
 
 The **release version** is the single source of truth. `--version`,
-`GET /version`, `GET /config` `version`, and served `GET /openapi.yaml`
-`info.version` always match. Clients print that string in the test header
-(DOG-13). `go build` / `go install` without ldflags use `devel`.
+`GET /version`, and `GET /config` `version` always match. Served
+`GET /openapi.yaml` `info.version` matches those on a release build.
+A `devel` build (`go build` / `go install` without ldflags, or CI e2e)
+leaves the packaged `info.version` (and `# x-release-please-version`)
+so sha256(served) equals the file shipped in client packages. Clients
+print the `GET /version` string in the test header (DOG-13).
 
 ## Spec validation
 

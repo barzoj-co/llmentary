@@ -60,8 +60,14 @@ func TestE2EOpenAPISessionSchema(t *testing.T) {
 	if sessionSchema == nil {
 		t.Fatal("Session schema missing")
 	}
-	if ver.Version == "" || spec.Info.Version != ver.Version || ver.Version != proxy.VersionString() {
-		t.Fatalf("version skew GET /version=%q info.version=%q VersionString=%q", ver.Version, spec.Info.Version, proxy.VersionString())
+	if ver.Version == "" || ver.Version != proxy.VersionString() {
+		t.Fatalf("version skew GET /version=%q VersionString=%q", ver.Version, proxy.VersionString())
+	}
+	if spec.Info.Version == "" {
+		t.Fatal("served openapi info.version empty")
+	}
+	if ver.Version != "devel" && spec.Info.Version != ver.Version {
+		t.Fatalf("release version skew GET /version=%q info.version=%q", ver.Version, spec.Info.Version)
 	}
 	if !strings.Contains(proxy.VersionLine(), ver.Version) {
 		t.Fatalf("--version line %q missing %q", proxy.VersionLine(), ver.Version)

@@ -156,12 +156,17 @@ func TestServedOpenAPIMatchesStampedSHA256(t *testing.T) {
 	if gotSum != wantSum {
 		t.Fatalf("served sha256=%s stamped sha256=%s", hex.EncodeToString(gotSum[:]), hex.EncodeToString(wantSum[:]))
 	}
-	if !bytes.Equal(got, packaged) {
-		t.Fatal("served bytes must match the packaged file (including # x-release-please-version)")
-	}
+	runtimeVer := strings.TrimPrefix(strings.TrimSpace(proxy.VersionString()), "v")
 	packagedVer, err := proxy.OpenAPIInfoVersion(packaged)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if runtimeVer == "" || runtimeVer == "devel" || runtimeVer == packagedVer {
+		if !bytes.Equal(got, packaged) {
+			t.Fatal("served bytes must match the packaged file (including # x-release-please-version)")
+		}
+	} else if !bytes.Contains(got, []byte("  version: "+runtimeVer)) {
+		t.Fatalf("stamped served missing version %q", runtimeVer)
 	}
 	sameVer := proxy.StampOpenAPIVersion(packaged, packagedVer)
 	if !bytes.Equal(sameVer, packaged) {
@@ -191,6 +196,7 @@ func TestOpenAPIStampDifferenceDocumented(t *testing.T) {
 		"StampOpenAPIVersion(packaged, version)",
 		"# x-release-please-version",
 		"byte-identical to the",
+		"devel",
 	} {
 		if !strings.Contains(text, n) {
 			t.Errorf("docs/proxy.md missing %q", n)
@@ -224,8 +230,15 @@ func TestOpenAPIDocumentsSpecTargetsAndUpstreamCalled(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(got) != string(raw) {
-		t.Fatal("served openapi.yaml differs from packaged bytes")
+	runtimeVer := strings.TrimPrefix(strings.TrimSpace(proxy.VersionString()), "v")
+	packagedVer, err := proxy.OpenAPIInfoVersion(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runtimeVer == "" || runtimeVer == "devel" || runtimeVer == packagedVer {
+		if string(got) != string(raw) {
+			t.Fatal("served openapi.yaml differs from packaged bytes")
+		}
 	}
 }
 
