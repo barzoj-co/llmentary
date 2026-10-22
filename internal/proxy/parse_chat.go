@@ -65,8 +65,7 @@ func parseChatBody(call *Call) {
 	var calls []ToolCall
 	for i, choice := range resp.Choices {
 		if choice.FinishReason != "" {
-			call.Normalized.FinishReason = string(choice.FinishReason)
-			warnUnknownFinishReason(call, string(choice.FinishReason), choice.FinishReason.Valid())
+			applyChatFinishReason(call, string(choice.FinishReason))
 		}
 		if choice.Message.Content != nil {
 			call.Normalized.OutputText += *choice.Message.Content
@@ -100,6 +99,14 @@ func parseChatStream(call *Call) {
 	// schema: https://github.com/openai/openai-openapi — CreateChatCompletion
 	// streaming "data: [DONE]" terminator.
 	complete := false
+	choiceSeen := map[int]bool{}
+	choiceFinished := map[int]bool{}
+	noteChoice := func(index int, finish string) {
+		choiceSeen[index] = true
+		if finish != "" {
+			choiceFinished[index] = true
+		}
+	}
 	for _, event := range call.SSEEvents {
 		if event.Comment != "" || len(bytes.TrimSpace(event.Data)) == 0 {
 			continue
@@ -130,7 +137,7 @@ func parseChatStream(call *Call) {
 			call.Normalized.OutputText += loose.content
 			call.Normalized.Refusal += loose.refusal
 			if loose.finish != "" {
-				call.Normalized.FinishReason = loose.finish
+				applyChatFinishReason(call, loose.finish)
 			}
 			if len(loose.usage) > 0 {
 				if u := usageFromLoose(loose.usage, "final_chunk"); u != nil {
@@ -156,6 +163,9 @@ func parseChatStream(call *Call) {
 					item.args.WriteString(delta.args)
 				}
 			}
+			if len(loose.toolDeltas) > 0 || loose.content != "" || loose.refusal != "" || loose.finish != "" {
+				noteChoice(0, loose.finish)
+			}
 			applyChatExtensions(call, event.Data, nil)
 			continue
 		}
@@ -169,10 +179,12 @@ func parseChatStream(call *Call) {
 			call.Normalized.Usage = usageFromChat(raw, "final_chunk")
 		}
 		for _, choice := range chunk.Choices {
+			finish := ""
 			if choice.FinishReason != nil && *choice.FinishReason != "" {
-				call.Normalized.FinishReason = string(*choice.FinishReason)
-				warnUnknownFinishReason(call, string(*choice.FinishReason), choice.FinishReason.Valid())
+				finish = string(*choice.FinishReason)
+				applyChatFinishReason(call, finish)
 			}
+			noteChoice(choice.Index, finish)
 			if choice.Delta.Content != nil {
 				call.Normalized.OutputText += *choice.Delta.Content
 			}
@@ -206,7 +218,18 @@ func parseChatStream(call *Call) {
 		applyChatExtensions(call, event.Data, nil)
 	}
 	if !complete {
-		call.Normalized.StreamTruncated = true
+		allFinished := len(choiceSeen) > 0
+		for idx := range choiceSeen {
+			if !choiceFinished[idx] {
+				allFinished = false
+				break
+			}
+		}
+		if allFinished && call.Normalized.Usage != nil {
+			appendParserWarningOnce(call, warnNoDoneMarker)
+		} else {
+			call.Normalized.StreamTruncated = true
+		}
 	}
 	indexes := make([]int, 0, len(accs))
 	for index := range accs {

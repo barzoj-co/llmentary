@@ -13,6 +13,7 @@ const (
 	warnStrictDecodeFailed = "strict decode failed; used tolerant extraction"
 	warnUnknownFinish      = "unknown finish_reason"
 	warnMissingRequired    = "missing required field"
+	warnNoDoneMarker       = "no_done_marker"
 )
 
 type looseChatDelta struct {
@@ -49,7 +50,7 @@ func applyChatFallback(call *Call, raw []byte, reason string) {
 		call.Normalized.Refusal += got.refusal
 	}
 	if got.finish != "" {
-		call.Normalized.FinishReason = got.finish
+		applyChatFinishReason(call, got.finish)
 	}
 	if len(got.usage) > 0 {
 		if u := usageFromLoose(got.usage, "body"); u != nil {
@@ -333,7 +334,42 @@ func warnUnknownFinishReason(call *Call, reason string, valid bool) {
 	if reason == "" || valid {
 		return
 	}
-	call.Normalized.ParserWarnings = append(call.Normalized.ParserWarnings, warnUnknownFinish+": "+reason)
+	appendParserWarningOnce(call, warnUnknownFinish+": "+reason)
+}
+
+func applyChatFinishReason(call *Call, raw string) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return
+	}
+	norm, native, known := mapChatFinishReason(raw)
+	call.Normalized.FinishReason = norm
+	if native != "" && call.Normalized.NativeFinishReason == "" {
+		call.Normalized.NativeFinishReason = native
+	}
+	warnUnknownFinishReason(call, raw, known)
+}
+
+func mapChatFinishReason(raw string) (normalized, native string, known bool) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "stop", "length", "tool_calls", "content_filter", "function_call":
+		return strings.ToLower(strings.TrimSpace(raw)), "", true
+	case "eos":
+		return "stop", raw, true
+	case "error":
+		return "error", raw, true
+	default:
+		return "unknown", raw, false
+	}
+}
+
+func appendParserWarningOnce(call *Call, msg string) {
+	for _, existing := range call.Normalized.ParserWarnings {
+		if existing == msg {
+			return
+		}
+	}
+	call.Normalized.ParserWarnings = append(call.Normalized.ParserWarnings, msg)
 }
 
 func noteMissingRequired(call *Call, raw []byte, keys ...string) {

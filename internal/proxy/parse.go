@@ -602,13 +602,15 @@ func looseErrorCode(raw json.RawMessage) string {
 }
 
 func normalizeError(status int, code, typ string) string {
-	text := strings.ToLower(code + " " + typ)
+	text := strings.ToLower(strings.TrimSpace(code + " " + typ))
+	compact := strings.NewReplacer("_", "", "-", "", " ", "").Replace(text)
+	n := errorCodeNumber(code)
 	switch {
 	case status == http.StatusUnauthorized || status == http.StatusForbidden:
 		return "auth"
-	case status == http.StatusTooManyRequests || strings.Contains(text, "rate") || strings.Contains(text, "capacity"):
+	case status == http.StatusTooManyRequests || n == http.StatusTooManyRequests || strings.Contains(text, "rate") || strings.Contains(text, "capacity"):
 		return "rate_limit"
-	case status >= 500 || strings.Contains(text, "overloaded"):
+	case status >= 500 || n >= 500 || strings.Contains(text, "overloaded") || strings.Contains(compact, "servererror") || strings.Contains(compact, "internalserver"):
 		return "server"
 	case strings.Contains(text, "content_filter"):
 		return "content_filter"
@@ -617,6 +619,18 @@ func normalizeError(status int, code, typ string) string {
 	default:
 		return "unknown"
 	}
+}
+
+func errorCodeNumber(code string) int {
+	code = strings.TrimSpace(code)
+	if code == "" {
+		return 0
+	}
+	n, err := strconv.Atoi(code)
+	if err != nil {
+		return 0
+	}
+	return n
 }
 
 func errorFromHTTP(status int, raw []byte) *CallError {

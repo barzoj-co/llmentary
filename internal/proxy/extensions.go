@@ -26,6 +26,7 @@ func applyChatExtensions(call *Call, raw json.RawMessage, choiceRaw json.RawMess
 	if usageRaw := root["usage"]; len(usageRaw) > 0 && call.Normalized.Usage != nil {
 		applyUsageExtensions(call.Normalized.Usage, usageRaw)
 	}
+	applyGroqUsage(call, root)
 	if pf := root["prompt_filter_results"]; len(pf) > 0 {
 		collectPromptFilter(call, pf)
 	}
@@ -50,7 +51,7 @@ func applyChatExtensions(call *Call, raw json.RawMessage, choiceRaw json.RawMess
 			call.Normalized.NativeFinishReason = c.NativeFinishReason
 		}
 		if c.FinishReason != "" && call.Normalized.FinishReason == "" {
-			call.Normalized.FinishReason = c.FinishReason
+			applyChatFinishReason(call, c.FinishReason)
 		}
 		if len(c.Error) > 0 && !bytes.Equal(bytes.TrimSpace(c.Error), []byte("null")) {
 			recordChatJSONError(call, raw, c.Error)
@@ -93,6 +94,25 @@ func applyResponsesExtensions(call *Call, raw json.RawMessage) {
 			}
 		}
 	}
+}
+
+func applyGroqUsage(call *Call, root map[string]json.RawMessage) {
+	if call.Normalized.Usage != nil {
+		return
+	}
+	xg := root["x_groq"]
+	if len(bytes.TrimSpace(xg)) == 0 || bytes.Equal(bytes.TrimSpace(xg), []byte("null")) {
+		return
+	}
+	u := jsonField(xg, "usage")
+	if len(bytes.TrimSpace(u)) == 0 || bytes.Equal(bytes.TrimSpace(u), []byte("null")) {
+		return
+	}
+	if usage := usageFromChat(u, "x_groq"); usage != nil {
+		call.Normalized.Usage = usage
+		return
+	}
+	call.Normalized.Usage = usageFromLoose(u, "x_groq")
 }
 
 func applyUsageExtensions(usage *Usage, raw json.RawMessage) {
