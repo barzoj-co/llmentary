@@ -292,9 +292,16 @@ return `400` `{"error":{"type":"invalid_parameter","param":"…","message":"…"
 
 Returns the control API OpenAPI document (`application/yaml`). `info.version`
 is stamped at serve time from the same release version as `--version` and
-`GET /version` (dev builds serve `devel`). The file shipped in release
-tarballs / npm / PyPI is kept in sync by release-please. Requires the
-control token when `--control-token` is set.
+`GET /version` (dev builds serve `devel`). Requires the control token when
+`--control-token` is set.
+
+The packaged file (`api/control/openapi.yaml`, also shipped in release
+tarballs / npm / PyPI) is the source. Served bytes are
+`StampOpenAPIVersion(packaged, version)`: the first `version:` line under
+`info:` is rewritten and the `# x-release-please-version` marker on that
+line is dropped (27 bytes when the version string is unchanged). That is
+the only documented, normalized difference. Compare sha256 of served bytes
+to sha256 of the stamped packaged file, not the raw vendored file.
 
 ```bash
 curl http://127.0.0.1:7778/openapi.yaml

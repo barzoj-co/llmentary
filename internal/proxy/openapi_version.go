@@ -12,9 +12,10 @@ import (
 
 // StampOpenAPIVersion rewrites info.version in a control OpenAPI document to
 // the binary version. The first `version:` line under `info:` is replaced;
-// `openapi: 3.x` is left alone. Dev builds (`devel`) still produce a valid
-// spec. Serve-time stamping is the source of truth so --version, GET /version,
-// and GET /openapi.yaml always agree even if the packaged file lags a release.
+// `openapi: 3.x` is left alone. The `# x-release-please-version` marker on
+// that line is dropped. Dev builds (`devel`) still produce a valid spec.
+// Served GET /openapi.yaml is StampOpenAPIVersion(packaged, VersionString());
+// sha256(served) must equal sha256 of that stamped copy, not the raw file.
 func StampOpenAPIVersion(src []byte, version string) []byte {
 	version = strings.TrimPrefix(strings.TrimSpace(version), "v")
 	if version == "" {

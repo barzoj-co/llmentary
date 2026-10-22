@@ -30,6 +30,18 @@ func TestStampOpenAPIVersion(t *testing.T) {
 	}
 }
 
+func TestStampOpenAPIVersionDropsOnlyReleasePleaseCommentWhenVersionMatches(t *testing.T) {
+	src := []byte("openapi: 3.1.0\ninfo:\n  title: x\n  version: 0.4.1 # x-release-please-version\npaths: {}\n")
+	got := StampOpenAPIVersion(src, "0.4.1")
+	want := []byte("openapi: 3.1.0\ninfo:\n  title: x\n  version: 0.4.1\npaths: {}\n")
+	if string(got) != string(want) {
+		t.Fatalf("got=%q want=%q", got, want)
+	}
+	if len(src)-len(got) != len(" # x-release-please-version") {
+		t.Fatalf("delta=%d", len(src)-len(got))
+	}
+}
+
 func TestOpenAPIInfoVersionIgnoresLineComment(t *testing.T) {
 	src := []byte("openapi: 3.1.0\ninfo:\n  title: x\n  version: 0.4.0 # x-release-please-version\n")
 	ver, err := OpenAPIInfoVersion(src)
