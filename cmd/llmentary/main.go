@@ -187,7 +187,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	_, _ = fmt.Fprintf(stderr, "llmentary %s proxy listening on %s; control API on %s\n", proxy.VersionString(), cfg.ListenAddr, cfg.ControlAddr)
+	_, _ = fmt.Fprintf(stderr, "%s proxy listening on %s; control API on %s\n", proxy.VersionLine(), cfg.ListenAddr, cfg.ControlAddr)
 	if err := listenAndServe(ctx, server); err != nil {
 		_, _ = fmt.Fprintln(stderr, err)
 		return 1

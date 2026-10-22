@@ -367,9 +367,46 @@ func writeWaitTimeout(w http.ResponseWriter, session Session, minCalls int, inFl
 			"min_calls":  minCalls,
 			"active":     len(inFlight),
 			"in_flight":  inFlight,
+			"hint":       waitTimeoutHint(inFlight),
 		},
 	}
 	writeJSONStatus(w, http.StatusGatewayTimeout, body)
+}
+
+func waitTimeoutHint(inFlight []InFlightCall) string {
+	if len(inFlight) == 0 {
+		return "Raise LLMENTARY_WAIT_TIMEOUT if the app needs more time."
+	}
+	var headerMS, streamMS int64
+	var hasHeader, hasStream bool
+	for _, c := range inFlight {
+		switch c.Phase {
+		case InFlightPhaseAwaitingHeaders:
+			hasHeader = true
+			if c.ElapsedMS > headerMS {
+				headerMS = c.ElapsedMS
+			}
+		case InFlightPhaseStreaming:
+			hasStream = true
+			if c.ElapsedMS > streamMS {
+				streamMS = c.ElapsedMS
+			}
+		}
+	}
+	if hasHeader {
+		return fmt.Sprintf("the upstream has not sent headers for %s; set LLMENTARY_UPSTREAM_HEADER_TIMEOUT to fail such calls fast", formatElapsedMS(headerMS))
+	}
+	if hasStream {
+		return fmt.Sprintf("an upstream stream has been in progress for %s; set LLMENTARY_UPSTREAM_IDLE_TIMEOUT to fail stuck streams", formatElapsedMS(streamMS))
+	}
+	return "Raise LLMENTARY_WAIT_TIMEOUT if the app needs more time."
+}
+
+func formatElapsedMS(ms int64) string {
+	if ms < 1000 {
+		return fmt.Sprintf("%dms", ms)
+	}
+	return fmt.Sprintf("%.1fs", float64(ms)/1000.0)
 }
 
 func writeInvalidParam(w http.ResponseWriter, param, message string) {

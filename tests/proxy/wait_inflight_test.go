@@ -58,6 +58,10 @@ func TestWaitTimeoutAwaitingHeaders(t *testing.T) {
 		t.Fatalf("headers log before headers: %s", logBuf.String())
 	}
 	assertLiveMatchesVectorKeys(t, body, false)
+	hint := fmtString(body["error"].(map[string]any)["hint"])
+	if !strings.Contains(hint, "LLMENTARY_UPSTREAM_HEADER_TIMEOUT") || strings.Contains(hint, "LLMENTARY_WAIT_TIMEOUT") {
+		t.Fatalf("awaiting_headers hint=%q", hint)
+	}
 }
 
 func TestWaitTimeoutStreaming(t *testing.T) {
@@ -94,6 +98,10 @@ func TestWaitTimeoutStreaming(t *testing.T) {
 		t.Fatalf("missing headers log: %s", logBuf.String())
 	}
 	assertLiveMatchesVectorKeys(t, body, true)
+	hint := fmtString(body["error"].(map[string]any)["hint"])
+	if !strings.Contains(hint, "LLMENTARY_UPSTREAM_IDLE_TIMEOUT") || strings.Contains(hint, "LLMENTARY_WAIT_TIMEOUT") {
+		t.Fatalf("streaming hint=%q", hint)
+	}
 }
 
 func TestWaitTimeoutTwoInFlightOrdered(t *testing.T) {
@@ -400,6 +408,13 @@ func assertWaitTimeoutInFlight(t *testing.T, body map[string]any, active, callsS
 	}
 	if intFrom(errObj["min_calls"]) != minCalls {
 		t.Fatalf("min_calls=%v want %d", errObj["min_calls"], minCalls)
+	}
+	hint := fmtString(errObj["hint"])
+	if hint == "" {
+		t.Fatal("missing wait hint")
+	}
+	if active == 0 && !strings.Contains(hint, "LLMENTARY_WAIT_TIMEOUT") {
+		t.Fatalf("idle wait hint=%q", hint)
 	}
 	items, _ := errObj["in_flight"].([]any)
 	if len(items) != active {

@@ -558,13 +558,14 @@ func midStreamError(status int, raw json.RawMessage) *CallError {
 			Message:    ev.Message,
 			Normalized: normalizeError(status, code, string(ev.Type)),
 			MidStream:  true,
+			Source:     "upstream",
 		}
 	}
 
 	if len(holder.Error) == 0 || bytes.Equal(bytes.TrimSpace(holder.Error), []byte("null")) {
 		return nil
 	}
-	err := &CallError{HTTPStatus: status, MidStream: true}
+	err := &CallError{HTTPStatus: status, MidStream: true, Source: "upstream"}
 	if typ, code, message, ok := parseLooseError(holder.Error); ok {
 		err.Type = typ
 		err.Code = code
@@ -648,7 +649,7 @@ func errorFromHTTP(status int, raw []byte) *CallError {
 	if status < 400 {
 		return nil
 	}
-	err := &CallError{HTTPStatus: status, Normalized: normalizeError(status, "", "")}
+	err := &CallError{HTTPStatus: status, Normalized: normalizeError(status, "", ""), Source: "upstream"}
 	var wrapper openaiapi.ErrorResponse
 	if json.Unmarshal(raw, &wrapper) == nil && (wrapper.Error.Message != "" || wrapper.Error.Type != "") {
 		err.Type = wrapper.Error.Type

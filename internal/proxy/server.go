@@ -282,7 +282,7 @@ func (s *Server) finishWithProxyError(sessionID, callID string, startedAt time.T
 		call.LatencyMS = endedAt.Sub(startedAt).Milliseconds()
 		call.HTTPStatus = status
 		call.UpstreamCalled = upstreamCalled
-		call.Normalized.Error = &CallError{HTTPStatus: status, Message: err.Error(), Normalized: "network"}
+		call.Normalized.Error = &CallError{HTTPStatus: status, Message: err.Error(), Normalized: "network", Source: "proxy"}
 		call.Normalized.FinishReason = "error"
 		s.parser.Parse(call)
 		applyRequestValidation(call, rv)
