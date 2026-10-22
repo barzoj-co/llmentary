@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -103,13 +104,70 @@ func repoRoot(t *testing.T) string {
 }
 
 func goldenDiff(got, want []byte) string {
-	const limit = 800
-	gs, ws := string(got), string(want)
-	if len(gs) > limit {
-		gs = gs[:limit] + "…"
+	if bytes.Equal(got, want) {
+		return "got and want are identical"
 	}
-	if len(ws) > limit {
-		ws = ws[:limit] + "…"
+	off := firstDiffByte(got, want)
+	line := 1 + bytes.Count(prefix(got, off), []byte("\n"))
+	return fmt.Sprintf("first difference at byte %d (line %d)\ngot:\n%s\nwant:\n%s",
+		off, line, snippetAround(got, off), snippetAround(want, off))
+}
+
+func firstDiffByte(got, want []byte) int {
+	n := len(got)
+	if len(want) < n {
+		n = len(want)
 	}
-	return "got prefix:\n" + gs + "\nwant prefix:\n" + ws
+	for i := 0; i < n; i++ {
+		if got[i] != want[i] {
+			return i
+		}
+	}
+	return n
+}
+
+func prefix(b []byte, n int) []byte {
+	if n > len(b) {
+		n = len(b)
+	}
+	if n < 0 {
+		return nil
+	}
+	return b[:n]
+}
+
+func snippetAround(b []byte, off int) string {
+	const window = 160
+	if len(b) == 0 {
+		return "(empty)"
+	}
+	if off < 0 {
+		off = 0
+	}
+	if off > len(b) {
+		off = len(b)
+	}
+	start := off - window
+	if start < 0 {
+		start = 0
+	}
+	if i := bytes.LastIndex(b[:off], []byte("\n")); i >= 0 && i+1 < off && off-i <= window {
+		start = i + 1
+	}
+	end := off + window
+	if end > len(b) {
+		end = len(b)
+	}
+	if i := bytes.Index(b[off:], []byte("\n")); i >= 0 && off+i < end {
+		end = off + i
+	}
+	var bld strings.Builder
+	if start > 0 {
+		bld.WriteString("…")
+	}
+	bld.Write(b[start:end])
+	if end < len(b) {
+		bld.WriteString("…")
+	}
+	return bld.String()
 }

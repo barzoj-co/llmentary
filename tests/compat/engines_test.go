@@ -3,6 +3,8 @@
 package compat_test
 
 import (
+	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"testing"
@@ -51,14 +53,9 @@ func TestOptionalExternalEngines(t *testing.T) {
 		var last error
 		ok := false
 		for i := 0; i < 8; i++ {
-			res, err := client.Get(url)
-			if err == nil {
-				_ = res.Body.Close()
-				if res.StatusCode < 500 {
-					ok = true
-					break
-				}
-				last = err
+			if err := probeEngine(client, url); err == nil {
+				ok = true
+				break
 			} else {
 				last = err
 			}
@@ -68,6 +65,23 @@ func TestOptionalExternalEngines(t *testing.T) {
 			t.Fatalf("engine %s not healthy: %v", url, last)
 		}
 	}
+}
+
+func probeEngine(client *http.Client, url string) error {
+	res, err := client.Get(url)
+	if err != nil {
+		return err
+	}
+	_, _ = io.Copy(io.Discard, res.Body)
+	_ = res.Body.Close()
+	if !engineHealthOK(res.StatusCode, nil) {
+		return fmt.Errorf("status %d", res.StatusCode)
+	}
+	return nil
+}
+
+func engineHealthOK(status int, err error) bool {
+	return err == nil && status >= 200 && status < 300
 }
 
 func splitComma(raw string) []string {
