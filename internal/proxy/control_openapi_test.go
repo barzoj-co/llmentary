@@ -52,6 +52,82 @@ func TestControlOpenAPISurvivesReleasePleaseYAMLRewrite(t *testing.T) {
 	}
 }
 
+func TestOpenAPIAliasDocsMarkDeprecated(t *testing.T) {
+	for _, rel := range []string{
+		filepath.Join("..", "..", "docs", "proxy.md"),
+		filepath.Join("..", "..", "docs", "session-lifecycle.md"),
+	} {
+		raw, err := os.ReadFile(rel)
+		if err != nil {
+			t.Fatal(err)
+		}
+		text := string(raw)
+		for _, n := range []string{"PascalCase", "deprecated", "removed in 1.0"} {
+			if !strings.Contains(strings.ToLower(text), strings.ToLower(n)) {
+				t.Errorf("%s missing %q", rel, n)
+			}
+		}
+	}
+}
+
+func TestOpenAPISpecAliasesAreDeprecated(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "api", "control", "openapi.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := checkOpenAPISpecAliasesDeprecated(raw); err != nil {
+		t.Fatal(err)
+	}
+	if err := checkOpenAPISpecAliasesDeprecated(simulateReleasePleaseYAMLRewrite(raw)); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func checkOpenAPISpecAliasesDeprecated(raw []byte) error {
+	var spec map[string]any
+	if err := yaml.Unmarshal(raw, &spec); err != nil {
+		return fmt.Errorf("parse openapi: %w", err)
+	}
+	aliases := map[string]string{
+		"Checked":     "checked",
+		"Clean":       "clean",
+		"Findings":    "findings",
+		"RequestOnly": "request_only",
+		"NotChecked":  "not_checked",
+	}
+	props := specProperties(spec, "SessionSummary", "spec")
+	if props == nil {
+		return fmt.Errorf("SessionSummary.spec properties missing")
+	}
+	for alias, canonical := range aliases {
+		prop, ok := props[alias].(map[string]any)
+		if !ok {
+			return fmt.Errorf("alias %s missing from OpenAPI spec counters", alias)
+		}
+		if prop["deprecated"] != true {
+			return fmt.Errorf("alias %s is not marked deprecated: true", alias)
+		}
+		desc, _ := prop["description"].(string)
+		if !strings.Contains(desc, "Removed in 1.0") || !strings.Contains(desc, "`"+canonical+"`") {
+			return fmt.Errorf("alias %s missing removal note: %q", alias, desc)
+		}
+		if _, ok := props[canonical]; !ok {
+			return fmt.Errorf("canonical %s missing next to alias %s", canonical, alias)
+		}
+	}
+	return nil
+}
+
+func specProperties(spec map[string]any, schema, field string) map[string]any {
+	components, _ := spec["components"].(map[string]any)
+	schemas, _ := components["schemas"].(map[string]any)
+	item, _ := schemas[schema].(map[string]any)
+	props, _ := item["properties"].(map[string]any)
+	nested, _ := props[field].(map[string]any)
+	out, _ := nested["properties"].(map[string]any)
+	return out
+}
+
 func checkControlOpenAPIDocument(raw []byte) error {
 	var spec map[string]any
 	if err := yaml.Unmarshal(raw, &spec); err != nil {

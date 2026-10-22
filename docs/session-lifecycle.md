@@ -22,7 +22,8 @@ Control API reference: [Proxy](proxy.md#get-sessionsidwait).
 
 `GET /sessions[].spec` counts how each finished call was validated. Canonical
 keys are snake_case (`checked`, `clean`, `findings`, `request_only`,
-`not_checked`); PascalCase aliases are also serialized. See
+`not_checked`); PascalCase aliases are still serialized and marked
+deprecated in OpenAPI (removed in 1.0). See
 [Proxy — GET /sessions](proxy.md#get-sessions-and-get-sessions).
 
 ## Abort cases

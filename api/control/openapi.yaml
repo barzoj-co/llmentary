@@ -329,23 +329,23 @@ components:
             Checked:
               type: integer
               deprecated: true
-              description: Alias of `checked` (0.x).
+              description: Deprecated 0.x alias of `checked`. Removed in 1.0; use `checked`.
             Clean:
               type: integer
               deprecated: true
-              description: Alias of `clean` (0.x).
+              description: Deprecated 0.x alias of `clean`. Removed in 1.0; use `clean`.
             Findings:
               type: integer
               deprecated: true
-              description: Alias of `findings` (0.x).
+              description: Deprecated 0.x alias of `findings`. Removed in 1.0; use `findings`.
             RequestOnly:
               type: integer
               deprecated: true
-              description: Alias of `request_only` (0.x).
+              description: Deprecated 0.x alias of `request_only`. Removed in 1.0; use `request_only`.
             NotChecked:
               type: integer
               deprecated: true
-              description: Alias of `not_checked` (0.x).
+              description: Deprecated 0.x alias of `not_checked`. Removed in 1.0; use `not_checked`.
     Session:
       type: object
       required:
