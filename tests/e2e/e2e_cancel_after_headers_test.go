@@ -96,6 +96,12 @@ func assertLiveAfterHeadersAbort(t *testing.T, session map[string]any) {
 	if n["client_aborted"] != true {
 		t.Fatalf("client_aborted=%v http=%v finish=%v warnings=%v", n["client_aborted"], call["http_status"], n["finish_reason"], n["parser_warnings"])
 	}
+	if call["client_aborted"] != true {
+		t.Fatalf("top-level client_aborted=%v", call["client_aborted"])
+	}
+	if call["abort_phase"] != "after_headers" {
+		t.Fatalf("abort_phase=%v want after_headers", call["abort_phase"])
+	}
 	if call["http_status"] != float64(http.StatusOK) {
 		t.Fatalf("http_status=%v want 200", call["http_status"])
 	}
