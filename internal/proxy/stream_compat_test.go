@@ -306,6 +306,26 @@ func TestUnknownFinishReasonKeepsRaw(t *testing.T) {
 	}
 }
 
+func TestLooseChunkNotesChoiceZeroNotToolIndex(t *testing.T) {
+	// created as a string fails the generated schema, so the stream uses the
+	// loose extractor. Tool-call index 1 must not register as choice 1.
+	stream := "data: {\"id\":\"c\",\"created\":\"1\",\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"c0\",\"type\":\"function\",\"function\":{\"name\":\"a\",\"arguments\":\"{}\"}},{\"index\":1,\"id\":\"c1\",\"type\":\"function\",\"function\":{\"name\":\"b\",\"arguments\":\"{}\"}}]}}]}\n\n" +
+		"data: {\"created\":\"1\",\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":1,\"completion_tokens\":1,\"total_tokens\":2}}\n\n"
+	call := parseChatSSE(t, stream)
+	if call.Normalized.StreamTruncated {
+		t.Fatal("loose finish+usage without [DONE] should get no_done_marker, not truncate")
+	}
+	if !hasWarning(call, warnNoDoneMarker) {
+		t.Fatalf("warnings=%v want %s", call.Normalized.ParserWarnings, warnNoDoneMarker)
+	}
+	if call.Normalized.FinishReason != "stop" {
+		t.Fatalf("finish=%q", call.Normalized.FinishReason)
+	}
+	if len(call.Normalized.ToolCalls) != 2 {
+		t.Fatalf("tools=%d", len(call.Normalized.ToolCalls))
+	}
+}
+
 func TestResponsesStreamUnchangedByChatDoneHardening(t *testing.T) {
 	// Responses complete on response.completed, not [DONE] or chat finish+usage.
 	terminal := `{"type":"response.completed","response":{"id":"resp_1","model":"gpt-test","status":"completed","output":[{"id":"msg","type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"ok","annotations":[],"logprobs":[]}]}]}}`

@@ -187,10 +187,6 @@ App / SDK base URL:
   - mid-stream `error.code: "server_error"` with `finish_reason: "error"` (normalized
     `error.normalized: "server"`, `finish_reason: "error"`).
 - Chunks with `choices: []` are tolerated.
-- Groq last-chunk `x_groq.usage` is recorded as `usage` with `source: "x_groq"` when
-  top-level `usage` is absent.
-- Together / Ollama `finish_reason: "eos"` maps to `stop`; the raw value stays in
-  `native_finish_reason`.
 
 **Verified status:** fixture-verified (`tests/proxy/testdata/openrouter/`,
 `TestU5OpenRouterFixture`). Not live-verified (no OpenRouter key in this project).
@@ -210,6 +206,13 @@ framing (`data: {json}` chunks, Chat Completions ending with `data: [DONE]`).
 | vLLM | `http://{host}:8000/v1` | expected to work, not verified |
 | LiteLLM | `http://{host}:4000/v1` | expected to work, not verified |
 | Ollama | `http://{host}:11434/v1` | expected to work, not verified |
+
+Cross-provider stream normalization (any OpenAI-wire host, not OpenRouter-only):
+
+- Groq last-chunk `x_groq.usage` is recorded as `usage` with `source: "x_groq"`
+  when top-level `usage` is absent.
+- Together / Ollama `finish_reason: "eos"` maps to `stop`; the raw value stays
+  in `native_finish_reason`.
 
 The normalizer is tolerant, not exhaustive: unknown fields stay in the raw body, and
 provider-specific fields are parsed only when the code knows them.

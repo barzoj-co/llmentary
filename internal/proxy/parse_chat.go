@@ -144,7 +144,6 @@ func parseChatStream(call *Call) {
 					call.Normalized.Usage = u
 				}
 			}
-			notedLoose := false
 			for _, delta := range loose.toolDeltas {
 				item := accs[delta.index]
 				if item == nil {
@@ -163,10 +162,8 @@ func parseChatStream(call *Call) {
 				if delta.args != "" {
 					item.args.WriteString(delta.args)
 				}
-				noteChoice(delta.index, loose.finish)
-				notedLoose = true
 			}
-			if !notedLoose && (loose.content != "" || loose.refusal != "" || loose.finish != "") {
+			if len(loose.toolDeltas) > 0 || loose.content != "" || loose.refusal != "" || loose.finish != "" {
 				noteChoice(0, loose.finish)
 			}
 			applyChatExtensions(call, event.Data, nil)
