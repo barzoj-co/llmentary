@@ -55,4 +55,32 @@ func TestReasoningFieldCharsNullDetails(t *testing.T) {
 	if n := reasoningFieldChars(map[string]any{"reasoning_content": strings.Repeat("a", 12)}); n != 12 {
 		t.Fatalf("n=%d", n)
 	}
+	if n := reasoningFieldChars(map[string]any{"reasoning_details": []any{}}); n != 0 {
+		t.Fatalf("empty details counted %d", n)
+	}
+	if n := reasoningFieldChars(map[string]any{"reasoning_details": []any{map[string]any{"text": "ab"}}}); n != 2 {
+		t.Fatalf("details text=%d", n)
+	}
+}
+
+func TestScanReasoningTypeItemAndEmptyDetails(t *testing.T) {
+	t.Parallel()
+	call := &Call{}
+	applyRequestReasoningIn(call, []byte(`{"model":"m","input":[{"type":"reasoning","summary":[{"type":"summary_text","text":"thought"}],"content":[{"text":"more"}]}]}`))
+	got := call.Normalized.ReasoningIn
+	if got == nil || got.AssistantTurns != 0 || got.WithReasoning != 1 || got.Chars != len("thought")+len("more") {
+		t.Fatalf("reasoning item %+v", got)
+	}
+	empty := &Call{}
+	applyRequestReasoningIn(empty, []byte(`{"model":"m","messages":[{"role":"assistant","content":"x","reasoning_details":[]}]}`))
+	got = empty.Normalized.ReasoningIn
+	if got == nil || got.AssistantTurns != 1 || got.WithReasoning != 0 || got.Chars != 0 {
+		t.Fatalf("empty details %+v", got)
+	}
+	mixed := &Call{}
+	applyRequestReasoningIn(mixed, []byte(`{"model":"m","input":[{"type":"reasoning","summary":"abc"},{"role":"assistant","content":"x"}]}`))
+	got = mixed.Normalized.ReasoningIn
+	if got == nil || got.AssistantTurns != 1 || got.WithReasoning != 1 || got.Chars != 3 {
+		t.Fatalf("mixed %+v", got)
+	}
 }

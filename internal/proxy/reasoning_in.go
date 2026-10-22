@@ -34,6 +34,14 @@ func scanReasoningMessages(info *ReasoningIn, items []any) {
 		if !ok {
 			continue
 		}
+		typ, _ := obj["type"].(string)
+		if typ == "reasoning" {
+			if chars := reasoningItemChars(obj); chars > 0 {
+				info.WithReasoning++
+				info.Chars += chars
+			}
+			continue
+		}
 		role, _ := obj["role"].(string)
 		if role != "assistant" {
 			continue
@@ -46,6 +54,10 @@ func scanReasoningMessages(info *ReasoningIn, items []any) {
 	}
 }
 
+func reasoningItemChars(obj map[string]any) int {
+	return textValueChars(obj["summary"]) + textValueChars(obj["content"]) + reasoningFieldChars(obj)
+}
+
 func reasoningFieldChars(obj map[string]any) int {
 	n := 0
 	if s, ok := obj["reasoning_content"].(string); ok {
@@ -55,12 +67,37 @@ func reasoningFieldChars(obj map[string]any) int {
 		n += len(s)
 	}
 	if raw, ok := obj["reasoning_details"]; ok && raw != nil {
-		b, err := json.Marshal(raw)
-		if err == nil && !bytes.Equal(bytes.TrimSpace(b), []byte("null")) {
-			n += len(bytes.TrimSpace(b))
-		}
+		n += reasoningDetailsChars(raw)
 	}
 	return n
+}
+
+func reasoningDetailsChars(raw any) int {
+	return textValueChars(raw)
+}
+
+func textValueChars(v any) int {
+	switch t := v.(type) {
+	case string:
+		return len(t)
+	case []any:
+		n := 0
+		for _, item := range t {
+			n += textValueChars(item)
+		}
+		return n
+	case map[string]any:
+		n := 0
+		if s, ok := t["text"].(string); ok {
+			n += len(s)
+		}
+		if s, ok := t["content"].(string); ok {
+			n += len(s)
+		}
+		return n
+	default:
+		return 0
+	}
 }
 
 func firstJSONObjectBytes(raw []byte) []byte {

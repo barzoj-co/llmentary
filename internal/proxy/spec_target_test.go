@@ -180,3 +180,105 @@ func TestIsExtendedEnumPointers(t *testing.T) {
 		t.Fatal("role enum is not vendor-extended")
 	}
 }
+
+func TestCompatibleRejectsKnownFieldTypeEnumRequired(t *testing.T) {
+	t.Parallel()
+	reject := []specvalidate.Violation{
+		{Side: specvalidate.SideRequest, Keyword: "type", Pointer: "/max_completion_tokens", Message: "got string"},
+		{Side: specvalidate.SideRequest, Keyword: "type", Pointer: "/presence_penalty"},
+		{Side: specvalidate.SideRequest, Keyword: "type", Pointer: "/messages/0/content", Message: "got number, want string"},
+		{Side: specvalidate.SideRequest, Keyword: "type", Pointer: "/messages/0/role", Message: "got number, want string"},
+		{Side: specvalidate.SideRequest, Keyword: "required", Pointer: "/messages/0", Message: "missing property 'content'"},
+	}
+	for _, v := range reject {
+		if !isCompatibleReject(v) {
+			t.Fatalf("should reject %+v", v)
+		}
+	}
+	gotV, _ := applyCompatibleTarget(reject, nil)
+	if ok, kind := shouldReject(gotV, nil); !ok || kind != "spec_violation" {
+		t.Fatalf("reject=%v kind=%s kept=%v", ok, kind, gotV)
+	}
+	leftovers := []specvalidate.Violation{
+		{Side: specvalidate.SideRequest, Keyword: "required", Pointer: "/tools/0", Message: "missing property 'type'"},
+		{Side: specvalidate.SideRequest, Keyword: "required", Pointer: "/messages/0", Message: "missing property 'tool_call_id'"},
+		{Side: specvalidate.SideRequest, Keyword: "required", Pointer: "/response_format", Message: "missing property 'json_schema'"},
+		{Side: specvalidate.SideRequest, Keyword: "type", Pointer: "/tool_choice", Message: "got string, want object"},
+		{Side: specvalidate.SideRequest, Keyword: "type", Pointer: "/stream_options", Message: "got object, want null"},
+		{Side: specvalidate.SideRequest, Keyword: "type", Pointer: "/reasoning", Message: "got object, want null"},
+		{Side: specvalidate.SideRequest, Keyword: "type", Pointer: "/input/0/content", Message: "got array, want string"},
+		{Side: specvalidate.SideRequest, Keyword: "required", Pointer: "/input/0/content/0", Message: "missing property 'type'"},
+		{Side: specvalidate.SideRequest, Keyword: "type", Pointer: "/messages/0/content", Message: "got null, want string"},
+		{Side: specvalidate.SideRequest, Keyword: "type", Pointer: "/messages/0/content", Message: "got array, want string"},
+		{Side: specvalidate.SideRequest, Keyword: "enum", Pointer: "/messages/0/role", Message: "value must be 'tool'"},
+		{Side: specvalidate.SideRequest, Keyword: "enum", Pointer: "/input/0/type", Message: "value must be 'message'"},
+	}
+	for _, leftover := range leftovers {
+		if isCompatibleReject(leftover) {
+			t.Fatalf("leftover must not reject: %+v", leftover)
+		}
+	}
+	gotV, _ = applyCompatibleTarget(leftovers, nil)
+	if ok, _ := shouldReject(gotV, nil); ok {
+		t.Fatalf("leftover rejected: %v", gotV)
+	}
+	if gotV[0].Severity != specvalidate.SeverityWarning {
+		t.Fatalf("leftover severity=%q", gotV[0].Severity)
+	}
+	extended := specvalidate.Violation{Side: specvalidate.SideRequest, Keyword: "enum", Pointer: "/tool_choice"}
+	if isCompatibleReject(extended) {
+		t.Fatal("extended enum must stay warning")
+	}
+}
+
+func TestCompatibleRejectsExhaustedRoleEnum(t *testing.T) {
+	t.Parallel()
+	losing := specvalidate.Violation{Side: specvalidate.SideRequest, Keyword: "enum", Pointer: "/messages/0/role", Message: "value must be 'tool'"}
+	if isCompatibleReject(losing) {
+		t.Fatal("single losing-branch role enum is leftover")
+	}
+	gotV, _ := applyCompatibleTarget([]specvalidate.Violation{losing}, nil)
+	if ok, _ := shouldReject(gotV, nil); ok {
+		t.Fatal("single losing-branch role enum rejected")
+	}
+	var all []specvalidate.Violation
+	for _, role := range chatRoleEnumValues {
+		all = append(all, specvalidate.Violation{
+			Side: specvalidate.SideRequest, Keyword: "enum", Pointer: "/messages/0/role",
+			Message: "value must be '" + role + "'",
+		})
+	}
+	gotV, _ = applyCompatibleTarget(all, nil)
+	if ok, kind := shouldReject(gotV, nil); !ok || kind != "spec_violation" {
+		t.Fatalf("exhausted role enum must reject: reject=%v kind=%s kept=%v", ok, kind, gotV)
+	}
+}
+
+func TestCompatibleKnownRequiredCorners(t *testing.T) {
+	t.Parallel()
+	if !isKnownFieldRequiredViolation(specvalidate.Violation{Pointer: "/messages/1", Message: "missing property 'role'"}) {
+		t.Fatal("chat missing role")
+	}
+	if isKnownFieldRequiredViolation(specvalidate.Violation{Pointer: "/input/0", Message: "missing property 'role'"}) {
+		t.Fatal("responses item missing role is leftover")
+	}
+	if isKnownFieldRequiredViolation(specvalidate.Violation{Pointer: "/", Message: "missing property 'tools'"}) {
+		t.Fatal("root tools is not core")
+	}
+	if !isKnownFieldRequiredViolation(specvalidate.Violation{Pointer: "/", Message: "missing property 'messages'"}) {
+		t.Fatal("root messages")
+	}
+	if isKnownFieldTypeViolation(specvalidate.Violation{Pointer: "/input", Message: "got string, want array"}) ||
+		isKnownFieldTypeViolation(specvalidate.Violation{Pointer: "/response_format", Message: "got object"}) {
+		t.Fatal("union objects are not known scalars")
+	}
+	if !isKnownFieldTypeViolation(specvalidate.Violation{Pointer: "/messages", Message: "got string, want array"}) {
+		t.Fatal("messages type")
+	}
+	if isKnownFieldTypeViolation(specvalidate.Violation{Pointer: "/messages/2/content", Message: "got null, want string"}) {
+		t.Fatal("null content is leftover")
+	}
+	if !isKnownFieldTypeViolation(specvalidate.Violation{Pointer: "/messages/2/content", Message: "got number, want string"}) {
+		t.Fatal("numeric content")
+	}
+}

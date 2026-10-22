@@ -124,6 +124,10 @@ func TestSpecTargetKnownTypeErrorsStillReject(t *testing.T) {
 	for _, body := range [][]byte{
 		[]byte(`{"model":"m","messages":"hi"}`),
 		[]byte(`{"model":"m","messages":[{"role":"user","content":"hi"}],"max_tokens":"16"}`),
+		[]byte(`{"model":"m","messages":[{"role":"user","content":"hi"}],"max_completion_tokens":"16"}`),
+		[]byte(`{"model":"m","messages":[{"role":"user","content":"hi"}],"presence_penalty":"x"}`),
+		[]byte(`{"model":"m","messages":[{"role":"bogus","content":"hi"}]}`),
+		[]byte(`{"model":"m","messages":[{"role":"user"}]}`),
 	} {
 		status, _, raw, _ := postRaw(t, p, "/v1/chat/completions", newSession(), nil, body)
 		if status != http.StatusBadRequest {
@@ -149,6 +153,8 @@ func TestSpecTargetProviderRequiredMessageFields(t *testing.T) {
 		{"extra_content_other", []byte(`{"model":"m","messages":[{"role":"assistant","content":null,"tool_calls":[{"id":"c1","type":"function","function":{"name":"x","arguments":"{}"},"extra_content":{"acme":{"tok":"t"}}}]}]}`)},
 		{"reasoning_null", []byte(`{"model":"m","messages":[{"role":"assistant","content":"x","reasoning_content":null}]}`)},
 		{"reasoning_empty", []byte(`{"model":"m","messages":[{"role":"assistant","content":"x","reasoning_content":""}]}`)},
+		{"reasoning_details_empty", []byte(`{"model":"m","messages":[{"role":"assistant","content":"x","reasoning_details":[]}]}`)},
+		{"reasoning_type_item", []byte(`{"model":"m","input":[{"type":"reasoning","summary":[{"text":"think"}],"content":[{"text":"more"}]}]}`)},
 		{"reasoning_long", []byte(`{"model":"m","messages":[{"role":"assistant","content":"x","reasoning_content":"` + long + `"}]}`)},
 		{"user_reasoning_still_recorded", []byte(`{"model":"m","messages":[{"role":"user","content":"hi","reasoning_content":"nope"}]}`)},
 		{"resp_input_vendor", []byte(`{"model":"m","input":[{"type":"message","role":"assistant","content":"x","reasoning_content":"y","foo":1}]}`)},
@@ -175,6 +181,18 @@ func TestSpecTargetProviderRequiredMessageFields(t *testing.T) {
 					ri, _ := n["reasoning_in"].(map[string]any)
 					if asIntValue(ri["assistant_turns"]) < 1 || asIntValue(ri["with_reasoning"]) < 1 {
 						t.Fatalf("reasoning_in=%v", ri)
+					}
+				}
+				if r.name == "reasoning_details_empty" {
+					ri, _ := n["reasoning_in"].(map[string]any)
+					if asIntValue(ri["assistant_turns"]) != 1 || asIntValue(ri["with_reasoning"]) != 0 || asIntValue(ri["chars"]) != 0 {
+						t.Fatalf("empty details counted: %v", ri)
+					}
+				}
+				if r.name == "reasoning_type_item" {
+					ri, _ := n["reasoning_in"].(map[string]any)
+					if asIntValue(ri["with_reasoning"]) != 1 || asIntValue(ri["chars"]) != len("think")+len("more") {
+						t.Fatalf("reasoning item: %v", ri)
 					}
 				}
 			})

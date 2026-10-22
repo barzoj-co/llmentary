@@ -135,6 +135,7 @@ func applyCompatibleTarget(violations []specvalidate.Violation, ignored []schema
 		}
 		kept = append(kept, v)
 	}
+	promoteExhaustedItemRoleEnums(kept)
 	for i := range ignored {
 		if ignored[i].Kind != schemalint.KindUnknownRequest {
 			continue
@@ -157,10 +158,10 @@ func isVendorPropertyViolation(v specvalidate.Violation) bool {
 	}
 }
 
-// isCompatibleReject keeps OpenAI-shaped type/required checks on core
-// request fields and every syntax/precheck finding. Composition leftovers
-// from extra vendor fields (item-level required, losing-branch type, …)
-// must not 400 openai-compatible traffic.
+// isCompatibleReject keeps known-field type/required/enum/const checks
+// rejecting in enforce mode. Composition leftovers from extra vendor
+// fields (item-level required, losing-branch type/enum, vendor-union
+// objects) and vendor-extended enums must not 400 openai-compatible traffic.
 func isCompatibleReject(v specvalidate.Violation) bool {
 	if v.Side == specvalidate.SideResponse {
 		return false
@@ -172,8 +173,182 @@ func isCompatibleReject(v specvalidate.Violation) bool {
 	case "trailingData", "duplicateKey", "utf8BOM", "numberRange":
 		return true
 	case "type", "required":
-		switch v.Pointer {
-		case "", "/", "/messages", "/max_tokens", "/temperature", "/top_p", "/n", "/stream", "/model", "/input", "/tools":
+		return !isCompatibleCompositionLeftover(v)
+	case "enum", "const":
+		return !isExtendedEnumViolation(v) && !isItemDiscriminatorViolation(v)
+	}
+	return false
+}
+
+func isCompatibleCompositionLeftover(v specvalidate.Violation) bool {
+	switch v.Keyword {
+	case "type":
+		return !isKnownFieldTypeViolation(v)
+	case "required":
+		return !isKnownFieldRequiredViolation(v)
+	default:
+		return false
+	}
+}
+
+func isKnownFieldTypeViolation(v specvalidate.Violation) bool {
+	switch v.Pointer {
+	case "/max_tokens", "/max_completion_tokens", "/temperature", "/top_p",
+		"/n", "/stream", "/presence_penalty", "/frequency_penalty", "/seed",
+		"/model", "/messages", "/tools":
+		return true
+	}
+	segs := pointerSegments(v.Pointer)
+	if len(segs) == 3 && segs[0] == "messages" && isPointerIndex(segs[1]) {
+		switch segs[2] {
+		case "role":
+			return true
+		case "content":
+			return isIncompatibleMessageContentType(v.Message)
+		}
+	}
+	return false
+}
+
+func isIncompatibleMessageContentType(message string) bool {
+	got := schemaTypeGot(message)
+	switch got {
+	case "null", "string", "array":
+		return false
+	default:
+		return got != ""
+	}
+}
+
+func schemaTypeGot(message string) string {
+	const prefix = "got "
+	i := strings.Index(message, prefix)
+	if i < 0 {
+		return ""
+	}
+	rest := message[i+len(prefix):]
+	if j := strings.Index(rest, ","); j >= 0 {
+		rest = rest[:j]
+	}
+	return strings.TrimSpace(rest)
+}
+
+func isKnownFieldRequiredViolation(v specvalidate.Violation) bool {
+	if vendorUnionPointer(v.Pointer) {
+		return false
+	}
+	if nestedUnderIndexedItem(v.Pointer) {
+		return false
+	}
+	return requiredMentionsCoreField(v.Message, v.Pointer)
+}
+
+func requiredMentionsCoreField(message, pointer string) bool {
+	if chatMessagePointer(pointer) {
+		if strings.Contains(message, "'tool_call_id'") || strings.Contains(message, "'name'") {
+			return false
+		}
+		return strings.Contains(message, "'content'") || strings.Contains(message, "'role'")
+	}
+	if pointer == "" || pointer == "/" {
+		return strings.Contains(message, "'messages'") || strings.Contains(message, "'model'")
+	}
+	return false
+}
+
+func chatMessagePointer(pointer string) bool {
+	segs := pointerSegments(pointer)
+	return len(segs) == 2 && segs[0] == "messages" && isPointerIndex(segs[1])
+}
+
+func nestedUnderIndexedItem(pointer string) bool {
+	segs := pointerSegments(pointer)
+	if len(segs) < 3 {
+		return false
+	}
+	for _, seg := range segs {
+		if isPointerIndex(seg) {
+			return true
+		}
+	}
+	return false
+}
+
+func vendorUnionPointer(pointer string) bool {
+	switch pointer {
+	case "/response_format", "/tool_choice", "/stream_options", "/reasoning", "/thinking":
+		return true
+	}
+	return false
+}
+
+func isItemDiscriminatorViolation(v specvalidate.Violation) bool {
+	if v.Keyword != "enum" && v.Keyword != "const" {
+		return false
+	}
+	last := lastPathSegment(v.Pointer)
+	if last != "role" && last != "type" {
+		return false
+	}
+	return pointerHasArrayIndex(v.Pointer)
+}
+
+var chatRoleEnumValues = []string{"developer", "system", "user", "assistant", "tool", "function"}
+
+func promoteExhaustedItemRoleEnums(vs []specvalidate.Violation) {
+	seen := map[string]map[string]struct{}{}
+	for _, v := range vs {
+		if (v.Keyword != "enum" && v.Keyword != "const") || lastPathSegment(v.Pointer) != "role" || !pointerHasArrayIndex(v.Pointer) {
+			continue
+		}
+		if seen[v.Pointer] == nil {
+			seen[v.Pointer] = map[string]struct{}{}
+		}
+		for _, role := range chatRoleEnumValues {
+			if strings.Contains(v.Message, "'"+role+"'") {
+				seen[v.Pointer][role] = struct{}{}
+			}
+		}
+	}
+	exhausted := map[string]bool{}
+	for ptr, roles := range seen {
+		if len(roles) == len(chatRoleEnumValues) {
+			exhausted[ptr] = true
+		}
+	}
+	if len(exhausted) == 0 {
+		return
+	}
+	for i := range vs {
+		if exhausted[vs[i].Pointer] && (vs[i].Keyword == "enum" || vs[i].Keyword == "const") {
+			vs[i].Severity = ""
+		}
+	}
+}
+
+func pointerSegments(pointer string) []string {
+	p := strings.Trim(pointer, "/")
+	if p == "" {
+		return nil
+	}
+	return strings.Split(p, "/")
+}
+
+func isPointerIndex(seg string) bool {
+	if seg == "" {
+		return false
+	}
+	for _, c := range seg {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func pointerHasArrayIndex(pointer string) bool {
+	for _, seg := range pointerSegments(pointer) {
+		if isPointerIndex(seg) {
 			return true
 		}
 	}
