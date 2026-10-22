@@ -33,6 +33,15 @@ func TestIsIncompleteUpstreamBody(t *testing.T) {
 	if !isIncompleteUpstreamBody(errors.New("http: malformed chunked data")) {
 		t.Fatal("malformed chunked")
 	}
+	if !isIncompleteUpstreamBody(errors.New("invalid byte in chunk length")) {
+		t.Fatal("invalid chunk length")
+	}
+	if !isIncompleteUpstreamBody(errors.New("http chunk length too large")) {
+		t.Fatal("chunk length too large")
+	}
+	if !isIncompleteUpstreamBody(errors.New("empty hex number for chunk length")) {
+		t.Fatal("empty chunk length")
+	}
 	if !isIncompleteUpstreamBody(errors.New("read tcp: connection reset by peer")) {
 		t.Fatal("connection reset")
 	}

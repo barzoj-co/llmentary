@@ -29,6 +29,9 @@ func isIncompleteUpstreamBody(err error) bool {
 	return strings.Contains(msg, "unexpected EOF") ||
 		strings.Contains(msg, "incomplete chunked") ||
 		strings.Contains(msg, "malformed chunked") ||
+		strings.Contains(msg, "invalid byte in chunk length") ||
+		strings.Contains(msg, "http chunk length too large") ||
+		strings.Contains(msg, "empty hex number for chunk length") ||
 		strings.Contains(msg, "connection reset") ||
 		strings.Contains(msg, "peer closed")
 }

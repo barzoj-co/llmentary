@@ -37,6 +37,26 @@ func hijackDropChunked(payload string) http.HandlerFunc {
 	}
 }
 
+func hijackInvalidChunkLength(payload string) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		hj, ok := w.(http.Hijacker)
+		if !ok {
+			http.Error(w, "no hijack", http.StatusInternalServerError)
+			return
+		}
+		conn, bufrw, err := hj.Hijack()
+		if err != nil {
+			return
+		}
+		defer func() { _ = conn.Close() }()
+		chunk := fmt.Sprintf("%x\r\n%s\r\n", len(payload), payload)
+		_, _ = io.WriteString(bufrw, "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nTransfer-Encoding: chunked\r\n\r\n")
+		_, _ = io.WriteString(bufrw, chunk)
+		_, _ = io.WriteString(bufrw, "x\r\n")
+		_ = bufrw.Flush()
+	}
+}
+
 func hijackDropContentLength(body string, declared int) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		hj, ok := w.(http.Hijacker)
@@ -118,6 +138,20 @@ func TestUpstreamDropChunkedIsBrokenAndRecorded(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("missing error/truncation on proxy response\n%s", logBuf.String())
+	}
+}
+
+func TestInvalidChunkLengthIsBrokenAndRecorded(t *testing.T) {
+	p := startSpecProxy(t, "off", "relaxed", hijackInvalidChunkLength(chatSSEHello))
+	sid := newSession()
+	_, raw, sess, readErr := postRawAllowBroken(t, p, "/v1/chat/completions", sid, nil, chatStreamBody)
+	if !isBrokenStreamErr(readErr) {
+		t.Fatalf("invalid chunk length ended cleanly: err=%v body=%q", readErr, raw)
+	}
+	call := lastCall(t, sess)
+	assertCallError(t, call, "stream_truncated", "upstream")
+	if call["client_aborted"] == true {
+		t.Fatal("invalid chunk length marked client_aborted")
 	}
 }
 
