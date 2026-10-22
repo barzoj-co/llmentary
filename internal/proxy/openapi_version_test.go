@@ -136,3 +136,42 @@ func TestReleasePleaseOpenAPIUpdaterIsGeneric(t *testing.T) {
 		t.Fatal("api/control/openapi.yaml info.version is missing # x-release-please-version")
 	}
 }
+
+func TestReleasePleaseBumpsPatchForFeatOnZeroX(t *testing.T) {
+	_, file, _, _ := runtime.Caller(0)
+	root := filepath.Join(filepath.Dir(file), "..", "..")
+	raw, err := os.ReadFile(filepath.Join(root, "release-please-config.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cfg struct {
+		BumpMinorPreMajor         *bool `json:"bump-minor-pre-major"`
+		BumpPatchForMinorPreMajor *bool `json:"bump-patch-for-minor-pre-major"`
+		Packages                  map[string]struct {
+			BumpMinorPreMajor         *bool `json:"bump-minor-pre-major"`
+			BumpPatchForMinorPreMajor *bool `json:"bump-patch-for-minor-pre-major"`
+		} `json:"packages"`
+	}
+	if err := json.Unmarshal(raw, &cfg); err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Packages) != 1 {
+		t.Fatalf("packages=%d want 1", len(cfg.Packages))
+	}
+	pkg, ok := cfg.Packages["."]
+	if !ok {
+		t.Fatal("missing packages[\".\"]")
+	}
+	if pkg.BumpPatchForMinorPreMajor == nil || !*pkg.BumpPatchForMinorPreMajor {
+		t.Fatal("packages[\".\"].bump-patch-for-minor-pre-major must be true so feat: on 0.x is a patch")
+	}
+	if pkg.BumpMinorPreMajor == nil || *pkg.BumpMinorPreMajor {
+		t.Fatal("packages[\".\"].bump-minor-pre-major must be false; no 0.x minor bumps")
+	}
+	if cfg.BumpPatchForMinorPreMajor != nil && !*cfg.BumpPatchForMinorPreMajor {
+		t.Fatal("root bump-patch-for-minor-pre-major must not override the package to false")
+	}
+	if cfg.BumpMinorPreMajor != nil && *cfg.BumpMinorPreMajor {
+		t.Fatal("root bump-minor-pre-major must not override the package to true")
+	}
+}
