@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.5.1](https://github.com/barzoj-co/llmentary/compare/v0.5.0...v0.5.1) (2026-10-23)
+
+
+### Features
+
+* add CI compat matrix for OpenAI-compatible fixtures ([#72](https://github.com/barzoj-co/llmentary/issues/72)) ([84a2327](https://github.com/barzoj-co/llmentary/commit/84a2327102fc0ea8b3c092a5d4a388bc586580e0))
+
+
+### Bug Fixes
+
+* abort client when upstream stream drops or idles ([#67](https://github.com/barzoj-co/llmentary/issues/67)) ([862c6a5](https://github.com/barzoj-co/llmentary/commit/862c6a5f63dd623973feca498619cd1b3091af0a))
+* do not require response logprobs on compatible targets ([#69](https://github.com/barzoj-co/llmentary/issues/69)) ([1c34468](https://github.com/barzoj-co/llmentary/commit/1c3446861ab226146e8ec3bf70a58e4f62984743))
+* serve packaged openapi.yaml byte-for-byte ([#68](https://github.com/barzoj-co/llmentary/issues/68)) ([cc7418b](https://github.com/barzoj-co/llmentary/commit/cc7418b3f6dbc1abb01223394a0fab559305775d))
+* summarize compatible response findings as response_shape ([#71](https://github.com/barzoj-co/llmentary/issues/71)) ([6f3cfd6](https://github.com/barzoj-co/llmentary/commit/6f3cfd6ad23bdf35cfcd966fecd349cdee75b487))
+* surface timeout and error diagnostics on the proxy ([#66](https://github.com/barzoj-co/llmentary/issues/66)) ([2645eb5](https://github.com/barzoj-co/llmentary/commit/2645eb5893a225f1c469ba33c9e6a5edbeeaaa99))
+
 ## [0.5.0](https://github.com/barzoj-co/llmentary/compare/v0.4.1...v0.5.0) (2026-10-22)
 
 
