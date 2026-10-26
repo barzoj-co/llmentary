@@ -260,9 +260,12 @@ stays in the raw body and does not break tool-call assembly.
 Recommended behind an `openai-compatible` provider: `no_spec_violations()` plus
 `no_ignored_fields(min_severity="warning")` (Python) /
 `NoIgnoredFields(MinSeverity("warning"))` (Go) /
-`noIgnoredFields({ minSeverity: "warning" })` (JS). Alternative (allow vendor
-fields, still check both sides for everything else):
-`no_ignored_fields(ignore_kinds=["vendor_field"])`. These options exist from
+`noIgnoredFields({ minSeverity: "warning" })` (JS). Alternative (allow
+`vendor_field` but still fail on every other entry, including info-level ones):
+`no_ignored_fields(ignore_kinds=["vendor_field"])` (Python) /
+`NoIgnoredFields(IgnoreKinds("vendor_field"))` (Go) /
+`noIgnoredFields({ ignoreKinds: ["vendor_field"] })` (JS); without
+`min_severity` these assertions check every severity. These options exist from
 the client releases that follow proxy 0.5.3.
 
 **Informational ignored_fields kinds**
@@ -271,7 +274,7 @@ the client releases that follow proxy 0.5.3.
 |---|---|---|---|
 | `vendor_field` | request | info | the app sent a non-OpenAI field |
 | `compatible_optional` | response | info | provider omitted a key OpenAI always sends (usually null) |
-| `response_shape` | response | info | documented provider response shape difference |
+| `response_shape` | response | info | informational response-shape or response-validation finding (for example a type error on a relaxed key); review it, it is not automatically expected |
 
 ## Other OpenAI-compatible providers
 
