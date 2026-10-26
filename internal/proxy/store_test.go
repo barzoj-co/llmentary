@@ -682,4 +682,83 @@ func TestSessionAndInFlightConcurrentFinish(t *testing.T) {
 	}
 }
 
+func TestFinishSetsOutcome(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name    string
+		session string
+		update  func(*Call)
+		want    string
+	}{
+		{
+			name:    "committed",
+			session: "committed",
+			update: func(call *Call) {
+				call.EndedAt = time.Now().UTC()
+				call.HTTPStatus = 200
+				call.Normalized.FinishReason = "stop"
+			},
+			want: OutcomeCommitted,
+		},
+		{
+			name:    "cancelled",
+			session: "cancelled",
+			update: func(call *Call) {
+				call.EndedAt = time.Now().UTC()
+				call.HTTPStatus = 200
+				call.ClientAborted = true
+				call.AbortPhase = AbortPhaseAfterHeaders
+				call.Normalized.FinishReason = "cancelled"
+			},
+			want: OutcomeCancelled,
+		},
+		{
+			name:    "failed",
+			session: "failed",
+			update: func(call *Call) {
+				call.EndedAt = time.Now().UTC()
+				call.HTTPStatus = 500
+				call.Normalized.Error = &CallError{Normalized: "server_error", Source: "upstream"}
+			},
+			want: OutcomeFailed,
+		},
+	}
+	for _, tc := range cases {
+		store := NewMemoryStore()
+		_, id := store.Begin(tc.session, Call{StartedAt: time.Now().UTC()})
+		store.Finish(tc.session, id, tc.update)
+		session, ok := store.Lookup(tc.session)
+		if !ok || len(session.Calls) != 1 {
+			t.Fatalf("%s: settled session=%+v ok=%v", tc.name, session, ok)
+		}
+		if got := session.Calls[0].Outcome; got != tc.want {
+			t.Fatalf("%s: outcome=%q want %q call=%+v", tc.name, got, tc.want, session.Calls[0])
+		}
+	}
+}
+
+func TestProgressDoesNotSetOutcome(t *testing.T) {
+	t.Parallel()
+	store := NewMemoryStore()
+	_, id := store.Begin("s", Call{StartedAt: time.Now().UTC()})
+	firstByte := time.Now().UTC()
+	store.Progress("s", id, func(call *Call) {
+		call.HTTPStatus = 200
+		call.FirstByteAt = &firstByte
+		call.Normalized.FinishReason = "stop"
+	})
+	if session, ok := store.Lookup("s"); !ok || len(session.Calls) != 0 {
+		t.Fatalf("call settled early: session=%+v ok=%v", session, ok)
+	}
+	store.mu.Lock()
+	call := store.sessions["s"].calls[0]
+	store.mu.Unlock()
+	if call.Outcome != "" {
+		t.Fatalf("progress set outcome=%q on in-flight call=%+v", call.Outcome, call)
+	}
+	if got := classifyOutcome(call); got != "" {
+		t.Fatalf("classifyOutcome in-flight=%q want \"\"", got)
+	}
+}
+
 const httpMethodPost = "POST"

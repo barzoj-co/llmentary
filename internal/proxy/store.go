@@ -191,6 +191,9 @@ func (s *MemoryStore) Finish(sessionID, callID string, update func(*Call)) {
 	for i := range state.calls {
 		if state.calls[i].ID == callID {
 			update(&state.calls[i])
+			if !state.calls[i].EndedAt.IsZero() {
+				state.calls[i].Outcome = classifyOutcome(state.calls[i])
+			}
 			if state.active > 0 {
 				state.active--
 			}
