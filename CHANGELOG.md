@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.3](https://github.com/barzoj-co/llmentary/compare/v0.5.2...v0.5.3) (2026-10-26)
+
+
+### Bug Fixes
+
+* add wait exclude_cancelled, cancel outcome fault tests and abort record docs (DOG-58 P4-P6) ([#79](https://github.com/barzoj-co/llmentary/issues/79)) ([88e4b58](https://github.com/barzoj-co/llmentary/commit/88e4b581ee1c45d15ed183085a5bdc6c2669ca72))
+* record call outcome (committed/cancelled/failed) and tag client aborts (DOG-58 P1-P3) ([#77](https://github.com/barzoj-co/llmentary/issues/77)) ([39a9790](https://github.com/barzoj-co/llmentary/commit/39a9790e73297ba6f24ca70e79b52e416583eaef))
+
 ## [0.5.2](https://github.com/barzoj-co/llmentary/compare/v0.5.1...v0.5.2) (2026-10-26)
 
 
