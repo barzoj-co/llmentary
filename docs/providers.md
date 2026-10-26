@@ -275,6 +275,7 @@ the client releases that follow proxy 0.5.3.
 | `vendor_field` | request | info | the app sent a non-OpenAI field |
 | `compatible_optional` | response | info | provider omitted a key OpenAI always sends (usually null) |
 | `response_shape` | response | info | informational response-shape or response-validation finding (for example a type error on a relaxed key); review it, it is not automatically expected |
+| `strict_fallback` | response | info | the strict schema could not be applied and the relaxed fallback was used (see [openai-compatible.md](openai-compatible.md)) |
 
 ## Other OpenAI-compatible providers
 
