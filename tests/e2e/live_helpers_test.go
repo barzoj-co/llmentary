@@ -84,7 +84,7 @@ func liveModel() string {
 	if model := os.Getenv("OPENAI_E2E_MODEL"); model != "" {
 		return model
 	}
-	return "gpt-4.1-nano"
+	return "gpt-4o-mini"
 }
 
 func postLive(t *testing.T, apiKey string, p liveProxy, path, session string, body []byte) (status int, hdr http.Header, resp []byte, sessionJSON map[string]any) {
