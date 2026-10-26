@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.2](https://github.com/barzoj-co/llmentary/compare/v0.5.1...v0.5.2) (2026-10-26)
+
+
+### Bug Fixes
+
+* **deps:** bump kin-openapi to v0.149.0 ([#75](https://github.com/barzoj-co/llmentary/issues/75)) ([074b2df](https://github.com/barzoj-co/llmentary/commit/074b2df027f58ff0e158e08d70292687abc8d6f3))
+
 ## [0.5.1](https://github.com/barzoj-co/llmentary/compare/v0.5.0...v0.5.1) (2026-10-23)
 
 
