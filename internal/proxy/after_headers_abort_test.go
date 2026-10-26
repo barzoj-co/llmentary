@@ -152,6 +152,9 @@ func TestFinishCallPublishesAfterHeadersAbortOnWriteError(t *testing.T) {
 	if !strings.Contains(call.Normalized.OutputText, "chunk-one") {
 		t.Fatalf("output_text=%q", call.Normalized.OutputText)
 	}
+	if call.Normalized.Error != nil {
+		t.Fatalf("normalized.error=%+v want nil", call.Normalized.Error)
+	}
 }
 
 func TestCopyAndFinishPublishesAfterHeadersAbortOnClientWriteError(t *testing.T) {

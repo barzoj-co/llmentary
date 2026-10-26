@@ -78,6 +78,9 @@ func assertBeforeHeadersAbort(t *testing.T, call map[string]any) {
 	if fmtString(errObj["normalized"]) != "client_aborted" {
 		t.Fatalf("error=%v", n["error"])
 	}
+	if fmtString(errObj["source"]) != "client" {
+		t.Fatalf("error.source=%v want client", errObj["source"])
+	}
 	for _, w := range asAnySlice(n["parser_warnings"]) {
 		if strings.Contains(fmtString(w), "strict decode failed") {
 			t.Fatalf("decode warning: %v", n["parser_warnings"])
