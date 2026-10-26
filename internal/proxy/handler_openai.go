@@ -157,6 +157,7 @@ func (s *Server) finishWithClientAbort(ex *proxyExchange, err error) Call {
 		call.Normalized.Error = &CallError{
 			Message:    err.Error(),
 			Normalized: "client_aborted",
+			Source:     "client",
 		}
 		applyRequestValidation(call, ex.requestVal)
 		logCall := snapshotAndCollapseViolations(call)

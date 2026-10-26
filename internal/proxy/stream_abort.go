@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"time"
 )
 
 const (
@@ -49,6 +50,13 @@ func callOutcomeLogArgs(call Call) []any {
 	}
 	if call.Normalized.StreamTruncated {
 		extra = append(extra, "stream_truncated", true)
+	}
+	settled := call
+	if settled.EndedAt.IsZero() {
+		settled.EndedAt = time.Now()
+	}
+	if outcome := classifyOutcome(settled); outcome != "" {
+		extra = append(extra, "outcome", outcome)
 	}
 	return extra
 }

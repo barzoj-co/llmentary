@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"testing"
+	"time"
 )
 
 func TestIsIncompleteUpstreamBody(t *testing.T) {
@@ -103,14 +104,87 @@ func TestShouldAbortClientResponse(t *testing.T) {
 
 func TestCallOutcomeLogArgs(t *testing.T) {
 	t.Parallel()
-	if args := callOutcomeLogArgs(Call{}); len(args) != 0 {
+	if args := callOutcomeLogArgs(Call{}); len(args) != 2 || args[0] != "outcome" || args[1] != OutcomeFailed {
 		t.Fatalf("clean=%v", args)
 	}
 	call := Call{}
 	call.Normalized.Error = &CallError{Normalized: "stream_truncated"}
 	call.Normalized.StreamTruncated = true
 	args := callOutcomeLogArgs(call)
-	if len(args) != 4 || args[0] != "error" || args[1] != "stream_truncated" || args[2] != "stream_truncated" || args[3] != true {
+	if len(args) != 6 || args[0] != "error" || args[1] != "stream_truncated" || args[2] != "stream_truncated" || args[3] != true || args[4] != "outcome" || args[5] != OutcomeFailed {
 		t.Fatalf("args=%v", args)
+	}
+}
+
+func TestCallOutcomeLogArgsOutcomeToken(t *testing.T) {
+	t.Parallel()
+	ended := time.Now().UTC()
+	cases := []struct {
+		name        string
+		call        Call
+		wantOutcome string
+	}{
+		{
+			name: "committed",
+			call: Call{
+				EndedAt:    ended,
+				HTTPStatus: 200,
+			},
+			wantOutcome: OutcomeCommitted,
+		},
+		{
+			name: "before-headers cancel",
+			call: Call{
+				EndedAt:       ended,
+				HTTPStatus:    0,
+				ClientAborted: true,
+				AbortPhase:    AbortPhaseBeforeHeaders,
+				Normalized: Normalized{
+					ClientAborted: true,
+					Error:         &CallError{Normalized: "client_aborted", Source: "client"},
+				},
+			},
+			wantOutcome: OutcomeCancelled,
+		},
+		{
+			name: "after-headers cancel",
+			call: Call{
+				EndedAt:       ended,
+				HTTPStatus:    200,
+				ClientAborted: true,
+				AbortPhase:    AbortPhaseAfterHeaders,
+				Normalized: Normalized{
+					ClientAborted:   true,
+					StreamTruncated: true,
+				},
+			},
+			wantOutcome: OutcomeCancelled,
+		},
+		{
+			name: "upstream 500",
+			call: Call{
+				EndedAt:    ended,
+				HTTPStatus: 500,
+				Normalized: Normalized{
+					Error: &CallError{Normalized: "server_error", Source: "upstream"},
+				},
+			},
+			wantOutcome: OutcomeFailed,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			args := callOutcomeLogArgs(tc.call)
+			var outcome any
+			for i := 0; i+1 < len(args); i += 2 {
+				if args[i] == "outcome" {
+					outcome = args[i+1]
+				}
+			}
+			if outcome != tc.wantOutcome {
+				t.Fatalf("outcome=%v want %q args=%v", outcome, tc.wantOutcome, args)
+			}
+		})
 	}
 }
