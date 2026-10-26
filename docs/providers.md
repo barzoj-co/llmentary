@@ -255,6 +255,28 @@ Request-side reasoning echo is counted on `normalized.reasoning_in`
 assistant turn passed reasoning back. `extra_content` on response tool calls
 stays in the raw body and does not break tool-call assembly.
 
+### Recommended assertions
+
+Recommended behind an `openai-compatible` provider: `no_spec_violations()` plus
+`no_ignored_fields(min_severity="warning")` (Python) /
+`NoIgnoredFields(MinSeverity("warning"))` (Go) /
+`noIgnoredFields({ minSeverity: "warning" })` (JS). Alternative (allow
+`vendor_field` but still fail on every other entry, including info-level ones):
+`no_ignored_fields(ignore_kinds=["vendor_field"])` (Python) /
+`NoIgnoredFields(IgnoreKinds("vendor_field"))` (Go) /
+`noIgnoredFields({ ignoreKinds: ["vendor_field"] })` (JS); without
+`min_severity` these assertions check every severity. These options exist from
+the client releases that follow proxy 0.5.3.
+
+**Informational ignored_fields kinds**
+
+| kind | context | severity | meaning |
+|---|---|---|---|
+| `vendor_field` | request | info | the app sent a non-OpenAI field |
+| `compatible_optional` | response | info | provider omitted a key OpenAI always sends (usually null) |
+| `response_shape` | response | info | informational response-shape or response-validation finding (for example a type error on a relaxed key); review it, it is not automatically expected |
+| `strict_fallback` | response | info | OpenAI-only strict-schema finding rematched to info on `openai-compatible` (see [openai-compatible.md](openai-compatible.md)) |
+
 ## Other OpenAI-compatible providers
 
 Native provider paths that are not under `/v1` (llama.cpp `/completion`,
