@@ -55,6 +55,7 @@ JSON shape and normalization rules.
   "retry_count": 0,
   "retry_after": "",
   "upstream_called": true,
+  "outcome": "committed",
   "normalized": {}
 }
 ```
@@ -85,6 +86,7 @@ JSON shape and normalization rules.
 | `retry_after` | string, optional | `retry-after-ms` or `retry-after` response header. |
 | `client_aborted` | boolean | True when the inbound client cancelled before a terminal stream event. |
 | `abort_phase` | string, optional | `before_headers` or `after_headers`. Omitted when not aborted. |
+| `outcome` | string, optional | `committed`, `cancelled`, or `failed` once the call is settled. Omitted in flight. The abort phase never changes it. |
 | `normalized` | object | Cross-provider view used by test assertions. `normalized.client_aborted` is a deprecated 0.x alias of the top-level field. |
 
 A call appears on `GET /sessions/{id}` and in `wait` results only after it is
@@ -199,7 +201,7 @@ from an Azure-style `/deployments/{deployment}/...` path segment.
 | `native_finish_reason` | Provider status/finish field when distinct. |
 | `usage` | Normalized token/cost usage. |
 | `content_filter` | Provider content-filter data when parsed. |
-| `error` | Normalized provider/proxy error. `error.source` is `upstream` when the error was parsed from an upstream HTTP or SSE body, or when an abnormal upstream drop is recorded as `stream_truncated`. `proxy` is used for local rejects, network failures, and header/idle timeouts. Absence on `client_aborted` is expected. |
+| `error` | Normalized provider/proxy error. `error.source` is `upstream` when the error was parsed from an upstream HTTP or SSE body, or when an abnormal upstream drop is recorded as `stream_truncated`. `proxy` is used for local rejects, network failures, and header/idle timeouts. `client` on before-headers aborts; absent on proxies older than 0.5.3. |
 | `stream_truncated` | Stream ended without a terminal marker/event, unless Chat Completions finish+usage already marked it complete with `no_done_marker`. A clean chunked EOF without `[DONE]` sets this flag only. An abnormal upstream drop also records `error.normalized: stream_truncated` (`source: upstream`, an exception to the network-failure `proxy` rule) and `finish_reason: error`. |
 | `client_aborted` | The client disconnected before the terminal stream event (`[DONE]`, or Responses `response.completed` / `response.failed` / `response.incomplete`), or cancelled the inbound request before response headers arrived. A close after a terminal event is not an abort. |
 | `parser_warnings` | Non-fatal parser warnings. |
@@ -325,6 +327,31 @@ keeps `http_status` from upstream (usually `200`), sets
 partial SSE / `output_text`. It is not a `network` error and not
 `error.mid_stream`. A close after the terminal stream event is not an
 abort. Passthrough calls without errors use `finish_reason: "unknown"`.
+
+## Terminal states and the abort record
+
+`outcome` is derived from the recorded fields, in this order, once the call is settled:
+
+1. Let `err` = `normalized.error`. `err` is a client error when `err.normalized` is
+   `client_aborted`, top-level `client_aborted` is true, and `err.source` is absent or
+   `client`.
+2. `err` present and not a client error -> `failed`.
+3. `http_status` >= 400 -> `failed`.
+4. `client_aborted` true -> `cancelled`.
+5. `normalized.stream_truncated` true -> `failed`.
+6. `http_status` == 0 -> `failed`.
+7. Otherwise -> `committed`.
+
+| Shape | `outcome` | `abort_phase` | `http_status` | `upstream_called` | `finish_reason` | `error` | `stream_truncated` | `sse_events` | `usage` / `cost_usd` |
+|---|---|---|---|---|---|---|---|---|---|
+| Complete | `committed` | absent | upstream (200) | true | upstream | absent | absent | all | when sent |
+| Cancel before headers, request not written | `cancelled` | `before_headers` | 0 | false | `cancelled` | `client_aborted` / `client` | absent | absent | absent |
+| Cancel before headers, request written | `cancelled` | `before_headers` | 0 | true | `cancelled` | `client_aborted` / `client` | absent | absent | absent |
+| Cancel after headers (mid-stream) | `cancelled` | `after_headers` | upstream (200) | true | `cancelled` | absent | true | partial | only if the upstream sent it before the cut |
+| Upstream drop mid-stream | `failed` | absent | upstream (200) | true | `error` | `stream_truncated` / `upstream` | true | partial | absent |
+| Upstream 4xx/5xx | `failed` | absent | upstream | true | upstream | parsed / `upstream` | absent | absent | absent |
+
+`no_errors()` in every client fails on `failed` only; use `aborted()` / `no_cancelled()` to assert cancels. `GET /sessions/{id}/wait?exclude_cancelled=true` counts only non-cancelled settled calls toward `min_calls`.
 
 ## Errors inside HTTP 200 streams
 

@@ -82,7 +82,7 @@ type Store interface {
 	SessionAndInFlight(sessionID string) (Session, []InFlightCall, bool)
 	List(source string) []SessionSummary
 	Delete(sessionID string)
-	WaitQuiet(ctx context.Context, sessionID string, quiet, timeout time.Duration, minCalls int) (Session, error)
+	WaitQuiet(ctx context.Context, sessionID string, quiet, timeout time.Duration, minCalls int, excludeCancelled bool) (Session, error)
 }
 
 type MemoryStore struct {
@@ -249,7 +249,7 @@ func (s *MemoryStore) Delete(sessionID string) {
 	delete(s.sessions, sessionID)
 }
 
-func (s *MemoryStore) WaitQuiet(ctx context.Context, sessionID string, quiet, timeout time.Duration, minCalls int) (Session, error) {
+func (s *MemoryStore) WaitQuiet(ctx context.Context, sessionID string, quiet, timeout time.Duration, minCalls int, excludeCancelled bool) (Session, error) {
 	if quiet <= 0 {
 		quiet = 500 * time.Millisecond
 	}
@@ -274,7 +274,11 @@ func (s *MemoryStore) WaitQuiet(ctx context.Context, sessionID string, quiet, ti
 		if exists {
 			wasPresent = true
 			active = state.active
-			finished = finishedCallCount(state)
+			if excludeCancelled {
+				finished = settledCountExcludingCancelled(state)
+			} else {
+				finished = finishedCallCount(state)
+			}
 			if !state.lastChangeAt.IsZero() {
 				quietSince = state.lastChangeAt
 			}
@@ -320,6 +324,19 @@ func finishedCallCount(state *sessionState) int {
 	n := 0
 	for i := range state.calls {
 		if callSettled(state.calls[i]) {
+			n++
+		}
+	}
+	return n
+}
+
+func settledCountExcludingCancelled(state *sessionState) int {
+	n := 0
+	for i := range state.calls {
+		if !callSettled(state.calls[i]) {
+			continue
+		}
+		if classifyOutcome(state.calls[i]) != OutcomeCancelled {
 			n++
 		}
 	}

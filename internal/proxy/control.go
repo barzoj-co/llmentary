@@ -228,7 +228,7 @@ func (s *Server) serveSession(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) serveWait(w http.ResponseWriter, r *http.Request, sessionID string) {
-	if rejectUnknownQuery(w, r, "timeout", "quiet", "min_calls") {
+	if rejectUnknownQuery(w, r, "timeout", "quiet", "min_calls", "exclude_cancelled") {
 		return
 	}
 	q := r.URL.Query()
@@ -247,15 +247,20 @@ func (s *Server) serveWait(w http.ResponseWriter, r *http.Request, sessionID str
 		writeInvalidParam(w, "min_calls", err.Error())
 		return
 	}
+	excludeCancelled, err := parseExcludeCancelled(q.Get("exclude_cancelled"))
+	if err != nil {
+		writeInvalidParam(w, "exclude_cancelled", err.Error())
+		return
+	}
 	started := time.Now()
-	session, err := s.store.WaitQuiet(r.Context(), sessionID, quiet, timeout, minCalls)
+	session, err := s.store.WaitQuiet(r.Context(), sessionID, quiet, timeout, minCalls, excludeCancelled)
 	if errors.Is(err, ErrSessionNotFound) {
 		writeSessionNotFoundWait(w, sessionID, time.Since(started).Milliseconds())
 		return
 	}
 	if errors.Is(err, ErrWaitTimeout) {
 		session, inFlight, _ := s.store.SessionAndInFlight(sessionID)
-		writeWaitTimeout(w, session, minCalls, inFlight)
+		writeWaitTimeout(w, session, minCalls, inFlight, excludeCancelled)
 		return
 	}
 	if err != nil {
@@ -286,6 +291,17 @@ func parseMinCalls(raw string) (int, error) {
 		return 0, fmt.Errorf("must be >= 0")
 	}
 	return n, nil
+}
+
+func parseExcludeCancelled(raw string) (bool, error) {
+	if raw == "" {
+		return false, nil
+	}
+	v, err := strconv.ParseBool(raw)
+	if err != nil {
+		return false, fmt.Errorf("invalid boolean")
+	}
+	return v, nil
 }
 
 func parseControlDuration(param, raw string) (time.Duration, error) {
@@ -349,7 +365,7 @@ func writeSessionNotFoundWait(w http.ResponseWriter, id string, waitedMS int64) 
 	})
 }
 
-func writeWaitTimeout(w http.ResponseWriter, session Session, minCalls int, inFlight []InFlightCall) {
+func writeWaitTimeout(w http.ResponseWriter, session Session, minCalls int, inFlight []InFlightCall, excludeCancelled bool) {
 	if inFlight == nil {
 		inFlight = []InFlightCall{}
 	}
@@ -357,18 +373,22 @@ func writeWaitTimeout(w http.ResponseWriter, session Session, minCalls int, inFl
 	if calls == nil {
 		calls = []Call{}
 	}
+	errObj := map[string]any{
+		"type":       "wait_timeout",
+		"message":    "wait timed out",
+		"calls_seen": len(calls),
+		"min_calls":  minCalls,
+		"active":     len(inFlight),
+		"in_flight":  inFlight,
+		"hint":       waitTimeoutHint(inFlight),
+	}
+	if excludeCancelled {
+		errObj["exclude_cancelled"] = true
+	}
 	body := map[string]any{
 		"id":    session.ID,
 		"calls": calls,
-		"error": map[string]any{
-			"type":       "wait_timeout",
-			"message":    "wait timed out",
-			"calls_seen": len(calls),
-			"min_calls":  minCalls,
-			"active":     len(inFlight),
-			"in_flight":  inFlight,
-			"hint":       waitTimeoutHint(inFlight),
-		},
+		"error": errObj,
 	}
 	writeJSONStatus(w, http.StatusGatewayTimeout, body)
 }
