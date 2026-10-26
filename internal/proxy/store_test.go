@@ -178,7 +178,7 @@ func TestWaitQuietUnknownSessionNotFound(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	start := time.Now()
-	session, err := store.WaitQuiet(ctx, "empty", 200*time.Millisecond, 3*time.Second, 0)
+	session, err := store.WaitQuiet(ctx, "empty", 200*time.Millisecond, 3*time.Second, 0, false)
 	if !errors.Is(err, ErrSessionNotFound) {
 		t.Fatalf("err=%v want session_not_found", err)
 	}
@@ -205,7 +205,7 @@ func TestWaitQuietMinCalls(t *testing.T) {
 	}()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	session, err := store.WaitQuiet(ctx, "s", 5*time.Millisecond, time.Second, 2)
+	session, err := store.WaitQuiet(ctx, "s", 5*time.Millisecond, time.Second, 2, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -222,7 +222,7 @@ func TestWaitQuietAlreadyIdleReturnsImmediately(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	start := time.Now()
-	if _, err := store.WaitQuiet(ctx, "s", 500*time.Millisecond, time.Second, 0); err != nil {
+	if _, err := store.WaitQuiet(ctx, "s", 500*time.Millisecond, time.Second, 0, false); err != nil {
 		t.Fatal(err)
 	}
 	if elapsed := time.Since(start); elapsed >= 50*time.Millisecond {
@@ -238,7 +238,7 @@ func TestWaitQuietCountsFromLastChange(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	start := time.Now()
-	if _, err := store.WaitQuiet(ctx, "s", 500*time.Millisecond, 2*time.Second, 0); err != nil {
+	if _, err := store.WaitQuiet(ctx, "s", 500*time.Millisecond, 2*time.Second, 0, false); err != nil {
 		t.Fatal(err)
 	}
 	elapsed := time.Since(start)
@@ -258,7 +258,7 @@ func TestWaitQuietDeleteResetsQuietWindow(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	start := time.Now()
-	_, err := store.WaitQuiet(ctx, "s", 80*time.Millisecond, time.Second, 0)
+	_, err := store.WaitQuiet(ctx, "s", 80*time.Millisecond, time.Second, 0, false)
 	if !errors.Is(err, ErrSessionNotFound) {
 		t.Fatalf("err=%v want session_not_found after delete", err)
 	}
@@ -289,7 +289,7 @@ func TestFinishIgnoresStaleCallAfterReuse(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
 	start := time.Now()
-	_, err := store.WaitQuiet(ctx, "s", 40*time.Millisecond, 80*time.Millisecond, 0)
+	_, err := store.WaitQuiet(ctx, "s", 40*time.Millisecond, 80*time.Millisecond, 0, false)
 	if !errors.Is(err, ErrWaitTimeout) {
 		t.Fatalf("err=%v want wait_timeout while reused call is still active", err)
 	}
@@ -319,7 +319,7 @@ func TestWaitQuietActiveCallThenQuiet(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	start := time.Now()
-	if _, err := store.WaitQuiet(ctx, "s", 100*time.Millisecond, 2*time.Second, 1); err != nil {
+	if _, err := store.WaitQuiet(ctx, "s", 100*time.Millisecond, 2*time.Second, 1, false); err != nil {
 		t.Fatal(err)
 	}
 	elapsed := time.Since(start)
@@ -367,12 +367,57 @@ func TestWaitMinCallsCountsOnlySettled(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
 	defer cancel()
 	start := time.Now()
-	_, err := store.WaitQuiet(ctx, "s", 20*time.Millisecond, 80*time.Millisecond, 1)
+	_, err := store.WaitQuiet(ctx, "s", 20*time.Millisecond, 80*time.Millisecond, 1, false)
 	if !errors.Is(err, ErrWaitTimeout) {
 		t.Fatalf("err=%v want wait_timeout while only an in-flight call exists", err)
 	}
 	if elapsed := time.Since(start); elapsed < 40*time.Millisecond {
 		t.Fatalf("wait returned in %s; in-flight must not count as min_calls", elapsed)
+	}
+}
+
+func TestWaitQuietExcludeCancelled(t *testing.T) {
+	store := NewMemoryStore()
+	now := time.Now().UTC()
+	_, cancelledID := store.Begin("s", Call{StartedAt: now})
+	store.Finish("s", cancelledID, func(call *Call) {
+		call.EndedAt = time.Now().UTC()
+		call.HTTPStatus = 200
+		call.ClientAborted = true
+	})
+	_, committedID := store.Begin("s", Call{StartedAt: now})
+	store.Finish("s", committedID, func(call *Call) {
+		call.EndedAt = time.Now().UTC()
+		call.HTTPStatus = 200
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	if _, err := store.WaitQuiet(ctx, "s", 20*time.Millisecond, time.Second, 2, false); err != nil {
+		t.Fatalf("exclude_cancelled=false: err=%v want settled 1 cancelled + 1 committed to satisfy min_calls=2", err)
+	}
+
+	start := time.Now()
+	_, err := store.WaitQuiet(ctx, "s", 20*time.Millisecond, 80*time.Millisecond, 2, true)
+	if !errors.Is(err, ErrWaitTimeout) {
+		t.Fatalf("err=%v want wait_timeout: cancelled call must not count toward min_calls", err)
+	}
+	if elapsed := time.Since(start); elapsed < 60*time.Millisecond {
+		t.Fatalf("wait returned in %s; want the full timeout", elapsed)
+	}
+
+	_, secondID := store.Begin("s", Call{StartedAt: time.Now().UTC()})
+	store.Finish("s", secondID, func(call *Call) {
+		call.EndedAt = time.Now().UTC()
+		call.HTTPStatus = 200
+	})
+	session, err := store.WaitQuiet(ctx, "s", 20*time.Millisecond, 2*time.Second, 2, true)
+	if err != nil {
+		t.Fatalf("err=%v want two committed calls to satisfy min_calls=2 with exclude_cancelled=true", err)
+	}
+	if len(session.Calls) != 3 {
+		t.Fatalf("calls=%d want the cancelled call still published", len(session.Calls))
 	}
 }
 
@@ -399,7 +444,7 @@ func TestConcurrentGetDuringFinishHook(t *testing.T) {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
-		_, err := store.WaitQuiet(ctx, "s", 10*time.Millisecond, time.Second, 1)
+		_, err := store.WaitQuiet(ctx, "s", 10*time.Millisecond, time.Second, 1, false)
 		waitDone <- err
 	}()
 

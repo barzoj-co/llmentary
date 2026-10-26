@@ -158,6 +158,15 @@ paths:
           type: integer
           minimum: 0
         description: Minimum settled (finished) calls before a successful return. Default 0. In-flight calls are not counted.
+      - name: exclude_cancelled
+        in: query
+        schema:
+          type: boolean
+          default: false
+        description: >
+          Count only non-cancelled settled calls toward min_calls.
+          Default false, which counts every settled call. A 504
+          wait_timeout echoes exclude_cancelled true when it was set.
     get:
       summary: Wait until the session is quiet and has min_calls
       description: >
@@ -235,6 +244,11 @@ components:
           type: integer
         min_calls:
           type: integer
+        exclude_cancelled:
+          type: boolean
+          description: >
+            Echoed as true on a wait 504 only when the request set
+            exclude_cancelled.
         active:
           type: integer
           description: Number of in-flight calls on this session at timeout.
@@ -511,6 +525,15 @@ components:
             Present only when client_aborted is true. before_headers = cancel
             before upstream response headers; after_headers = cancel after
             headers / mid-stream.
+        outcome:
+          type: string
+          enum:
+            - committed
+            - cancelled
+            - failed
+          description: >-
+            Terminal state once settled (DOG-58). Omitted in flight. The abort
+            phase never changes it.
         upstream_called:
           type: boolean
           description: >-
@@ -523,7 +546,12 @@ components:
           description: >
             Cross-provider view. normalized.client_aborted is a deprecated 0.x
             alias of the top-level client_aborted field. finish_reason is
-            cancelled on an abort.
+            cancelled on an abort. normalized.error.source is upstream for an
+            error parsed from an upstream HTTP or SSE body (or an abnormal
+            upstream drop recorded as stream_truncated) and proxy for local
+            rejects, network failures, and header or idle timeouts. client =
+            the inbound client cancelled before headers; not an upstream or
+            proxy failure. Absent on proxies older than 0.5.3.
   responses:
     InvalidParameter:
       description: Unknown or unparsable query parameter

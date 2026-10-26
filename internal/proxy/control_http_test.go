@@ -302,10 +302,72 @@ func TestWaitTimeoutSnapshotAndStrippedQuery(t *testing.T) {
 	}
 }
 
+func TestWaitExcludeCancelledParam(t *testing.T) {
+	t.Parallel()
+	store := NewMemoryStore()
+	s := newAbortTestServer(t, store)
+	ts := httptest.NewServer(s.ControlHandler())
+	t.Cleanup(ts.Close)
+
+	getWait := func(query string) (int, map[string]any, []byte) {
+		t.Helper()
+		res, err := http.Get(ts.URL + "/sessions/s/wait?" + query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw, _ := io.ReadAll(res.Body)
+		_ = res.Body.Close()
+		var body map[string]any
+		if err := json.Unmarshal(raw, &body); err != nil {
+			t.Fatalf("status=%d body=%s err=%v", res.StatusCode, raw, err)
+		}
+		return res.StatusCode, body, raw
+	}
+
+	now := time.Now().UTC()
+	_, settledID := store.Begin("s", Call{StartedAt: now})
+	store.Finish("s", settledID, func(call *Call) {
+		call.EndedAt = time.Now().UTC()
+		call.HTTPStatus = 200
+	})
+
+	status, body, raw := getWait("exclude_cancelled=yes&quiet=20ms&timeout=2s")
+	if status != http.StatusBadRequest {
+		t.Fatalf("bad exclude_cancelled status=%d body=%s", status, raw)
+	}
+	errObj, _ := body["error"].(map[string]any)
+	if errObj["type"] != "invalid_parameter" || errObj["param"] != "exclude_cancelled" {
+		t.Fatalf("bad exclude_cancelled error=%v", body["error"])
+	}
+
+	status, _, raw = getWait("exclude_cancelled=true&quiet=20ms&timeout=2s&min_calls=1")
+	if status != http.StatusOK {
+		t.Fatalf("accepted status=%d body=%s", status, raw)
+	}
+
+	status, body, raw = getWait("exclude_cancelled=true&quiet=20ms&timeout=100ms&min_calls=2")
+	if status != http.StatusGatewayTimeout {
+		t.Fatalf("timeout status=%d body=%s", status, raw)
+	}
+	errObj, _ = body["error"].(map[string]any)
+	if errObj["exclude_cancelled"] != true {
+		t.Fatalf("timeout error=%v want exclude_cancelled:true", body["error"])
+	}
+
+	status, body, raw = getWait("quiet=20ms&timeout=100ms&min_calls=2")
+	if status != http.StatusGatewayTimeout {
+		t.Fatalf("default status=%d body=%s", status, raw)
+	}
+	errObj, _ = body["error"].(map[string]any)
+	if _, ok := errObj["exclude_cancelled"]; ok {
+		t.Fatalf("default timeout error=%v must not echo exclude_cancelled", body["error"])
+	}
+}
+
 func TestWriteWaitTimeoutEmptyCalls(t *testing.T) {
 	t.Parallel()
 	rec := httptest.NewRecorder()
-	writeWaitTimeout(rec, Session{ID: "s"}, 2, nil)
+	writeWaitTimeout(rec, Session{ID: "s"}, 2, nil, false)
 	if rec.Code != http.StatusGatewayTimeout {
 		t.Fatalf("code=%d", rec.Code)
 	}
