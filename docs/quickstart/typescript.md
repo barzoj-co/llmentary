@@ -6,11 +6,22 @@ Versions on this page: [llmentary for JS/TS](https://github.com/barzoj-co/llment
 
 ## 1. Install
 
-```sh
-npm install --save-dev llmentary openai
-```
+Install the client, the OpenAI SDK and a local test runner:
 
-Node 18 or newer is required. npm installs an optional `@llmentary/<platform>`
+=== "Vitest"
+
+    ```sh
+    npm install --save-dev llmentary openai "vitest@^3"
+    ```
+
+=== "Jest"
+
+    ```sh
+    npm install --save-dev llmentary openai "jest@^30"
+    ```
+
+llmentary needs Node 18 or newer. Vitest 3 and Jest 30 still run on Node 18;
+newer Vitest majors need a newer Node. npm installs an optional `@llmentary/<platform>`
 package with the proxy binary. Set `LLMENTARY_BIN` to use a different binary.
 
 ## 2. Wire up the test runner
