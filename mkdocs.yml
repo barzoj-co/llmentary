@@ -1,0 +1,104 @@
+# Docs site for https://barzoj-co.github.io/llmentary/ (built by .github/workflows/docs.yml).
+# Local preview: pip install --require-hashes -r website/requirements.txt && mkdocs serve
+site_name: llmentary
+site_description: Deterministic, trace-based integration testing for LLM apps, without an LLM judge.
+site_url: https://barzoj-co.github.io/llmentary/
+repo_url: https://github.com/barzoj-co/llmentary
+repo_name: barzoj-co/llmentary
+edit_uri: edit/main/docs/
+copyright: llmentary proxy AGPL-3.0 &middot; clients MIT
+
+docs_dir: docs
+site_dir: site
+
+theme:
+  name: material
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep purple
+      accent: teal
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep purple
+      accent: teal
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - navigation.indexes
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+    - toc.follow
+
+extra_css:
+  - assets/extra.css
+
+hooks:
+  - website/hooks.py
+
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+nav:
+  - Home: index.md
+  - Get started:
+      - Go: quickstart/go.md
+      - Python (pytest): quickstart/python.md
+      - TypeScript (Vitest / Jest): quickstart/typescript.md
+  - Guides:
+      - "Assertions: trace vs free text": assertions-guide.md
+      - Black-box and sidecar setups: black-box.md
+      - Providers and SDK wiring: providers.md
+      - OpenAI-compatible providers: openai-compatible.md
+      - GitHub Actions / CI: ci.md
+      - OTel GenAI mapping: otel.md
+  - Reference:
+      - Client APIs: reference/clients.md
+      - Proxy configuration and control API: proxy.md
+      - Recorded trace data model: data-model.md
+      - Session lifecycle: session-lifecycle.md
+      - Isolation spec: isolation-spec.md
+      - Client assertion contract: client-contract.md
+      - OpenAI-compatible CI matrix: compat-matrix.md
+      - Release binaries: binaries.md
+  - Troubleshooting: troubleshooting.md
+  - Contributing:
+      - contributing.md
+      - Releasing: releasing.md
