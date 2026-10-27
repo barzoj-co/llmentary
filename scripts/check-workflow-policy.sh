@@ -28,6 +28,7 @@ ALLOWED_JOB_PERMISSIONS = {
     "pull-requests": {"read", "write"},
     "issues": {"read", "write"},
     "attestations": {"write"},
+    "pages": {"write"},
 }
 RELEASE_WORKFLOWS = {"release.yml", "release-please.yml"}
 
