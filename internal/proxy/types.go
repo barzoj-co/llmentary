@@ -72,7 +72,7 @@ type Call struct {
 	UpstreamCalled bool              `json:"upstream_called"`
 	ClientAborted  bool              `json:"client_aborted"`
 	AbortPhase     string            `json:"abort_phase,omitempty"`
-	// Outcome is committed, cancelled or failed once settled (DOG-58). Omitted in flight.
+	// Outcome is committed, cancelled or failed once settled. Omitted in flight.
 	Outcome    string     `json:"outcome,omitempty"`
 	Normalized Normalized `json:"normalized"`
 	// BytesReceived is mid-flight progress; omitted from settled JSON.

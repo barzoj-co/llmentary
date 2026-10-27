@@ -16,7 +16,7 @@ func TestE2EIsolatedFromSamePromptAndReplay(t *testing.T) {
 	apiKey := requireAPIKey(t)
 	p := startLiveProxy(t, "off", "relaxed")
 	model := quoteJSON(liveModel())
-	prompt := "What is my biological age?"
+	prompt := "Where is my order?"
 
 	sidA := liveSession()
 	sidB := liveSession()
@@ -60,7 +60,7 @@ func TestE2EIsolatedFromSamePromptAndReplay(t *testing.T) {
 		}
 	}
 
-	// DOG-34: B sent the same canned text and never touched A's thread.
+	// B sent the same canned text and never touched A's thread.
 	ok, msg = isolation.Check(c, b, isolation.Options{})
 	if ok {
 		t.Fatal("C isolated_from B: want fail on shared text (B uninvolved)")
@@ -69,7 +69,7 @@ func TestE2EIsolatedFromSamePromptAndReplay(t *testing.T) {
 		t.Fatalf("uninvolved-B message %q", msg)
 	}
 
-	// DOG-32: empty / mistyped other is not a vacuous pass (no extra OpenAI call).
+	// empty / mistyped other is not a vacuous pass (no extra OpenAI call).
 	ghost := isolation.Session{ID: sidA + "-typo"}
 	ok, msg = isolation.Check(a, ghost, isolation.Options{})
 	if ok {

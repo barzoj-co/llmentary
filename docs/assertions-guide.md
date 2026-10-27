@@ -1,7 +1,6 @@
 # Assertions: trace vs free text
 
-The product rule, confirmed on live dogfood runs (a chat service and
-a voice agent): assertions on what the system **sent and received** (the
+Assertions on what the system **sent and received** (the
 recorded trace) are deterministic. Assertions on what the model **wrote**
 are probabilistic.
 
@@ -35,8 +34,8 @@ flowchart LR
 
 Put exact sentinel tokens (`SEED_…`) in **tool results** (or other fixture
 bytes the app will send back) and assert them on the **trace**:
-`prompt_contains("SEED_Cardiovascular_Risk")` on the follow-up request,
-`tool_result_fed_back`, or `tool_result_in_prompt("get_risks")`.
+`prompt_contains("SEED_Order_Status")` on the follow-up request,
+`tool_result_fed_back`, or `tool_result_in_prompt("get_order")`.
 
 For the answer, seed distinctive **natural** values the model is likely to
 copy (`41.3`, `20 °C`, `ten minutes`, `moderate`) and match them with a
@@ -48,45 +47,44 @@ string in the answer.
 
 Excerpts are redacted. No API keys.
 
-### a chat service (live run 2)
+### A support bot answering an order question
 
-Trace checks all passed: the right tools were offered, `get_user_biological_age`
-was not, `get_risks` and `get_user_health_tips` were called, their results were
-fed back, `SEED_Cardiovascular_Risk` and `SEED_Tip_Walk_After_Meals` were in
-the captured follow-up **request**, streaming was on, `spec_violations` was
-empty.
+The trace checks pass: the right tools were offered, `cancel_order` was not,
+`get_order` and `get_shipping_eta` were called, their results were fed back,
+`SEED_Order_Status` and `SEED_Eta_Window` were in the captured follow-up
+**request**, streaming was on, and `spec_violations` was empty.
 
-The only failures were substring checks on the final answer. The model
-paraphrased the seeded titles:
+Substring checks on the final answer are the flaky part. The model
+paraphrases the seeded values:
 
 ```text
-answer="… 2. **Cardiovascular Risk**: You have a moderate cardiovascular risk. …"
-# expected SEED_Cardiovascular_Risk
+answer="… Your order has shipped and there is a moderate shipping delay. …"
+# expected SEED_Order_Status
 
-answer="… - **Walk After Meals**: It's recommended to walk for ten minutes after each meal. …"
-# expected SEED_Tip_Walk_After_Meals
+answer="… The courier is about ten minutes away. …"
+# expected SEED_Eta_Window
 ```
 
 Before (flaky):
 
 ```python
-assert "SEED_Cardiovascular_Risk" in answer
-assert "SEED_Tip_Walk_After_Meals" in answer
+assert "SEED_Order_Status" in answer
+assert "SEED_Eta_Window" in answer
 ```
 
 After (trace deterministic, answer tolerant):
 
 ```python
-lm.expect().tool_result_in_prompt("get_risks")
-lm.expect().prompt_contains("SEED_Cardiovascular_Risk")
+lm.expect().tool_result_in_prompt("get_order")
+lm.expect().prompt_contains("SEED_Order_Status")
 lm.expect().final_response_mentions_any("moderate", "41.3")
-# answer_mentions_any(answer, "ten minutes", "walk", normalize_numbers=True)
+# answer_mentions_any(answer, "ten minutes", "shipped", normalize_numbers=True)
 ```
 
-### a voice agent weather turn
+### A weather tool call
 
-The voice-agent test put exact equality on the trace (`function_call_output` ==
-the Lua JSON, args `Amsterdam` / `celsius`, exactly three calls) and left the
+An app-level test can put exact equality on the trace (`function_call_output` ==
+the fixture JSON, args `Amsterdam` / `celsius`, exactly three calls) and left the
 answer loose ("20 or sunny"). The portable client checks below are weaker:
 `ArgsSubset` requires those keys and allows extra arguments; it does not
 compare `function_call_output` byte-for-byte.

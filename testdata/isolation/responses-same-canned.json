@@ -13,8 +13,8 @@
         "seq": 1,
         "raw_request": {
           "model": "gpt-4.1-nano",
-          "instructions": "You are a helpful assistant with the bioage tool.",
-          "input": "What is my biological age?"
+          "instructions": "You are a helpful assistant with the order lookup tool.",
+          "input": "Where is my order?"
         }
       }
     ]
@@ -28,8 +28,8 @@
         "seq": 1,
         "raw_request": {
           "model": "gpt-4.1-nano",
-          "instructions": "You are a helpful assistant with the bioage tool.",
-          "input": "What is my biological age?"
+          "instructions": "You are a helpful assistant with the order lookup tool.",
+          "input": "Where is my order?"
         }
       }
     ]

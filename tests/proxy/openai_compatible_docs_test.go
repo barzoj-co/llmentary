@@ -57,7 +57,7 @@ func TestOpenAICompatibleGuidePinned(t *testing.T) {
 		"reasoning_details",
 		`source: "x_groq"`,
 		"openai-compatible",
-		"COMPAT-7",
+		"Response-side findings",
 		"OPENAI_BASE_URL",
 		"base_url",
 		"baseURL",

@@ -14,7 +14,7 @@
         "raw_request": {
           "model": "gpt-4.1-nano",
           "messages": [
-            {"role": "user", "content": "run-aaa What is my biological age?"},
+            {"role": "user", "content": "run-aaa Where is my order?"},
             {"role": "assistant", "content": "I need more data."},
             {"role": "user", "content": "Continue from the saved thread."}
           ]
@@ -32,7 +32,7 @@
         "raw_request": {
           "model": "gpt-4.1-nano",
           "messages": [
-            {"role": "user", "content": "run-bbb What is my biological age?"}
+            {"role": "user", "content": "run-bbb Where is my order?"}
           ]
         }
       }

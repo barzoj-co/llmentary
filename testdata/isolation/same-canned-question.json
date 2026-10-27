@@ -14,8 +14,8 @@
         "raw_request": {
           "model": "gpt-4.1-nano",
           "messages": [
-            {"role": "system", "content": "You are a helpful assistant with the bioage tool."},
-            {"role": "user", "content": "What is my biological age?"}
+            {"role": "system", "content": "You are a helpful assistant with the order lookup tool."},
+            {"role": "user", "content": "Where is my order?"}
           ]
         }
       }
@@ -31,8 +31,8 @@
         "raw_request": {
           "model": "gpt-4.1-nano",
           "messages": [
-            {"role": "system", "content": "You are a helpful assistant with the bioage tool."},
-            {"role": "user", "content": "What is my biological age?"}
+            {"role": "system", "content": "You are a helpful assistant with the order lookup tool."},
+            {"role": "user", "content": "Where is my order?"}
           ]
         }
       }

@@ -3,7 +3,7 @@
 This guide is for a developer who already talks to an OpenAI-compatible
 upstream (DeepSeek, Gemini's OpenAI surface, OpenRouter, Groq, Mistral, Ollama,
 llama.cpp, vLLM, …) and wants `llmentary` in front of it. It matches v0.5.x
-(COMPAT-1..9). Fixture-verified rows live in [compat-matrix.md](compat-matrix.md). The proxy does not translate request or response
+. Fixture-verified rows live in [compat-matrix.md](compat-matrix.md). The proxy does not translate request or response
 formats. It forwards the body and auth headers unchanged and records a tee copy.
 
 What is validated in `--spec-validation enforce` depends on the per-upstream
@@ -96,8 +96,8 @@ fields with a wrong type are forwarded as warnings.
 | Duplicate keys, UTF-8 BOM, trailing data | local 400 | local 400 |
 | Unknown properties (`thinking`, `top_k`, `prefix`, `reasoning_content`, `reasoning_details`, `extra_content`, `extra_body`, …) | local 400 | forwarded; recorded as `ignored_fields` `kind=vendor_field`, `severity=info`, `action=report_only` |
 | Extended enums (`tool_choice:"any"`, …) | local 400 | forwarded; `spec_violations` with `severity=warning` |
-| OpenAI-only schema-keyword lints (`minLength`, `examples`, `oneOf`, `allOf`, unresolved `$ref`, Responses `strict_fallback_predicted`, …) | `reject_in_enforce` | rematched to `severity=info` / `report_only` (COMPAT-3) |
-| Response-side `spec_violations` | recorded, never reject; counted in `spec=findings:N` | summarized as `response_shape` (`severity=info`, one row per pointer+keyword); never WARN / never counted in `spec=findings:N`. Vendor extras produce no finding. See [Response-side findings (COMPAT-7)](#response-side-findings-compat-7) |
+| OpenAI-only schema-keyword lints (`minLength`, `examples`, `oneOf`, `allOf`, unresolved `$ref`, Responses `strict_fallback_predicted`, …) | `reject_in_enforce` | rematched to `severity=info` / `report_only` |
+| Response-side `spec_violations` | recorded, never reject; counted in `spec=findings:N` | summarized as `response_shape` (`severity=info`, one row per pointer+keyword); never WARN / never counted in `spec=findings:N`. Vendor extras produce no finding. See [Response-side findings](#response-side-findings) |
 
 Unknown fields use hint
 `Forwarded to the upstream unchanged. This field is not in the OpenAI request schema.`
@@ -112,7 +112,7 @@ when every assistant turn carried reasoning.
 ## DeepSeek
 
 Official base: `https://api.deepseek.com` (no version segment). The client's
-`/v1` is kept. See [Version-segment join](#version-segment-join-compat-6).
+`/v1` is kept. See [Version-segment join](#version-segment-join).
 
 | Client base | Final upstream URL |
 |---|---|
@@ -366,7 +366,7 @@ llmentary \
 
 `{proxy}/v1` joins to `https://api.groq.com/openai/v1/chat/completions`. When a
 stream's last chunk has `x_groq.usage` and no top-level `usage`, the normalizer
-records `usage` with `source: "x_groq"` (COMPAT-8; fixture-verified). Top-level
+records `usage` with `source: "x_groq"`. Top-level
 `usage` wins when both are present.
 
 ## Mistral
@@ -413,7 +413,7 @@ Outputs rejects are forwarded / rematched instead of 400. Together / Ollama
 `finish_reason: "eos"` maps to `stop`; the raw value stays in
 `native_finish_reason`.
 
-## Path allow-list (COMPAT-5)
+## Path allow-list
 
 After `/s/{session}` and `/u/{name}` are stripped, a **bare** path's first
 segment must be one of: `v1`, `openai`, `api`, `chat`, `responses`,
@@ -439,7 +439,7 @@ Bare `/tokenize` then forwards. Without the flag it is a local `404`
 `did you mean /s/<segment>/...?` when the extra segment looks like a missing
 session prefix). Prefer `/u/llama/tokenize` when the route is named.
 
-## Version-segment join (COMPAT-6)
+## Version-segment join
 
 The proxy overlaps shared path prefixes. `/s/{session}` and `/u/{name}` are
 stripped first. When the remaining request starts with a version-like segment
@@ -455,7 +455,7 @@ Upstreams without a version segment keep the client's `/v1`.
 | `https://api.groq.com/openai/v1` | `{proxy}/v1` | `/openai/v1/chat/completions` |
 | `https://openrouter.ai/api/v1` | `{proxy}/v1` | `/api/v1/chat/completions` |
 
-## Stream normalization (COMPAT-8)
+## Stream normalization
 
 Applied to any OpenAI-wire Chat Completions stream (`POST` path ending in
 `/chat/completions`, SSE `data: {json}` + `data: [DONE]`):
@@ -470,7 +470,7 @@ Applied to any OpenAI-wire Chat Completions stream (`POST` path ending in
 
 The client still receives the upstream bytes unchanged.
 
-## OpenAI-only lints (COMPAT-3)
+## OpenAI-only lints
 
 These ignored-field kinds are OpenAI Structured Outputs / strict-mode checks.
 Target `openai` keeps them `reject_in_enforce`. Target `openai-compatible`
@@ -489,7 +489,7 @@ Request-side OpenAI-only lints rematch as above. Response-side
 `ignored_fields` `strict_fallback` also rematches (see below); other
 response-side findings do not.
 
-## Response-side findings (COMPAT-7)
+## Response-side findings
 
 Response-side `spec_violations` never reject. Target `openai` stores them as
 compiled and counts them in `spec=findings:N`. Target `openai-compatible`

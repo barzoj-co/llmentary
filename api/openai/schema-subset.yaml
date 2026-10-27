@@ -2,7 +2,7 @@
 # Single source of truth for internal/schemalint. No keyword lists are hard-coded
 # in Go. Refresh from the source URLs and bump retrieved when the docs change.
 #
-# COMPAT-3 owner decision (2026-10-22):
+# Owner decision (2026-10-22):
 # Target openai keeps reject_in_enforce for non-strict-tool keyword findings
 # (minLength, examples, oneOf, …) and for strict_fallback_predicted.
 # Verified non-strict live OpenAI requests with those keywords returned 200

@@ -34,8 +34,7 @@ Chat `messages` or Responses `input` as defined in the spec.
 `message_contains` is a list of fragments that must all appear in the failure
 text when `isolated` is false. Pass cases leave it empty.
 
-Added for DOG-32 / DOG-33 / DOG-34:
-
+Additional vectors:
 | Vector | Verdict | Why |
 |---|---|---|
 | `unknown-other-id.json` | fail | Y was never created |

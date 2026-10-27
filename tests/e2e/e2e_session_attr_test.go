@@ -148,7 +148,7 @@ func TestE2EUnknownPrefixNotForwarded(t *testing.T) {
 	proxySrv := httptest.NewServer(server.ProxyHandler())
 	t.Cleanup(proxySrv.Close)
 	before := proxy.UpstreamCallCount.Load()
-	req, err := http.NewRequest(http.MethodPost, proxySrv.URL+"/dogfood/v1/chat/completions", bytes.NewReader([]byte(`{"model":"gpt-4.1-mini"}`)))
+	req, err := http.NewRequest(http.MethodPost, proxySrv.URL+"/myapp/v1/chat/completions", bytes.NewReader([]byte(`{"model":"gpt-4.1-mini"}`)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,7 +165,7 @@ func TestE2EUnknownPrefixNotForwarded(t *testing.T) {
 	if res.StatusCode != http.StatusNotFound {
 		t.Fatalf("status=%d body=%s", res.StatusCode, body)
 	}
-	if !bytes.Contains(body, []byte(`"llmentary_unknown_path"`)) || !bytes.Contains(body, []byte("did you mean /s/dogfood/v1/")) {
+	if !bytes.Contains(body, []byte(`"llmentary_unknown_path"`)) || !bytes.Contains(body, []byte("did you mean /s/myapp/v1/")) {
 		t.Fatalf("body=%s", body)
 	}
 	if proxy.UpstreamCallCount.Load() != before {

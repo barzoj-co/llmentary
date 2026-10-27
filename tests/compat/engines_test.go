@@ -14,7 +14,7 @@ import (
 )
 
 // TestLocalEngineFixtures starts the in-process fixture server under the
-// local-engine names from COMPAT-9 (llama.cpp, Ollama, deepseek-recipe) and
+// local-engine names (llama.cpp, Ollama, deepseek-recipe) and
 // drives JSON + SSE through the proxy. Real binaries are optional: set
 // LLMENTARY_COMPAT_ENGINES=1 and put health URLs in
 // LLMENTARY_COMPAT_ENGINE_URLS (comma-separated) to also probe those

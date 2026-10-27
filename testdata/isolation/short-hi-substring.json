@@ -30,7 +30,7 @@
         "raw_request": {
           "model": "gpt-4.1-nano",
           "messages": [
-            {"role": "user", "content": "Hi, what is my biological age? This text is long."}
+            {"role": "user", "content": "Hi, where is my order? This text is long."}
           ]
         }
       }

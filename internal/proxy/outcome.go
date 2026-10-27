@@ -8,7 +8,7 @@ const (
 	OutcomeFailed    = "failed"
 )
 
-// classifyOutcome returns the terminal state of a settled call (DOG-58). It returns "" when call.EndedAt is zero (still in flight).
+// classifyOutcome returns the terminal state of a settled call. It returns "" when call.EndedAt is zero (still in flight).
 func classifyOutcome(call Call) string {
 	if call.EndedAt.IsZero() {
 		return ""

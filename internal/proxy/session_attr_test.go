@@ -109,8 +109,8 @@ func TestResolveSessionPrecedence(t *testing.T) {
 
 func TestUnknownPathHint(t *testing.T) {
 	t.Parallel()
-	hint := unknownPathHint("/dogfood/v1/chat/completions")
-	if !strings.Contains(hint, "/s/dogfood/v1/") {
+	hint := unknownPathHint("/myapp/v1/chat/completions")
+	if !strings.Contains(hint, "/s/myapp/v1/") {
 		t.Fatalf("hint=%q", hint)
 	}
 }

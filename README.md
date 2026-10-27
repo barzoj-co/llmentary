@@ -130,7 +130,7 @@ JS/TS tests `import { llmentary } from "llmentary/vitest"` or
 - [Troubleshooting](docs/troubleshooting.md)
 - [Contributing](CONTRIBUTING.md)
 
-<!-- ltl-repos:start -->
+<!-- llmentary-repos:start -->
 ## llmentary repositories
 
 | Repository | What | License |
@@ -139,7 +139,7 @@ JS/TS tests `import { llmentary } from "llmentary/vitest"` or
 | [llmentary-go](https://github.com/barzoj-co/llmentary-go) | Go client for `go test` | MIT |
 | [llmentary-python](https://github.com/barzoj-co/llmentary-python) | Python client and pytest plugin | MIT |
 | [llmentary-js](https://github.com/barzoj-co/llmentary-js) | TypeScript/JavaScript client for Vitest and Jest | MIT |
-<!-- ltl-repos:end -->
+<!-- llmentary-repos:end -->
 
 ## License
 

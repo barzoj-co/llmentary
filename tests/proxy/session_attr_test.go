@@ -343,7 +343,7 @@ func TestC1UnknownPrefixNotForwarded(t *testing.T) {
 	proxyURL, _ := startPathProxy(t, echo, func(cfg *proxy.Config) {
 		cfg.Logger = slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelWarn}))
 	})
-	status, _, body := postJSON(t, proxyURL+"/dogfood/v1/chat/completions", map[string]string{
+	status, _, body := postJSON(t, proxyURL+"/myapp/v1/chat/completions", map[string]string{
 		"Authorization": "Bearer secret-must-not-appear",
 	}, []byte(`{"model":"gpt-fixture"}`))
 	if status != http.StatusNotFound {
@@ -352,7 +352,7 @@ func TestC1UnknownPrefixNotForwarded(t *testing.T) {
 	if openaiErrorType(t, body) != "llmentary_unknown_path" {
 		t.Fatalf("body=%s", body)
 	}
-	if !bytes.Contains(body, []byte("did you mean /s/dogfood/v1/")) {
+	if !bytes.Contains(body, []byte("did you mean /s/myapp/v1/")) {
 		t.Fatalf("hint missing: %s", body)
 	}
 	if hits, _, _, _, _ := echo.snapshot(); hits != 0 {

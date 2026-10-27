@@ -1127,7 +1127,7 @@ func TestE6GzipRawBytes(t *testing.T) {
 
 func TestE7PassthroughNonSpecPaths(t *testing.T) {
 	req := []byte(`{"input":"x"}`)
-	// /foo is no longer forwarded: unknown first segments are a local 404 (DOG-1 leak guard).
+	// /foo is no longer forwarded: unknown first segments are a local 404.
 	for _, path := range []string{"/v1/models", "/v1/embeddings", "/v1/responses/resp_123"} {
 		method := http.MethodPost
 		if path == "/v1/models" || strings.HasPrefix(path, "/v1/responses/") {
