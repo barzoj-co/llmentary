@@ -128,10 +128,12 @@ not validate the call, unless you pass `allow_unvalidated=True` /
 
 | Checks that | Python | TypeScript | Go |
 |---|---|---|---|
-| this session never saw another session's messages | `isolated_from(other)` | `isolatedFrom(other)` | `IsolatedFrom(otherID)` |
+| no other session's user turns, call ids or session id appear in this session | `isolated_from(other)` | `isolatedFrom(other)` | `IsolatedFrom(otherID)` |
 
-Use this to prove that two concurrent conversations in your app do not leak
-into each other. The rules are in the [isolation spec](../isolation-spec.md).
+Use this to check that two concurrent conversations in your app do not leak
+user messages into each other. It compares session ids, call ids and user-role
+text only; system and developer prompts and tool definitions are not compared.
+The rules are in the [isolation spec](../isolation-spec.md).
 
 ## Select calls
 

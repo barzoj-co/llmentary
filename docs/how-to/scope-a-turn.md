@@ -4,6 +4,10 @@ A multi-turn test records every call in the session. To assert on the second
 turn only, take a mark before it and scope the assertions to calls after the
 mark.
 
+In these examples `bot` is your application's chat client, created with the
+llmentary base URL and session headers as shown in
+[Connect an existing app](connect-an-app.md).
+
 === "Python"
 
     ```python

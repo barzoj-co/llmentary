@@ -68,7 +68,7 @@ For the parts that are free text, see
 
 | Language | Package | Proxy binary |
 |---|---|---|
-| Python (pytest) | `pip install "llmentary[pytest,openai]"` | included in the wheel |
+| Python (pytest) | `pip install "llmentary[pytest,openai]"` | included in platform wheels; otherwise `PATH` or `LLMENTARY_BIN` |
 | TypeScript (Vitest, Jest) | `npm install --save-dev llmentary` | included via an optional platform package |
 | Go (`go test`) | `go get github.com/barzoj-co/llmentary-go` | install separately: [Release binaries](binaries.md) |
 

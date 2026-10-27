@@ -105,3 +105,8 @@ nav:
   - Contributing:
       - contributing.md
       - Releasing: releasing.md
+
+not_in_nav: |
+  /quickstart/
+  /assertions-guide.md
+  /reference/clients.md

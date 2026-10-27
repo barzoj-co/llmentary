@@ -16,7 +16,8 @@ Documentation: **https://barzoj-co.github.io/llmentary/**
 
 ## Install
 
-The Python and TypeScript packages include the proxy binary:
+The Python platform wheels and the TypeScript package include the proxy binary.
+On a platform without a wheel, put `llmentary` on `PATH` or set `LLMENTARY_BIN`.
 
 ```bash
 pip install "llmentary[pytest,openai]"     # Python

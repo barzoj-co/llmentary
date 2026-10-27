@@ -39,13 +39,16 @@ See [Providers](providers.md) and [Proxy reference](proxy.md).
 
 Every recorded call belongs to one session. A session usually corresponds to
 one test. The client creates a unique session id per test and the proxy decides
-which session a request belongs to by checking, in order:
+which session a request belongs to. By default it checks, in order:
 
 1. the `X-Test-Session` request header,
 2. W3C `baggage` (`llmentary.session.id=<id>`),
 3. a path prefix: `http://127.0.0.1:7777/s/<id>/v1`,
 4. a fallback session for untagged calls (`--default-session`, default
    `default`).
+
+`--session-from` changes the order or drops sources; see the
+[proxy reference](proxy.md).
 
 The header is the simplest option when the test creates the SDK client. The
 path prefix works when the app builds its own client from a base-URL setting
@@ -98,9 +101,12 @@ calls unless you ask it to. To assert on cancellation itself, use `Aborted` or
 
 ## Spec validation
 
-The proxy validates every request against the OpenAI API schema and records
-findings on the call: unknown fields, wrong types, invalid enum values. By
-default it only records and logs them (`--spec-validation=warn`). With
+Unless validation is `off`, the proxy validates each OpenAI-format request
+against the OpenAI API schema and records findings on the call: unknown
+fields, wrong types, invalid enum values. Bodies larger than
+`--spec-validation-max-bytes` are forwarded without validation and marked as
+skipped. By default the proxy only records and logs findings
+(`--spec-validation=warn`). With
 `enforce` it rejects invalid requests locally without calling the provider.
 `NoSpecViolations` and `NoIgnoredFields` assert on these findings. For
 OpenAI-compatible providers, which accept extra fields, see

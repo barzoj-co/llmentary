@@ -114,7 +114,7 @@ module.exports = {
 };
 ```
 
-In the test, import `llmentary` from `llmentary/jest` instead of
+Install Jest with `npm install --save-dev jest`. In the test, import `llmentary` from `llmentary/jest` instead of
 `llmentary/vitest`. The assertions are the same.
 
 ## Next steps
