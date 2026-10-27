@@ -55,7 +55,7 @@ your real code, then assert on what went over the wire:
     ```python
     def test_tool_flow(llmentary):
         client = OpenAI(
-            api_key="test-key",
+            api_key=os.environ["OPENAI_API_KEY"],
             base_url=llmentary.openai_base_url,
             default_headers=llmentary.headers,
         )

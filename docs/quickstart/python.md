@@ -26,12 +26,14 @@ unique session, exposes OpenAI client helpers, waits for quiet before
 assertions, and deletes the session after the test.
 
 ```python
+import os
+
 from openai import OpenAI
 
 
 def test_tool_flow(llmentary):
     client = OpenAI(
-        api_key="test-key",
+        api_key=os.environ["OPENAI_API_KEY"],
         base_url=llmentary.openai_base_url,
         default_headers=llmentary.headers,
     )
@@ -52,6 +54,7 @@ def test_tool_flow(llmentary):
                 },
             }
         ],
+        tool_choice={"type": "function", "function": {"name": "get_weather"}},
     )
     tool_call = first.choices[0].message.tool_calls[0]
 
@@ -71,16 +74,17 @@ def test_tool_flow(llmentary):
 
 ## 3. Run it
 
-Let the session-scoped `llmentary_proxy` fixture start the proxy and give it
-the upstream key:
+The proxy forwards the SDK's `Authorization` header to the provider, so the
+test passes the real key to the client. By default the session-scoped
+`llmentary_proxy` fixture starts the bundled proxy, which forwards to
+`openai=https://api.openai.com/v1`:
 
 ```bash
-export LLMENTARY_UPSTREAM_BASE_URL=https://api.openai.com/v1
-export LLMENTARY_UPSTREAM_API_KEY="$OPENAI_API_KEY"
+export OPENAI_API_KEY=sk-...
 pytest
 ```
 
-Or attach to a proxy you already run:
+Or attach to a proxy you already run (still with `OPENAI_API_KEY` set):
 
 ```bash
 export LLMENTARY_PROXY_URL=http://127.0.0.1:7777

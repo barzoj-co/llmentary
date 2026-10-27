@@ -97,7 +97,26 @@ package with the proxy binary. Set `LLMENTARY_BIN` to use a different binary.
     test("uses the weather tool", async () => {
       const lm = llmentary();
       const openai = new OpenAI(lm.openAI());
-      // make calls...
+
+      await openai.chat.completions.create({
+        model: "gpt-4.1-mini",
+        messages: [{ role: "user", content: "Use the tool for Amsterdam weather." }],
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "lookup_weather",
+              parameters: {
+                type: "object",
+                properties: { city: { type: "string" } },
+                required: ["city"],
+              },
+            },
+          },
+        ],
+        tool_choice: { type: "function", function: { name: "lookup_weather" } },
+      });
+
       await expect(lm.expect()).toHaveToolCalled("lookup_weather");
     });
     ```
@@ -107,9 +126,17 @@ package with the proxy binary. Set `LLMENTARY_BIN` to use a different binary.
 
 ## 4. Run it
 
-```sh
-OPENAI_API_KEY=sk-... npx vitest run
-```
+=== "Vitest"
+
+    ```sh
+    OPENAI_API_KEY=sk-... npx vitest run
+    ```
+
+=== "Jest"
+
+    ```sh
+    OPENAI_API_KEY=sk-... npx jest
+    ```
 
 With no upstream configured, the proxy forwards to
 `openai=https://api.openai.com/v1`. Failures throw `SessionAssertionError` with a
@@ -117,14 +144,20 @@ trace summary.
 
 ## Next steps
 
-- **Service can't send headers?** Set the env **before** the app is imported:
+- **Service can't send headers?** Inside the test, take the runner's session,
+  set the env, and only then import the app:
 
     ```ts
-    import { llmentary } from "llmentary";
+    import { test } from "vitest";
+    import { llmentary } from "llmentary/vitest";
 
-    const lm = llmentary();
-    process.env.OPENAI_BASE_URL = lm.pathBaseURL();
-    const { app } = await import("./app.js");
+    test("service without headers", async () => {
+      const lm = llmentary();
+      process.env.OPENAI_BASE_URL = lm.pathBaseURL();
+      const { app } = await import("./app.js");
+      // drive the app, then assert:
+      await lm.expect().callCount(1);
+    });
     ```
 
     More in [Black-box and sidecar setups](../black-box.md).

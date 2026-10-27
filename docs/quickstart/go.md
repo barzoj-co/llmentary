@@ -19,7 +19,10 @@ signature verification: [Release binaries](../binaries.md).
 
 ```bash
 go get github.com/barzoj-co/llmentary-go
+go get github.com/openai/openai-go@v1.12.0
 ```
+
+`openai-go` v1.12.0 is the version the client's runnable examples use.
 
 ## 3. Start the proxy
 
