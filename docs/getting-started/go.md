@@ -19,7 +19,8 @@ go install github.com/barzoj-co/llmentary/cmd/llmentary@v0.5.3
 Building the proxy needs Go 1.26. With the default `GOTOOLCHAIN=auto`, an older
 `go` command downloads that toolchain for the build.
 
-Start it in a separate terminal:
+`go install` puts the binary in `$(go env GOPATH)/bin`; make sure that
+directory is on your `PATH`. Start the proxy in a separate terminal:
 
 ```console
 $ llmentary --listen 127.0.0.1:7777 --control 127.0.0.1:7778

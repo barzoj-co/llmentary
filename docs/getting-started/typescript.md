@@ -5,8 +5,8 @@ OpenAI through llmentary and checks which tool the model called. Jest setup is
 at the end.
 
 You need an OpenAI API key and Node.js. llmentary runs on Node.js 18 or newer.
-The current `openai` package (v7) requires Node.js 22; on an older Node.js,
-install `openai@6`. The test makes one real request to `gpt-4.1-mini`.
+The current `openai` (v7) and `vitest` (v5) packages require Node.js 22; on
+Node.js 18 or 20, install `openai@6` and `vitest@3`. The test makes one real request to `gpt-4.1-mini`.
 
 ## Install
 
@@ -25,7 +25,9 @@ proxy binary. To use a different binary, set `LLMENTARY_BIN`.
 // vitest.config.ts
 import { defineConfig } from "vitest/config";
 
-export default defineConfig({ test: { setupFiles: ["./vitest.setup.ts"] } });
+export default defineConfig({
+  test: { setupFiles: ["./vitest.setup.ts"], testTimeout: 30_000 },
+});
 ```
 
 ```ts
@@ -37,7 +39,8 @@ setupVitest();
 
 `setupVitest()` starts the proxy for each test file, creates a fresh session
 before each test and deletes it afterwards. It has to be in `setupFiles`, not
-`globalSetup`.
+`globalSetup`. The longer `testTimeout` leaves room for a live request; the
+default is 5 seconds.
 
 ## Write a test
 
