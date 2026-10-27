@@ -5,15 +5,15 @@ OpenAI through llmentary and checks which tool the model called. Jest setup is
 at the end.
 
 You need an OpenAI API key and Node.js. llmentary runs on Node.js 18 or newer.
-The current `openai` (v7) and `vitest` (v5) packages require Node.js 22; on
-Node.js 18 or 20, install `openai@6` and `vitest@3`. The test makes one real request to `gpt-4.1-mini`.
+llmentary is tested with Vitest 3. The current `openai` package (v7) requires
+Node.js 22; on Node.js 18 or 20, install `openai@6`. The test makes one real request to `gpt-4.1-mini`.
 
 ## Install
 
 ```bash
 npm init -y
 npm pkg set type=module
-npm install --save-dev llmentary openai vitest
+npm install --save-dev llmentary openai vitest@3
 ```
 
 npm also installs an optional `@llmentary/<platform>` package that contains the
