@@ -235,7 +235,7 @@ segment looks like a session-id typo (`/dogfood/v1/...` suggests
 The Go client in [llmentary-go](https://github.com/barzoj-co/llmentary-go)
 creates a random session id and can inject `X-Test-Session` through `lm.HTTPClient()`.
 Unmodified services that cannot send headers should use the path prefix
-(`lm.PathBaseURL()` / `lm.path_base_url()` / `lm.pathBaseURL()`) instead.
+(`lm.PathBaseURL("")` / `lm.path_base_url()` / `lm.pathBaseURL()`) instead.
 
 ## What the proxy changes on the way upstream
 

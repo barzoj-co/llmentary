@@ -26,7 +26,7 @@ flowchart TD
 | Mode | When | How the session is chosen |
 |---|---|---|
 | In-process | The test constructs the SDK client | `X-Test-Session` via `lm.HTTPClient()` (Go), the `llmentary` fixture (Python), or `llmentary()` (JS) |
-| Path prefix | You control the worker's base URL, including import-time / startup clients | `{proxy}/s/{session}/v1` — helpers `lm.PathBaseURL()`, `lm.path_base_url()`, `lm.pathBaseURL()` |
+| Path prefix | You control the worker's base URL, including import-time / startup clients | `{proxy}/s/{session}/v1` — helpers `lm.PathBaseURL("")`, `lm.path_base_url()`, `lm.pathBaseURL()` |
 | Sidecar | A compose graph or one proxy per system; workers are unmodified | `--default-session` (default id `default`) on the proxy |
 
 `--session-from` defaults to `header,baggage,path,default`. A path prefix composes
@@ -126,7 +126,7 @@ Helpers produce the path prefix (and percent-encode the session id):
 
 | Client | Helper | Example |
 |---|---|---|
-| Go | `lm.PathBaseURL()` / `lm.PathBaseURL("openrouter")` | `{proxy}/s/t1/v1`, `{proxy}/s/t%201/u/openrouter` |
+| Go | `lm.PathBaseURL("")` / `lm.PathBaseURL("openrouter")` | `{proxy}/s/t1/v1`, `{proxy}/s/t%201/u/openrouter` |
 | Python | `lm.path_base_url()` / `lm.path_base_url("openrouter")` | same |
 | JS | `lm.pathBaseURL()` / `lm.pathBaseURL("openrouter")` | same |
 
@@ -155,7 +155,7 @@ one of:
    ```
 
 2. **Construct the SDK client per conversation** with
-   `base_url=lm.path_base_url()` (Go `lm.PathBaseURL()`, JS `lm.pathBaseURL()`).
+   `base_url=lm.path_base_url()` (Go `lm.PathBaseURL("")`, JS `lm.pathBaseURL()`).
    Those helpers use the session already stored on `lm`; they do not allocate a
    new one. Use a distinct `lm` (or session id) per conversation.
 
@@ -247,7 +247,7 @@ after setup (the snippet below).
 ```go
 func TestWeatherBlackBox(t *testing.T) {
     lm := llmentary.New(t)
-    t.Setenv("OPENAI_BASE_URL", lm.PathBaseURL())
+    t.Setenv("OPENAI_BASE_URL", lm.PathBaseURL(""))
     app := startApp(t) // constructs openai.NewClient after Setenv
     if err := app.Handle(context.Background(), "Weather in Paris?"); err != nil {
         t.Fatal(err)
