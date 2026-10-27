@@ -20,8 +20,9 @@ Install the client, the OpenAI SDK and a local test runner:
     npm install --save-dev llmentary openai "jest@^30"
     ```
 
-llmentary needs Node 18 or newer. Vitest 3 and Jest 30 still run on Node 18;
-newer Vitest majors need a newer Node. npm installs an optional `@llmentary/<platform>`
+This quickstart needs **Node 22 or newer**: current `openai` releases (v7)
+require it. llmentary itself supports Node 18 or newer; on an older Node, pin an
+`openai` major whose `engines` field allows your version. npm installs an optional `@llmentary/<platform>`
 package with the proxy binary. Set `LLMENTARY_BIN` to use a different binary.
 
 ## 2. Wire up the test runner
