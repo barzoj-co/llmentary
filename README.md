@@ -78,12 +78,12 @@ func TestWeatherTool(t *testing.T) {
 ```
 
 Black-box (path prefix, set before the app constructs its client). Go uses
-`lm.PathBaseURL()`. Python: `lm.path_base_url()`. JS: `lm.pathBaseURL()`.
+`lm.PathBaseURL("")`. Python: `lm.path_base_url()`. JS: `lm.pathBaseURL()`.
 
 ```go
 func TestWeatherBlackBox(t *testing.T) {
     lm := llmentary.New(t)
-    t.Setenv("OPENAI_BASE_URL", lm.PathBaseURL()) // {proxy}/s/{session}/v1
+    t.Setenv("OPENAI_BASE_URL", lm.PathBaseURL("")) // {proxy}/s/{session}/v1
     app := startApp(t)                           // NewClient reads the env
     if err := app.Handle(context.Background(), "Weather in Paris?"); err != nil {
         t.Fatal(err)
