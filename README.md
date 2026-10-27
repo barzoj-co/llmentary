@@ -1,134 +1,81 @@
 # llmentary
 
-Deterministic, trace-based integration testing for LLM apps, without an LLM judge.
-
 [![CI](https://github.com/barzoj-co/llmentary/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/barzoj-co/llmentary/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/barzoj-co/llmentary/graph/badge.svg)](https://codecov.io/gh/barzoj-co/llmentary)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/barzoj-co/llmentary/badge)](https://scorecard.dev/viewer/?uri=github.com/barzoj-co/llmentary)
 [![License: AGPL-3.0](https://img.shields.io/github/license/barzoj-co/llmentary)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/barzoj-co/llmentary?sort=semver)](https://github.com/barzoj-co/llmentary/releases)
 
-`llmentary` is a Go reverse proxy. Put it between your app and an OpenAI-compatible
-provider, run the real SDK call, then assert on the recorded trace: tool names, tool
-arguments, tool order, request parameters, finish reasons, token usage, retries,
-latency, TTFT, and provider errors. It works with unmodified services via a
-`/s/{session}/` path prefix or `--default-session`. Clients live in separate
-repositories and download or run this proxy binary.
+llmentary is a recording proxy for testing LLM applications. Point your OpenAI
+SDK at it, run your code against the real provider, and assert in your test on
+what was sent and received: tools offered and called, arguments, request
+parameters, number of calls, tokens, latency and errors. Clients are available
+for pytest, Vitest/Jest and `go test`.
+
+Documentation: **https://barzoj-co.github.io/llmentary/**
 
 ## Install
 
-Install the proxy from a [GitHub Release](https://github.com/barzoj-co/llmentary/releases),
-or from source:
+The Python platform wheels and the TypeScript package include the proxy binary.
+On a platform without a wheel, put `llmentary` on `PATH` or set `LLMENTARY_BIN`.
+
+```bash
+pip install "llmentary[pytest,openai]"     # Python
+npm install --save-dev llmentary           # TypeScript
+```
+
+For Go, install the proxy and the client separately:
 
 ```bash
 go install github.com/barzoj-co/llmentary/cmd/llmentary@latest
+go get github.com/barzoj-co/llmentary-go
 ```
 
-How release archives are named and verified is in [Binaries](docs/binaries.md).
+Release archives and signature verification: [docs/binaries.md](docs/binaries.md).
 
-## Quickstart
+## Example
 
-Start the proxy. With no `--upstream`, it defaults to
-`openai=https://api.openai.com/v1`:
-
-```bash
-llmentary \
-  --listen 127.0.0.1:7777 \
-  --control 127.0.0.1:7778
-```
-
-Then drive a real SDK call through the [Go client](https://github.com/barzoj-co/llmentary-go):
-
-```go
-package myapp_test
-
-import (
-    "context"
-    "os"
-    "testing"
-
-    llmentary "github.com/barzoj-co/llmentary-go"
-    "github.com/openai/openai-go"
-    "github.com/openai/openai-go/option"
-)
-
-func TestWeatherTool(t *testing.T) {
-    lm := llmentary.New(t)
-
-    client := openai.NewClient(
-        option.WithAPIKey(os.Getenv("OPENAI_API_KEY")),
-        option.WithBaseURL(lm.OpenAIBaseURL("openai")), // http://127.0.0.1:7777/u/openai
-        option.WithHTTPClient(lm.HTTPClient()),         // injects X-Test-Session
-        option.WithMaxRetries(0),
+```python
+def test_weather(llmentary):
+    client = OpenAI(
+        api_key=os.environ["OPENAI_API_KEY"],
+        base_url=llmentary.openai_base_url,
+        default_headers=llmentary.headers,
+    )
+    client.chat.completions.create(
+        model="gpt-4.1-mini",
+        messages=[{"role": "user", "content": "What's the weather in Paris?"}],
+        tools=[WEATHER_TOOL],
     )
 
-    // Drive your real app/agent. It should use the OpenAI client above and its
-    // normal tool schema/configuration.
-    if err := RunWeatherAgent(context.Background(), client, "Weather in Paris?"); err != nil {
-        t.Fatal(err)
-    }
-
-    assert := lm.Expect(context.Background())
-    assert.CallCount(1)
-    assert.ToolCalled("get_weather", llmentary.ArgsSubset(map[string]any{"city": "Paris"}))
-    assert.NoRetries()
-    assert.NoErrors()
-    assert.TokensBelow(1000)
-}
+    llmentary.expect().call_count(1).args_subset("get_weather", {"city": "Paris"})
 ```
 
-Black-box (path prefix, set before the app constructs its client). Go uses
-`lm.PathBaseURL("")`. Python: `lm.path_base_url()`. JS: `lm.pathBaseURL()`.
+The same test with the other clients: `lm := llmentary.New(t)` in
+[Go](https://barzoj-co.github.io/llmentary/getting-started/go/),
+`const lm = llmentary()` from `import { llmentary } from "llmentary/vitest"`
+(or `const { llmentary } = require("llmentary/jest")`) in
+[TypeScript](https://barzoj-co.github.io/llmentary/getting-started/typescript/).
 
-```go
-func TestWeatherBlackBox(t *testing.T) {
-    lm := llmentary.New(t)
-    t.Setenv("OPENAI_BASE_URL", lm.PathBaseURL("")) // {proxy}/s/{session}/v1
-    app := startApp(t)                           // NewClient reads the env
-    if err := app.Handle(context.Background(), "Weather in Paris?"); err != nil {
-        t.Fatal(err)
-    }
-    lm.Expect(context.Background()).CallCount(1)
-}
-```
+## What you can assert
 
-Sidecar compose, control tokens, `/healthz`, and import-time recipes:
-[Black-box and sidecar setups](docs/black-box.md).
-
-```bash
-OPENAI_API_KEY=sk-... go test ./...
-```
-
-## Assertions
-
-`lm.Expect(ctx)` waits until the session is quiet, then asserts on the recorded
-trace. Common checks: `CallCount`, `ToolCalled` / `ToolNotCalled` / `ToolOrder`,
-`ArgsSubset`, `NoRetries`, `NoErrors`, `TokensBelow`, `FinishReason`,
-`ResponseContains`, `LatencyBelow`, and `TTFTBelow`. Scope a subset with
-`lm.Wait(ctx).Query()` (Go) or `lm.query({...}).expect()` (JS).
-
-Trace structure is deterministic; the model's free text is not. See
-[Assertions: trace vs free text](docs/assertions-guide.md).
-
-Python tests use a pytest fixture named `llmentary`: `def test_weather(llmentary):`.
-JS/TS tests `import { llmentary } from "llmentary/vitest"` or
-`const { llmentary } = require("llmentary/jest")`, then `const lm = llmentary()`.
+- Tool calls: which tools were called or not, arguments, order, and whether
+  your app sent the results back.
+- Requests: model, parameters, prompt and system prompt content.
+- Reliability: call count, retries, HTTP errors, broken streams, cancelled
+  requests.
+- Budgets: token usage, latency, time to first token.
+- Isolation between concurrent sessions
+  ([Isolation spec](docs/isolation-spec.md), [test vectors](testdata/isolation/)),
+  and request validity against the OpenAI schema, including
+  [OpenAI-compatible providers](docs/openai-compatible.md).
 
 ## Documentation
 
-- [Black-box and sidecar setups](docs/black-box.md)
-- [Isolation spec](docs/isolation-spec.md) ([vectors](testdata/isolation/))
-- [Assertions: trace vs free text](docs/assertions-guide.md)
-- [Proxy configuration and control API](docs/proxy.md)
-- [Provider compatibility and SDK wiring](docs/providers.md)
-- [OpenAI-compatible providers](docs/openai-compatible.md)
-- [Recorded trace data model](docs/data-model.md)
-- [OTel GenAI mapping](docs/otel.md)
-- [Binaries](docs/binaries.md)
-- [Releasing](docs/releasing.md)
-- [GitHub Actions / CI](docs/ci.md)
-- [Troubleshooting](docs/troubleshooting.md)
-- [Contributing](CONTRIBUTING.md)
+- [Get started](https://barzoj-co.github.io/llmentary/getting-started/python/)
+- [Assertions reference](https://barzoj-co.github.io/llmentary/reference/assertions/)
+- [Proxy flags and control API](docs/proxy.md)
+- [Contributing](CONTRIBUTING.md), [Security](SECURITY.md)
 
 <!-- llmentary-repos:start -->
 ## llmentary repositories
@@ -143,4 +90,4 @@ JS/TS tests `import { llmentary } from "llmentary/vitest"` or
 
 ## License
 
-Licensed under [AGPL-3.0](LICENSE).
+The proxy is licensed under [AGPL-3.0](LICENSE). The client libraries are MIT.

@@ -1,7 +1,7 @@
 # Docs site for https://barzoj-co.github.io/llmentary/ (built by .github/workflows/docs.yml).
 # Local preview: pip install --require-hashes -r website/requirements.txt && mkdocs serve
 site_name: llmentary
-site_description: Deterministic, trace-based integration testing for LLM apps, without an LLM judge.
+site_description: Integration tests for LLM apps that assert on recorded requests and responses.
 site_url: https://barzoj-co.github.io/llmentary/
 repo_url: https://github.com/barzoj-co/llmentary
 repo_name: barzoj-co/llmentary
@@ -79,26 +79,34 @@ markdown_extensions:
 nav:
   - Home: index.md
   - Get started:
-      - Go: quickstart/go.md
-      - Python (pytest): quickstart/python.md
-      - TypeScript (Vitest / Jest): quickstart/typescript.md
-  - Guides:
-      - "Assertions: trace vs free text": assertions-guide.md
-      - Black-box and sidecar setups: black-box.md
-      - Providers and SDK wiring: providers.md
+      - Python: getting-started/python.md
+      - TypeScript: getting-started/typescript.md
+      - Go: getting-started/go.md
+  - How-to guides:
+      - Connect an existing app: how-to/connect-an-app.md
+      - Test one turn of a conversation: how-to/scope-a-turn.md
+      - Assert on model output: how-to/model-output.md
+      - Run against a service in another process: black-box.md
+      - Use another provider: providers.md
       - OpenAI-compatible providers: openai-compatible.md
-      - GitHub Actions / CI: ci.md
-      - OTel GenAI mapping: otel.md
+      - Run in GitHub Actions: ci.md
+      - Export traces as OpenTelemetry: otel.md
+      - Troubleshooting: troubleshooting.md
+  - Concepts: concepts.md
   - Reference:
-      - Client APIs: reference/clients.md
-      - Proxy configuration and control API: proxy.md
-      - Recorded trace data model: data-model.md
+      - Assertions: reference/assertions.md
+      - Proxy flags and control API: proxy.md
+      - Recorded data model: data-model.md
       - Session lifecycle: session-lifecycle.md
-      - Isolation spec: isolation-spec.md
-      - Client assertion contract: client-contract.md
-      - OpenAI-compatible CI matrix: compat-matrix.md
+      - Isolation rules: isolation-spec.md
+      - Client contract: client-contract.md
+      - Provider compatibility matrix: compat-matrix.md
       - Release binaries: binaries.md
-  - Troubleshooting: troubleshooting.md
   - Contributing:
       - contributing.md
       - Releasing: releasing.md
+
+not_in_nav: |
+  /quickstart/
+  /assertions-guide.md
+  /reference/clients.md

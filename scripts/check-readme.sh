@@ -65,8 +65,8 @@ headings = [line.strip() for line in readme.splitlines() if re.match(r"^#{1,6} "
 want = [
     "# llmentary",
     "## Install",
-    "## Quickstart",
-    "## Assertions",
+    "## Example",
+    "## What you can assert",
     "## Documentation",
     "## llmentary repositories",
     "## License",

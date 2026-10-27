@@ -9,7 +9,7 @@ Client helpers live in [llmentary-go](https://github.com/barzoj-co/llmentary-go)
 [llmentary-js](https://github.com/barzoj-co/llmentary-js). The pytest fixture and
 the JS export are `llmentary`. Example variables are `lm`.
 
-What to assert afterward is in [Assertions: trace vs free text](assertions-guide.md).
+What to assert afterward is in [Assertions](reference/assertions.md) and [Assert on model output](how-to/model-output.md).
 Flags, wait parameters, and the control API are in [Proxy](proxy.md). How to get
 the binary is in [Binaries](binaries.md).
 

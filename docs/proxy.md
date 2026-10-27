@@ -136,8 +136,7 @@ http://127.0.0.1:7777/v1/chat/completions
   -> https://api.openai.com/v1/chat/completions
 ```
 
-That combination used to repeat the version segment. The join rule below overlaps
-shared path prefixes, so both `https://api.openai.com` and `https://api.openai.com/v1`
+The join rule overlaps shared path prefixes, so both `https://api.openai.com` and `https://api.openai.com/v1`
 work with both `{proxy}/v1` and `{proxy}/u/openai`. When the request starts with a
 version-like segment (`v1`, `v1beta`, `v1alpha`) and the upstream base already contains
 one, the request's leading version is dropped so Gemini
@@ -251,7 +250,6 @@ byte-identical, except llmentary's own markers and HTTP hop-by-hop headers.
 | Remove hop-by-hop headers (`Connection`, `Proxy-Connection`, `Keep-Alive`, `Proxy-Authenticate`, `Proxy-Authorization`, `Te`, `Trailer`, `Transfer-Encoding`, `Upgrade`, and any header named by `Connection`) | always | RFC 7230: hop-by-hop headers are not forwarded. |
 | Set `Host` to the upstream host | always | Required to send the request to that host. |
 | Inject `traceparent` / `tracestate` | only `--propagate-trace=auto` | Continue or start a W3C trace for the proxy CLIENT span. Default `off` forwards the client's `traceparent` unchanged and adds none. |
-| `Accept-Encoding: identity` | **never** (removed) | The proxy no longer forces identity encoding. |
 
 The proxy does **not** set `Accept-Encoding: identity`. If the client sends
 `Accept-Encoding: gzip` (or any other value), that header is forwarded unchanged.
@@ -275,7 +273,7 @@ For recording:
   arrive.
 - If the upstream still returns gzip, the client receives the gzip bytes unchanged, while
   the recorded tee copy is decompressed for parsing. Gzip is stored decompressed
-  because `raw_response` is the parse input (and the E6 hash subject), not a
+  because `raw_response` is the parse input (and what the golden hash tests compare), not a
   wire-capture of the HTTP envelope. See `docs/data-model.md` § Gzip and
   raw-byte hashes.
 - A Chat Completions stream is considered complete when a `data: [DONE]` event is seen.
@@ -738,32 +736,11 @@ fires after headers keeps the upstream status (usually `200`) with
 after the terminal SSE event (`[DONE]` / `response.completed`) is **not**
 `client_aborted`.
 
-## Features
+## Limits
 
-- Reverse proxy binary: `cmd/llmentary`.
-- Named upstreams, including `/u/{name}/...` routing and bare-path routing for a single
-  upstream or a `default` upstream.
-- OpenAI Chat Completions parser for streaming and non-streaming responses.
-- OpenAI Responses parser for streaming and non-streaming responses.
-- Azure OpenAI paths with dated `api-version` query strings, deployment extraction, and
-  `/openai/v1`-style OpenAI-compatible URLs.
-- OpenRouter/OpenAI-compatible stream tolerance, including keep-alive comments and final
-  usage chunks.
-- Raw passthrough recording for unrecognized APIs.
-- Per-test sessions via `X-Test-Session`, W3C baggage, `/s/{session}/` path prefix, or `--default-session`.
-- Works with unmodified services (path-prefix or fixed-session sidecar mode).
-- Control API for health, session fetch, wait-until-quiet, OTLP/JSON export, and delete.
-- Secret redaction in recorded headers and selected URL query parameters.
-- Clients (separate repos) with trace queries and assertions for tools, JSON args, retries,
-  errors, usage, response content, latency, and TTFT.
-- One in-memory OTel CLIENT span per proxied attempt, using stable HTTP attributes plus
-  pinned GenAI attributes.
-
-## Status and roadmap
-
-The session store and OTLP span store are in memory. Clients live in their own
-repos. Planned in later versions of the proxy:
-
-- Anthropic Messages parsing in v2.
-- External OTLP export and stricter content-capture controls.
-- Record/replay cassettes, fault injection, packaging polish, and local TLS.
+- Sessions and spans are kept in memory and are lost when the proxy exits.
+- Responses are parsed for the OpenAI Chat Completions and Responses formats.
+  Other APIs, including Anthropic Messages, are forwarded and recorded as raw
+  bytes without parsed fields.
+- OTLP spans are served from the control API; the proxy does not push them to a
+  collector.
