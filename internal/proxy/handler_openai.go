@@ -351,7 +351,7 @@ func (ex *proxyExchange) copyAndFinish(w http.ResponseWriter, resp *http.Respons
 	clientGone := ex.r != nil && ex.r.Context().Err() != nil
 	if shouldAbortClientResponse(copyErr, copyWriteErr, errors.Is(copyErr, ErrUpstreamIdleTimeout), clientGone) {
 		// Flush already happened. Abort so the client does not see a
-		// clean chunked terminator / keep-alive end (DOG-47).
+		// clean chunked terminator / keep-alive end.
 		panic(http.ErrAbortHandler)
 	}
 	return nil

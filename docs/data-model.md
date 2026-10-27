@@ -351,7 +351,7 @@ abort. Passthrough calls without errors use `finish_reason: "unknown"`.
 | Upstream drop mid-stream | `failed` | absent | upstream (200) | true | `error` | `stream_truncated` / `upstream` | true | partial | absent |
 | Upstream 4xx/5xx | `failed` | absent | upstream | true | upstream | parsed / `upstream` | absent | absent | absent |
 
-Clients that implement DOG-58 (the releases following proxy 0.5.3) fail `no_errors()` on `failed` only; older client versions still fail it on a before-headers cancel because they check the error object. Use `aborted()` / `no_cancelled()` to assert cancels. `GET /sessions/{id}/wait?exclude_cancelled=true` counts only non-cancelled settled calls toward `min_calls`.
+Clients released after proxy 0.5.3 (Go 0.5.4, Python 0.7.3, JS 0.4.8) fail `no_errors()` on `failed` only; older client versions still fail it on a before-headers cancel because they check the error object. Use `aborted()` / `no_cancelled()` to assert cancels. `GET /sessions/{id}/wait?exclude_cancelled=true` counts only non-cancelled settled calls toward `min_calls`.
 
 ## Errors inside HTTP 200 streams
 

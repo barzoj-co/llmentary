@@ -75,7 +75,7 @@ func TestSpecLogFindings(t *testing.T) {
 	}
 	lines := warnLines(logBuf.String())
 	if len(lines) < 2 {
-		t.Fatalf("WARN lines=%d want DOG-3 summary+detail\n%s", len(lines), logBuf.String())
+		t.Fatalf("WARN lines=%d want summary+detail\n%s", len(lines), logBuf.String())
 	}
 	if !strings.Contains(lines[0], `msg="spec violations"`) {
 		t.Fatalf("summary=%s", lines[0])

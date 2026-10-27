@@ -6,7 +6,7 @@ llmentary-js. Implementations live in those repositories. This repo only
 defines the semantics and pins them with a reference checker in
 `tests/proxy` (`TestD9aClientContract`).
 
-Do not add these APIs to `pkg/llmentary` here (removed by LTL-SPLIT-1).
+Do not add these APIs to `pkg/llmentary` here (the clients live in their own repositories).
 
 The Go client reads `trace.Calls[i].Normalized.Validation`, `.SpecViolations`,
 and `.IgnoredFields`. Field names in `docs/data-model.md` are the wire names.

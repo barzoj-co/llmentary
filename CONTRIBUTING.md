@@ -90,7 +90,7 @@ and opens a pull request from that branch (a branch push alone does not start
 CI). Do not use `pull_request_target`.
 
 Maintainers approve the `openai-e2e` deployment on each PR (and on each push
-to `main`) before live e2e starts. Denis configures the required reviewers on
+to `main`) before live e2e starts. The maintainer configures the required reviewers on
 that environment. See `docs/ci.md`.
 
 On `pull_request`, GitHub evaluates `e2e-gate` from the PR's own workflow

@@ -22,7 +22,7 @@ func chatCall(id, session string, seq int, users ...string) Call {
 }
 
 func TestCheckEmptyOtherCorners(t *testing.T) {
-	x := Session{ID: "sess-x", Calls: []Call{chatCall("call_x1", "sess-x", 1, "What is my biological age?")}}
+	x := Session{ID: "sess-x", Calls: []Call{chatCall("call_x1", "sess-x", 1, "Where is my order?")}}
 
 	t.Run("unknown_y_fails_and_names_id", func(t *testing.T) {
 		ok, msg := Check(x, Session{ID: "never-created"}, Options{})
@@ -121,7 +121,7 @@ func TestCheckIgnoreAndMinChars(t *testing.T) {
 }
 
 func TestCheckMalformedAndBase64Request(t *testing.T) {
-	plain := []byte(`{"messages":[{"role":"user","content":"What is my biological age?"}]}`)
+	plain := []byte(`{"messages":[{"role":"user","content":"Where is my order?"}]}`)
 	b64 := []byte(`"` + base64.StdEncoding.EncodeToString(plain) + `"`)
 	x := Session{ID: "sess-x", Calls: []Call{{
 		ID: "call_x1", SessionID: "sess-x", Seq: 1, RawRequest: json.RawMessage(`not-json`),
@@ -136,7 +136,7 @@ func TestCheckMalformedAndBase64Request(t *testing.T) {
 
 	x2 := Session{ID: "sess-x", Calls: []Call{{
 		ID: "call_x1", SessionID: "sess-x", Seq: 1,
-		RawRequest: json.RawMessage(`{"messages":[{"role":"user","content":"What is my biological age?"},{"role":"user","content":"Continue from the saved thread."}]}`),
+		RawRequest: json.RawMessage(`{"messages":[{"role":"user","content":"Where is my order?"},{"role":"user","content":"Continue from the saved thread."}]}`),
 	}}}
 	ok, msg = Check(x2, y, Options{})
 	if ok || !strings.Contains(msg, "also introduced by") {
@@ -145,7 +145,7 @@ func TestCheckMalformedAndBase64Request(t *testing.T) {
 }
 
 func TestCheckSharedCallIDEmptyIDIgnored(t *testing.T) {
-	x := Session{ID: "sess-x", Calls: []Call{chatCall("", "sess-x", 1, "What is my biological age?")}}
+	x := Session{ID: "sess-x", Calls: []Call{chatCall("", "sess-x", 1, "Where is my order?")}}
 	y := Session{ID: "sess-y", Calls: []Call{chatCall("", "sess-y", 1, "A different long enough question")}}
 	ok, msg := Check(x, y, Options{})
 	if !ok {

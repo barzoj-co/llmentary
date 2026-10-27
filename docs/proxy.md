@@ -81,7 +81,7 @@ a bare second count; `0` disables). Timeouts apply per call, not per session.
   upstream_idle_timeout`, `error.source: proxy`, and never `error.mid_stream`.
   The `INFO proxy response` line includes `error=upstream_idle_timeout` and
   `stream_truncated=true` when the stream was incomplete.
-- A client cancel that wins the race is still `client_aborted` (DOG-15 / DOG-28).
+- A client cancel that wins the race is still `client_aborted`.
 
 `GET /config` reports the effective values as Go duration strings (`"0s"` when
 off). Local TLS is not implemented; there is no `--tls` flag.
@@ -203,7 +203,7 @@ Each call is stored in one session. `--session-from` is an ordered list of sourc
    The prefix is stripped before routing and forwarding. It composes with named
    upstreams: `/s/{session}/u/{name}/...`. Recorded calls get `session_source:"path"`.
 4. `default`: `--default-session` (default `default`). This is the sidecar recipe:
-   `--default-session=voice-e2e` records every untagged call on that session.
+   `--default-session=app-e2e` records every untagged call on that session.
 
 When `default` is not in `--session-from` and a call has no usable marker, the
 proxy answers locally with `400` and an OpenAI-shaped JSON error
@@ -227,8 +227,8 @@ routing skips the allow-list so provider-native paths
 Bare paths that fail the allow-list get a local `404` JSON error
 (`type`/`code` `llmentary_unknown_path`) and are **not** forwarded. The
 message includes `did you mean /s/<segment>/...?` when the extra leading
-segment looks like a session-id typo (`/dogfood/v1/...` suggests
-`/s/dogfood/v1/...`). Otherwise it mentions `--allow-path-prefix <segment>`
+segment looks like a session-id typo (`/myapp/v1/...` suggests
+`/s/myapp/v1/...`). Otherwise it mentions `--allow-path-prefix <segment>`
 (and `LLMENTARY_ALLOW_PATH_PREFIXES`). One WARN line is written (`method`,
 `path`; no header values).
 
@@ -613,7 +613,7 @@ The **release version** is the single source of truth. `--version`,
 A `devel` build (`go build` / `go install` without ldflags, or CI e2e)
 leaves the packaged `info.version` (and `# x-release-please-version`)
 so sha256(served) equals the file shipped in client packages. Clients
-print the `GET /version` string in the test header (DOG-13).
+print the `GET /version` string in the test header.
 
 ## Spec validation
 

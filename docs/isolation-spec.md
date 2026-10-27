@@ -7,7 +7,7 @@ instead of restating the rules. Normative fixtures live in
 those JSON files and must produce the same verdicts.
 
 Related: [Black-box: proving isolation](black-box.md#proving-isolation),
-[DOG-20](black-box.md#what-a-path-prefix-isolates), [DOG-22](isolation-spec.md#rule-3-no-foreign-user-turn).
+[What a path prefix isolates](black-box.md#what-a-path-prefix-isolates), [Rule 3: no foreign user turn](#rule-3-no-foreign-user-turn).
 
 ## Verdict
 
@@ -36,7 +36,7 @@ flowchart TD
 
 | Option | Default | Meaning |
 |---|---|---|
-| `allow_empty` | `false` | Empty **X** or empty **Y** is a failure unless this is set (DOG-21, DOG-32). |
+| `allow_empty` | `false` | Empty **X** or empty **Y** is a failure unless this is set. |
 | `min_chars` | `8` | Normalized texts shorter than this are ignored for rule 3. |
 | `ignore_texts` | `[]` | Extra texts ignored for rule 3 after normalization. |
 
@@ -131,7 +131,7 @@ not a vacuous pass. `allow_empty` covers both sides; there is no separate
 ```python
 lm_a = llmentary()  # or Go llmentary.New(t) / JS llmentary()
 lm_b = llmentary()
-# both apps send "What is my biological age?"
+# both apps send "Where is my order?"
 lm_a.expect().isolated_from(lm_b)  # pass
 lm_b.expect().isolated_from(lm_a)  # pass
 ```

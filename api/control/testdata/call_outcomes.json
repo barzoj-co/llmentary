@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "Shared outcome vector (DOG-58). Each case is a settled call record in proxy JSON shape and the terminal outcome every implementation must derive. Cases with client_only=true carry a recorded outcome field and are skipped by the proxy classifier test.",
+  "description": "Shared outcome vector. Each case is a settled call record in proxy JSON shape and the terminal outcome every implementation must derive. Cases with client_only=true carry a recorded outcome field and are skipped by the proxy classifier test.",
   "cases": [
     {"name": "complete_stream", "outcome": "committed",
      "call": {"id": "call_1", "seq": 1, "started_at": "2026-10-26T10:00:00Z", "ended_at": "2026-10-26T10:00:01Z", "stream": true, "http_status": 200, "upstream_called": true, "client_aborted": false, "normalized": {"finish_reason": "stop"}}},

@@ -14,7 +14,7 @@
         "raw_request": {
           "model": "gpt-4.1-nano",
           "input": [
-            {"role": "user", "content": [{"type": "input_text", "text": "What is my biological age?"}]},
+            {"role": "user", "content": [{"type": "input_text", "text": "Where is my order?"}]},
             {"role": "assistant", "content": [{"type": "output_text", "text": "I need more data."}]},
             {"role": "user", "content": [{"type": "input_text", "text": "Continue from the saved thread."}]}
           ]
@@ -32,7 +32,7 @@
         "raw_request": {
           "model": "gpt-4.1-nano",
           "input": [
-            {"role": "user", "content": [{"type": "input_text", "text": "What is my biological age?"}]}
+            {"role": "user", "content": [{"type": "input_text", "text": "Where is my order?"}]}
           ]
         }
       }
@@ -41,7 +41,7 @@
   "expect": {
     "isolated": false,
     "message_contains": [
-      "user text 'What is my biological age?'",
+      "user text 'Where is my order?'",
       "also introduced by session sess-y #1 (call_y1)",
       "appears in session sess-x #1 (call_x1)"
     ]

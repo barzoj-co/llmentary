@@ -1,7 +1,7 @@
 {
   "retrieved": "2026-10-18",
   "model": "gpt-4.1-nano",
-  "source": "Live probes against https://api.openai.com on 2026-10-18, plus LTL-API-2 ticket table L1–L8.",
+  "source": "Live probes against https://api.openai.com on 2026-10-18, plus fixture rows L1–L8.",
   "prediction": "Under relaxed, a request-side spec_violation predicts HTTP 400, and its absence predicts non-400.",
   "rows": {
     "L1_chat": {

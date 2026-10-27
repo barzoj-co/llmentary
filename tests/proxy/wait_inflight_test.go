@@ -19,7 +19,7 @@ import (
 	"github.com/barzoj-co/llmentary/internal/proxy"
 )
 
-const waitInflightSecret = "SECRET-DOG38-TOKEN-do-not-leak"
+const waitInflightSecret = "SECRET-WAIT-TOKEN-do-not-leak"
 
 func TestWaitTimeoutAwaitingHeaders(t *testing.T) {
 	logBuf := &syncLogBuf{}
@@ -282,10 +282,10 @@ func TestGetSessionIncludeInFlight(t *testing.T) {
 	}
 }
 
-func TestWaitDOG17Unchanged(t *testing.T) {
+func TestWaitMissingSessionUnchanged(t *testing.T) {
 	p := startSpecProxy(t, "off", "relaxed", chatOK())
 	start := time.Now()
-	status, _, body := getJSON(t, p.controlURL+"/sessions/ghost-dog17/wait?timeout=3s&quiet=200ms&min_calls=0")
+	status, _, body := getJSON(t, p.controlURL+"/sessions/ghost-case17/wait?timeout=3s&quiet=200ms&min_calls=0")
 	if status != http.StatusNotFound {
 		t.Fatalf("min_calls=0 status=%d body=%v", status, body)
 	}
@@ -297,7 +297,7 @@ func TestWaitDOG17Unchanged(t *testing.T) {
 		t.Fatalf("error=%v", errObj)
 	}
 	start = time.Now()
-	status, _, body = getJSON(t, p.controlURL+"/sessions/ghost-dog17b/wait?timeout=200ms&quiet=50ms&min_calls=1")
+	status, _, body = getJSON(t, p.controlURL+"/sessions/ghost-case17b/wait?timeout=200ms&quiet=50ms&min_calls=1")
 	if status != http.StatusGatewayTimeout {
 		t.Fatalf("min_calls=1 status=%d body=%v", status, body)
 	}
@@ -446,7 +446,7 @@ func TestWaitInFlightRedactsUpstreamUserinfo(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		cloned.User = url.UserPassword("dog38", "hunter2-wait")
+		cloned.User = url.UserPassword("case38", "hunter2-wait")
 		cfg.Upstreams["default"] = cloned
 	})
 	sid := newSession()
@@ -462,7 +462,7 @@ func TestWaitInFlightRedactsUpstreamUserinfo(t *testing.T) {
 	}
 	item := assertWaitTimeoutInFlight(t, body, 1, 0, 1)
 	raw, _ := json.Marshal(body)
-	if strings.Contains(string(raw), "hunter2-wait") || strings.Contains(string(raw), "dog38") {
+	if strings.Contains(string(raw), "hunter2-wait") || strings.Contains(string(raw), "case38") {
 		t.Fatalf("userinfo leaked: %s", raw)
 	}
 	if fmtString(item["path"]) != "/v1/responses" {

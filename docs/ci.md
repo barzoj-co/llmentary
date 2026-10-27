@@ -198,7 +198,7 @@ not reference that environment, so they run without approval.
 `scripts/check-secret-scope.sh` enforces both rules.
 
 Each non-fork PR (and each push to `main`) waits for a maintainer to approve
-the `openai-e2e` deployment before the live tests start. Denis configures
+the `openai-e2e` deployment before the live tests start. The maintainer configures
 required reviewers on that environment. If approval is rejected or times out,
 `e2e` is `failure`/`cancelled` and `e2e-gate` goes red. That is intended.
 

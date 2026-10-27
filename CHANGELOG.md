@@ -5,8 +5,8 @@
 
 ### Bug Fixes
 
-* add wait exclude_cancelled, cancel outcome fault tests and abort record docs (DOG-58 P4-P6) ([#79](https://github.com/barzoj-co/llmentary/issues/79)) ([88e4b58](https://github.com/barzoj-co/llmentary/commit/88e4b581ee1c45d15ed183085a5bdc6c2669ca72))
-* record call outcome (committed/cancelled/failed) and tag client aborts (DOG-58 P1-P3) ([#77](https://github.com/barzoj-co/llmentary/issues/77)) ([39a9790](https://github.com/barzoj-co/llmentary/commit/39a9790e73297ba6f24ca70e79b52e416583eaef))
+* add wait exclude_cancelled, cancel outcome fault tests and abort record docs ([#79](https://github.com/barzoj-co/llmentary/issues/79)) ([88e4b58](https://github.com/barzoj-co/llmentary/commit/88e4b581ee1c45d15ed183085a5bdc6c2669ca72))
+* record call outcome (committed/cancelled/failed) and tag client aborts ([#77](https://github.com/barzoj-co/llmentary/issues/77)) ([39a9790](https://github.com/barzoj-co/llmentary/commit/39a9790e73297ba6f24ca70e79b52e416583eaef))
 
 ## [0.5.2](https://github.com/barzoj-co/llmentary/compare/v0.5.1...v0.5.2) (2026-10-26)
 
@@ -109,15 +109,15 @@
 
 ### Features
 
-* DOG-1 — path-prefix session attribution and pass-through forwarding ([#18](https://github.com/barzoj-co/llmentary/issues/18)) ([91388e2](https://github.com/barzoj-co/llmentary/commit/91388e2e399295f564519ce37ffc5e034311116f))
-* DOG-2 — control API list, wait min_calls, JSON errors, and version ([#20](https://github.com/barzoj-co/llmentary/issues/20)) ([0eae1f4](https://github.com/barzoj-co/llmentary/commit/0eae1f49945023b4cb3e4e5566114054ea4ad352))
-* DOG-3 — spec validation WARN log per finding ([#17](https://github.com/barzoj-co/llmentary/issues/17)) ([61bfa5e](https://github.com/barzoj-co/llmentary/commit/61bfa5e6a60aa4e97e50765fc07c32fa98cb5885))
+* path-prefix session attribution and pass-through forwarding ([#18](https://github.com/barzoj-co/llmentary/issues/18)) ([91388e2](https://github.com/barzoj-co/llmentary/commit/91388e2e399295f564519ce37ffc5e034311116f))
+* control API list, wait min_calls, JSON errors, and version ([#20](https://github.com/barzoj-co/llmentary/issues/20)) ([0eae1f4](https://github.com/barzoj-co/llmentary/commit/0eae1f49945023b4cb3e4e5566114054ea4ad352))
+* spec validation WARN log per finding ([#17](https://github.com/barzoj-co/llmentary/issues/17)) ([61bfa5e](https://github.com/barzoj-co/llmentary/commit/61bfa5e6a60aa4e97e50765fc07c32fa98cb5885))
 
 
 ### Bug Fixes
 
-* DOG-5 — default OpenAI upstream, overlap path join, and loop guard ([#15](https://github.com/barzoj-co/llmentary/issues/15)) ([b6237dc](https://github.com/barzoj-co/llmentary/commit/b6237dc17dc9d0c86cb9d4cc6d39e8fa82130392))
-* DOG-9 — HTTP 4xx/5xx JSON errors are not mid_stream ([#19](https://github.com/barzoj-co/llmentary/issues/19)) ([f276aae](https://github.com/barzoj-co/llmentary/commit/f276aae9514d8b234aa7c36b3ab0b54691a0d8f9))
+* default OpenAI upstream, overlap path join, and loop guard ([#15](https://github.com/barzoj-co/llmentary/issues/15)) ([b6237dc](https://github.com/barzoj-co/llmentary/commit/b6237dc17dc9d0c86cb9d4cc6d39e8fa82130392))
+* HTTP 4xx/5xx JSON errors are not mid_stream ([#19](https://github.com/barzoj-co/llmentary/issues/19)) ([f276aae](https://github.com/barzoj-co/llmentary/commit/f276aae9514d8b234aa7c36b3ab0b54691a0d8f9))
 
 ## 0.1.0 (2026-10-19)
 

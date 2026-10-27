@@ -17,7 +17,7 @@ func TestOverlapJoinTable(t *testing.T) {
 		wantPath string
 		wantRawQ string
 	}{
-		// Repro rows from DOG-5 (echo upstream at /api/v1).
+		// Repro rows (echo upstream at /api/v1).
 		{
 			name:     "repro_v1_on_api_v1",
 			base:     "http://fake/api/v1",

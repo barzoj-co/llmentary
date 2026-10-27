@@ -112,7 +112,7 @@ paths:
           description: >
             When set to in_flight, the session object also has an in_flight
             array next to calls (never inside calls). Omitted on a normal GET
-            so the DOG-36 settled-only contract holds.
+            so the settled-only contract holds.
       responses:
         '200':
           description: session
@@ -532,7 +532,7 @@ components:
             - cancelled
             - failed
           description: >-
-            Terminal state once settled (DOG-58). Omitted in flight. The abort
+            Terminal state once settled. Omitted in flight. The abort
             phase never changes it.
         upstream_called:
           type: boolean
@@ -603,7 +603,7 @@ components:
       description: >
         Wait timed out before min_calls and quiet were satisfied.
         error.active and error.in_flight describe calls that are still
-        running. calls remains settled-only (DOG-36).
+        running. calls remains settled-only.
       content:
         application/json:
           schema:

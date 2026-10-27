@@ -116,11 +116,11 @@ reads need the env set before the module loads.
 
 | SDK | Variable | When it is read | Verified |
 |---|---|---|---|
-| openai-go v3 | `OPENAI_BASE_URL` | `DefaultClientOptions()` inside `NewClient` | not verified in this repo (construction-time in a voice agent) |
+| openai-go v3 | `OPENAI_BASE_URL` | `DefaultClientOptions()` inside `NewClient` | not verified in this repo (read at client construction time) |
 | openai-python | `OPENAI_BASE_URL` | client construction (`OpenAI()`) | not verified in this repo |
 | openai-node | `OPENAI_BASE_URL` | client construction (`new OpenAI()`) | not verified in this repo |
 | LangChain `ChatOpenAI` | `base_url=` argument, or `OPENAI_API_BASE` / `OPENAI_BASE_URL` | construction | not verified in this repo |
-| Custom wrapper (hard-coded URL) | none | n/a — add a hook or constructor argument | not verified; a chat service's custom OpenRouter wrapper needed an app hook |
+| Custom wrapper (hard-coded URL) | none | n/a — add a hook or constructor argument | not verified; needs an app hook |
 
 Helpers produce the path prefix (and percent-encode the session id):
 
@@ -190,7 +190,7 @@ the JSON vectors in [`testdata/isolation/`](../testdata/isolation/README.md):
 4. Empty **X** or empty **Y** (never created, mistyped, unused) fails unless
    `allow_empty` is set. `isolated_from(ghost)` is not a vacuous pass.
 
-Parallel same-scenario (the usual dogfood check):
+Parallel same-scenario (the usual isolation check):
 
 ```python
 # two app boots, same icebreaker
@@ -202,7 +202,7 @@ A third session that replays A's first user message as history (checkpointer,
 Mongo thread, copied conversation) fails rule 3 with the spec message.
 
 **Attribution:** that failure names the compared session when it sent the
-same text. If A and B both asked "What is my biological age?" and C continues
+same text. If A and B both asked "Where is my order?" and C continues
 A's thread, `C.isolated_from(B)` fails even though B never touched A's
 Mongo. To attribute a leak, put a nonce or run id in each session's first
 user message; keep the canned question only for `A ⊥ B`. See
@@ -283,11 +283,11 @@ listener; workers talking to `:7777` do not send it.
 
 ## Timeouts for multi-call graphs
 
-Wait defaults (after DOG-7) are `timeout=30s` and `quiet=500ms`.
+Wait defaults are `timeout=30s` and `quiet=500ms`.
 `min_calls` is `0` unless you set it.
 
 Raise `timeout` when a worker fans out several model calls. Use `min_calls`
-when the trigger is async (a queue, a voice-agent job, an HTTP 202): wait until
+when the trigger is async (a queue, a background job, an HTTP 202): wait until
 that many **settled** calls exist, then the quiet period. In-flight
 placeholders are not counted. A session that was
 never created does not succeed at `min_calls=0`; you get `404`

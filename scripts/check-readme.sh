@@ -34,7 +34,7 @@ done
 canonical="$(mktemp)"
 trap 'rm -f "$canonical"' EXIT
 cat >"$canonical" <<'EOF'
-<!-- ltl-repos:start -->
+<!-- llmentary-repos:start -->
 ## llmentary repositories
 
 | Repository | What | License |
@@ -43,7 +43,7 @@ cat >"$canonical" <<'EOF'
 | [llmentary-go](https://github.com/barzoj-co/llmentary-go) | Go client for `go test` | MIT |
 | [llmentary-python](https://github.com/barzoj-co/llmentary-python) | Python client and pytest plugin | MIT |
 | [llmentary-js](https://github.com/barzoj-co/llmentary-js) | TypeScript/JavaScript client for Vitest and Jest | MIT |
-<!-- ltl-repos:end -->
+<!-- llmentary-repos:end -->
 EOF
 
 if ! python3 - "$readme" "$canonical" "${root}" <<'PY'; then
@@ -58,7 +58,7 @@ readme = readme_path.read_text(encoding="utf-8")
 failed = False
 
 if block not in readme:
-    print("README.md is missing the canonical ltl-repos cross-link block", file=sys.stderr)
+    print("README.md is missing the canonical llmentary-repos cross-link block", file=sys.stderr)
     failed = True
 
 headings = [line.strip() for line in readme.splitlines() if re.match(r"^#{1,6} ", line)]
