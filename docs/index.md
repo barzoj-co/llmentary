@@ -1,6 +1,6 @@
 ---
 title: llmentary
-description: Programmatic, deterministic behavior and contract tests for LLM apps. Assertions in code, not an LLM judge.
+description: Integration tests for LLM apps that assert on the recorded requests and responses, not on a judge model's opinion.
 hide:
   - navigation
   - toc
@@ -8,157 +8,110 @@ hide:
 
 <div class="lm-hero" markdown>
 
-# Test what your LLM app actually sent and received
+# llmentary
 
-**llmentary** gives you programmatic, deterministic behavior and contract tests
-for LLM apps: assertions in code on the recorded trace, instead of an LLM judge.
+Integration tests for LLM applications. Your code calls the real provider
+through a local recording proxy, and your test asserts on what was sent and
+received: which tools were offered and called, with which arguments, how many
+calls, tokens, latency, errors.
 
-[Get started](quickstart/go.md){ .md-button .md-button--primary }
-[View on GitHub](https://github.com/barzoj-co/llmentary){ .md-button }
-
-</div>
-
-## One test, real SDK, real provider
-
-Put the llmentary proxy between your app and an OpenAI-compatible provider, run
-your real code, then assert on what went over the wire:
-
-=== "Go"
-
-    ```go
-    func TestWeatherTool(t *testing.T) {
-        lm := llmentary.New(t)
-
-        client := openai.NewClient(
-            option.WithAPIKey(os.Getenv("OPENAI_API_KEY")),
-            option.WithBaseURL(lm.OpenAIBaseURL("openai")), // http://127.0.0.1:7777/u/openai
-            option.WithHTTPClient(lm.HTTPClient()),         // injects X-Test-Session
-            option.WithMaxRetries(0),
-        )
-
-        // Drive your real app/agent with the client above.
-        if err := RunWeatherAgent(context.Background(), client, "Weather in Paris?"); err != nil {
-            t.Fatal(err)
-        }
-
-        assert := lm.Expect(context.Background())
-        assert.CallCount(1)
-        assert.ToolCalled("get_weather", llmentary.ArgsSubset(map[string]any{"city": "Paris"}))
-        assert.NoRetries()
-        assert.NoErrors()
-        assert.TokensBelow(1000)
-    }
-    ```
-
-=== "Python (pytest)"
-
-    ```python
-    def test_tool_flow(llmentary):
-        client = OpenAI(
-            api_key=os.environ["OPENAI_API_KEY"],
-            base_url=llmentary.openai_base_url,
-            default_headers=llmentary.headers,
-        )
-        # ... drive your app with this client ...
-
-        llmentary.expect().call_count(2).tool_called("get_weather").args_subset(
-            "get_weather", {"city": "Paris"}
-        ).tool_result_fed_back("get_weather").no_errors()
-    ```
-
-=== "TypeScript (Vitest)"
-
-    ```ts
-    test("uses the weather tool", async () => {
-      const lm = llmentary();
-      const openai = new OpenAI(lm.openAI());
-      // ... drive your app with this client ...
-
-      await lm.expect().toolCalled("lookup_weather", { argsSubset: { city: "Amsterdam" } });
-    });
-    ```
-
-The assertion waits until the session is quiet, then checks the recorded calls.
-No second model grades the first one.
-
-## How it works
-
-<div class="grid cards" markdown>
-
--   :material-swap-horizontal:{ .lg .middle } **1. Proxy in the middle**
-
-    ---
-
-    `llmentary` is a Go reverse proxy. Point an OpenAI-compatible SDK at it;
-    it forwards to the real provider and records every call per test session.
-
--   :material-play-circle-outline:{ .lg .middle } **2. Run your real code**
-
-    ---
-
-    Your app or agent makes its normal SDK calls. Sessions are attributed by
-    the `X-Test-Session` header, or by a `/s/{session}/` path prefix for
-    unmodified services.
-
--   :material-check-decagram-outline:{ .lg .middle } **3. Assert in code**
-
-    ---
-
-    Assert on the trace from `go test`, pytest, Vitest or Jest: tools, arguments,
-    order, request params, finish reasons, tokens, retries, latency, TTFT and
-    provider errors.
+[Get started](getting-started/python.md){ .md-button .md-button--primary }
+[GitHub](https://github.com/barzoj-co/llmentary){ .md-button }
 
 </div>
 
-## What you can assert
+## Example
 
-| Area | Examples |
-|---|---|
-| Tools | `ToolCalled` / `ToolNotCalled` / `ToolOrder`, `ArgsSubset`, tool results fed back |
-| Calls | `CallCount`, request parameters, model, finish reason |
-| Reliability | `NoRetries`, `NoErrors`, HTTP status, client aborts |
-| Budgets | `TokensBelow`, `LatencyBelow`, `TTFTBelow` |
-| Spec | `NoSpecViolations`, `NoIgnoredFields` against the OpenAI spec |
-| Isolation | `IsolatedFrom`: prove two sessions never saw each other's turns |
+```python
+def test_model_calls_weather_tool(llmentary):
+    client = OpenAI(
+        api_key=os.environ["OPENAI_API_KEY"],
+        base_url=llmentary.openai_base_url,
+        default_headers=llmentary.headers,
+    )
+    client.chat.completions.create(
+        model="gpt-4.1-mini",
+        messages=[{"role": "user", "content": "What's the weather in Paris?"}],
+        tools=[WEATHER_TOOL],
+    )
 
-Trace structure is deterministic; the model's free text is not. Read
-[Assertions: trace vs free text](assertions-guide.md) for where to draw the line.
+    llmentary.expect().call_count(1).args_subset("get_weather", {"city": "Paris"})
+```
 
-## Pick your language
+Change the expected city to `"Berlin"` and the test fails with the recorded
+trace:
 
-<div class="grid cards" markdown>
+```text
+AssertionError: expected a 'get_weather' call with argument subset {'city': 'Berlin'}
 
--   :fontawesome-brands-golang:{ .lg .middle } **Go**
+llmentary session test_model_calls_weather_tool-1a69…: 1 captured call(s)
+  #1 (call_1) api=chat_completions model=gpt-4.1-mini status=ok, http=200,
+     finish=tool_calls, latency=1410.0ms, src=header, tokens=43/14 tools=[get_weather]
+```
 
-    ---
+The same test in [Go](getting-started/go.md) and
+[TypeScript](getting-started/typescript.md).
 
-    `go get github.com/barzoj-co/llmentary-go`
+## Why assert on the trace
 
-    [:octicons-arrow-right-24: Go quickstart](quickstart/go.md)
+The model's wording changes from run to run. The structure of the exchange
+usually does not: the tools your app offered, the tool the model chose, the
+arguments, the tool result your app sent back, the request parameters, the
+number of retries. Those are recorded byte for byte, so assertions on them
+pass or fail for a reason you can read in the diff. There is no second model
+grading the first.
 
--   :fontawesome-brands-python:{ .lg .middle } **Python**
+For the parts that are free text, see
+[Assert on model output](how-to/model-output.md).
 
-    ---
+## Install
 
-    `pip install "llmentary[pytest,openai]"`
-
-    [:octicons-arrow-right-24: pytest quickstart](quickstart/python.md)
-
--   :material-language-typescript:{ .lg .middle } **TypeScript**
-
-    ---
-
-    `npm install --save-dev llmentary`
-
-    [:octicons-arrow-right-24: Vitest / Jest quickstart](quickstart/typescript.md)
-
-</div>
-
-## Repositories
-
-| Repository | What | License |
+| Language | Package | Proxy binary |
 |---|---|---|
-| [llmentary](https://github.com/barzoj-co/llmentary) | Recording proxy binary (Go) | AGPL-3.0 |
-| [llmentary-go](https://github.com/barzoj-co/llmentary-go) | Go client for `go test` | MIT |
-| [llmentary-python](https://github.com/barzoj-co/llmentary-python) | Python client and pytest plugin | MIT |
-| [llmentary-js](https://github.com/barzoj-co/llmentary-js) | TypeScript/JavaScript client for Vitest and Jest | MIT |
+| Python (pytest) | `pip install "llmentary[pytest,openai]"` | included in the wheel |
+| TypeScript (Vitest, Jest) | `npm install --save-dev llmentary` | included via an optional platform package |
+| Go (`go test`) | `go get github.com/barzoj-co/llmentary-go` | install separately: [Release binaries](binaries.md) |
+
+Works with the OpenAI SDKs and any OpenAI-compatible endpoint
+([providers](providers.md)). Chat Completions and Responses API, streaming and
+non-streaming.
+
+## Documentation
+
+<div class="grid cards" markdown>
+
+-   **Get started**
+
+    ---
+
+    Write and run a first test in [Python](getting-started/python.md),
+    [TypeScript](getting-started/typescript.md) or [Go](getting-started/go.md).
+
+-   **How-to guides**
+
+    ---
+
+    [Connect an existing app](how-to/connect-an-app.md),
+    [test one turn of a conversation](how-to/scope-a-turn.md),
+    [run in CI](ci.md).
+
+-   **Concepts**
+
+    ---
+
+    [How llmentary works](concepts.md): the proxy, sessions, waiting,
+    call outcomes.
+
+-   **Reference**
+
+    ---
+
+    [Assertions](reference/assertions.md),
+    [proxy flags and control API](proxy.md),
+    [recorded data model](data-model.md).
+
+</div>
+
+## License
+
+The proxy is AGPL-3.0. The Go, Python and TypeScript clients are MIT.

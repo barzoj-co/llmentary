@@ -60,7 +60,7 @@ Triggers are `push` to `main`, `pull_request`, and `workflow_dispatch`.
   a changed verdict fails with a readable diff. Optional real engines: set
   `LLMENTARY_COMPAT_ENGINES=1` and `LLMENTARY_COMPAT_ENGINE_URLS`.
 - `perf`: dedicated job, `GOMAXPROCS=2`, runs `go test -tags=perf` in
-  `tests/proxy` for validation/lint p99 budgets (I2–I5).
+  `tests/proxy` for validation and lint p99 latency budgets.
 - `codegen-check` also runs `scripts/prove-a6.sh` (editing `relax-overlay.yaml`
   without regenerating the embed must fail).
 
