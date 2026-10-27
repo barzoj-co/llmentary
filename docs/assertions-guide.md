@@ -77,8 +77,8 @@ After (trace deterministic, answer tolerant):
 ```python
 lm.expect().tool_result_in_prompt("get_order")
 lm.expect().prompt_contains("SEED_Order_Status")
-lm.expect().final_response_mentions_any("moderate", "41.3")
-# answer_mentions_any(answer, "ten minutes", "shipped", normalize_numbers=True)
+lm.expect().final_response_mentions_any("shipped", "delay")
+# answer_mentions_any(answer, "ten minutes", "10 minutes", normalize_numbers=True)
 ```
 
 ### A weather tool call
